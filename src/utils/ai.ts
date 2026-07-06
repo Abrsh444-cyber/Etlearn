@@ -48,9 +48,12 @@ export async function submitClaudeChat(
         })
       });
 
-      if (response.status === 404) {
-        console.warn('[EthioLearn Client] Server returned 404 for chat endpoint. Bypassing proxy and utilizing direct client-side fallback.');
-        useFallback = true;
+      if (response.status === 404 || response.status === 403) {
+        console.warn(`[EthioLearn Client] Server returned status ${response.status} for chat endpoint.`);
+        if (apiKey && !['no-key', 'no-api-key', 'undefined', 'null', 'none'].includes(apiKey.trim().toLowerCase())) {
+          console.warn('[EthioLearn Client] User-provided API key detected, falling back to direct client-side execution.');
+          useFallback = true;
+        }
       }
     } catch (fetchErr) {
       console.warn('[EthioLearn Client] Failed to reach the Express backend server. Bypassing proxy and utilizing direct client-side fallback:', fetchErr);

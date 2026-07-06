@@ -14,9 +14,8 @@ import { DynamoDBDocumentClient, PutCommand, GetCommand } from '@aws-sdk/lib-dyn
 
 dotenv.config();
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+const PORT = 3000;
 
   // In-memory persistent master key cache for students
   let cachedMasterApiKey: string | undefined = undefined;
@@ -1080,24 +1079,34 @@ Explain with enthusiasm when they ask about features like flashcards, customizab
   });
 
   // Serve static assets in production or use Vite developer middleware
-  if (process.env.NODE_ENV !== 'production') {
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
+  if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+    (async () => {
+      const { createServer: createViteServer } = await import('vite');
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa',
+      });
+      app.use(vite.middlewares);
+      
+      app.listen(PORT, '0.0.0.0', () => {
+        console.log(`[EthioLearn Server] bound on port ${PORT} (dev mode with Vite)`);
+      });
+    })();
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
+      if (req.path.startsWith('/api')) {
+        return res.status(404).json({ error: `API endpoint ${req.path} not found.` });
+      }
       res.sendFile(path.join(distPath, 'index.html'));
     });
+
+    if (!process.env.VERCEL) {
+      app.listen(PORT, '0.0.0.0', () => {
+        console.log(`[EthioLearn Server] bound on port ${PORT} (production mode)`);
+      });
+    }
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[EthioLearn Server] bound on port ${PORT}`);
-  });
-}
-
-startServer();
+export default app;
