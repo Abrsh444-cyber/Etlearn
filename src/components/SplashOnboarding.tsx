@@ -706,10 +706,10 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
   };
 
   return (
-    <div className="fixed inset-0 bg-[#070707] z-50 flex flex-col items-center justify-center overflow-y-auto overflow-x-hidden px-4 py-8 select-none relative">
+    <div className="fixed inset-0 bg-main-bg z-50 flex flex-col items-center justify-center overflow-y-auto overflow-x-hidden px-4 py-8 select-none relative transition-colors duration-200">
       
       {/* Dynamic Cinematic Motion Graphics Background Canvas */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-zinc-900/40 via-black to-black">
+      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#C8962E]/10 via-transparent to-transparent">
         {/* Floating star nodes with drifting cinematic loops */}
         {starNodes.map((star) => (
           <motion.div
@@ -1073,7 +1073,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
               <h1 className="font-serif text-3xl md:text-4xl font-extrabold text-[#C8962E] tracking-normal" style={{ textShadow: "0 0 20px rgba(200, 150, 46, 0.25)" }}>
                 ኢትዮ ለርን ፕሮ
               </h1>
-              <h2 className="text-lg md:text-xl font-serif font-semibold text-[#F0EDE8] tracking-widest uppercase">
+              <h2 className="text-lg md:text-xl font-serif font-semibold text-slate-800 dark:text-[#F0EDE8] tracking-widest uppercase">
                 EthioLearn Pro
               </h2>
 
@@ -1084,10 +1084,10 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
               </div>
 
               <div className="space-y-1">
-                <p className="text-xs font-bold text-emerald-400 tracking-[0.25em] uppercase">
+                <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 tracking-[0.25em] uppercase">
                   ተማር • አድግ • ብልጽግና
                 </p>
-                <p className="text-[#A29A95] text-[10px] font-mono tracking-widest uppercase">
+                <p className="text-slate-500 dark:text-[#A29A95] text-[10px] font-mono tracking-widest uppercase">
                   Learn. Grow. Prosper.
                 </p>
               </div>
@@ -1112,14 +1112,14 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
               <div className="flex items-center justify-center gap-6 mt-1">
                 <button
                   onClick={() => { playClickChime(); setMode('signin'); }}
-                  className="text-[10px] text-zinc-400 hover:text-white font-bold tracking-wider uppercase transition-colors cursor-pointer flex items-center gap-1.5"
+                  className="text-[10px] text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-white font-bold tracking-wider uppercase transition-colors cursor-pointer flex items-center gap-1.5"
                 >
                   <LogIn className="w-3 h-3 text-[#C8962E]" /> Student Sign In
                 </button>
-                <span className="text-zinc-800">|</span>
+                <span className="text-slate-300 dark:text-zinc-850">|</span>
                 <button
                   onClick={() => { playClickChime(); setMode('signup'); }}
-                  className="text-[10px] text-zinc-400 hover:text-white font-bold tracking-wider uppercase transition-colors cursor-pointer flex items-center gap-1.5"
+                  className="text-[10px] text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-white font-bold tracking-wider uppercase transition-colors cursor-pointer flex items-center gap-1.5"
                 >
                   <UserPlus className="w-3 h-3 text-[#C8962E]" /> Custom Register
                 </button>
@@ -1133,7 +1133,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
               </div>
 
               {/* Frictionless tagline */}
-              <p className="text-[9px] text-zinc-500 font-mono text-center tracking-normal mt-1 max-w-xs mx-auto">
+              <p className="text-[9px] text-slate-400 dark:text-zinc-500 font-mono text-center tracking-normal mt-1 max-w-xs mx-auto">
                 Instant portal to your study notes, exam prep, and audio companion.
               </p>
             </div>
@@ -1148,13 +1148,13 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.4 }}
-            className="w-full max-w-md bg-[#111111]/95 backdrop-blur-md p-6 md:p-8 rounded-2xl border border-zinc-800 relative z-10 shadow-2xl space-y-6 my-auto"
+            className="w-full max-w-md bg-white dark:bg-[#1e2533] backdrop-blur-md p-6 md:p-8 rounded-2xl border border-slate-200 dark:border-zinc-800 relative z-10 shadow-2xl space-y-6 my-auto transition-colors duration-200"
           >
-            <div className="flex items-center justify-center gap-3 border-b border-zinc-900 pb-4">
+            <div className="flex items-center justify-center gap-3 border-b border-slate-100 dark:border-zinc-900 pb-4">
               <EthioLearnLogo size={44} />
               <div className="text-center">
                 <h3 className="font-serif text-lg font-black text-[#C8962E] tracking-tight">EthioLearn Pro</h3>
-                <p className="text-[10px] text-zinc-400 tracking-widest uppercase font-mono">Student Portal Sign In</p>
+                <p className="text-[10px] text-slate-500 dark:text-zinc-400 tracking-widest uppercase font-mono">Student Portal Sign In</p>
               </div>
             </div>
 
@@ -1211,11 +1211,11 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
             {/* Main Sign-In Form */}
             <form onSubmit={handleSignIn} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">
+                <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider block">
                   Email Address
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500" />
                   <input
                     type="email"
                     placeholder="e.g. student@gmail.com"
@@ -1224,7 +1224,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                       setEmail(e.target.value);
                       if (emailError) setEmailError(null);
                     }}
-                    className={`w-full bg-zinc-900/90 border ${emailError ? 'border-red-500/80 focus:border-red-500' : 'border-zinc-700 hover:border-zinc-600 focus:border-[#C8962E]'} rounded-lg pl-10 pr-4 py-2.5 text-zinc-100 placeholder-zinc-500 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20`}
+                    className={`w-full bg-slate-50 dark:bg-zinc-900/90 border ${emailError ? 'border-red-500/80 focus:border-red-500' : 'border-slate-200 dark:border-zinc-700 hover:border-slate-300 dark:hover:border-zinc-600 focus:border-[#C8962E]'} rounded-lg pl-10 pr-4 py-2.5 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20`}
                   />
                 </div>
                 {emailError && (
@@ -1233,11 +1233,11 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">
+                <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider block">
                   Password
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500" />
                   <input
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
@@ -1246,12 +1246,12 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                       setPassword(e.target.value);
                       if (passwordError) setPasswordError(null);
                     }}
-                    className={`w-full bg-zinc-900/90 border ${passwordError ? 'border-red-500/80 focus:border-red-500' : 'border-zinc-700 hover:border-zinc-600 focus:border-[#C8962E]'} rounded-lg pl-10 pr-10 py-2.5 text-zinc-100 placeholder-zinc-500 outline-none text-xs transition-all font-mono focus:ring-1 focus:ring-[#C8962E]/20`}
+                    className={`w-full bg-slate-50 dark:bg-zinc-900/90 border ${passwordError ? 'border-red-500/80 focus:border-red-500' : 'border-slate-200 dark:border-zinc-700 hover:border-slate-300 dark:hover:border-zinc-600 focus:border-[#C8962E]'} rounded-lg pl-10 pr-10 py-2.5 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500 outline-none text-xs transition-all font-mono focus:ring-1 focus:ring-[#C8962E]/20`}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -1282,9 +1282,9 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="rounded border-zinc-800 bg-zinc-900 text-amber-500 focus:ring-0 cursor-pointer"
+                    className="rounded border-slate-300 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900 text-amber-500 focus:ring-0 cursor-pointer"
                   />
-                  <span className="text-[11px] text-zinc-400">Remember session (One-click Login)</span>
+                  <span className="text-[11px] text-slate-500 dark:text-zinc-400">Remember session (One-click Login)</span>
                 </label>
               </div>
 
@@ -1302,23 +1302,23 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
               </button>
 
               <div className="relative flex py-1 items-center">
-                <div className="flex-grow border-t border-zinc-900"></div>
-                <span className="flex-shrink mx-4 text-[10px] text-zinc-600 font-bold uppercase tracking-widest font-mono">or</span>
-                <div className="flex-grow border-t border-zinc-900"></div>
+                <div className="flex-grow border-t border-slate-100 dark:border-zinc-900"></div>
+                <span className="flex-shrink mx-4 text-[10px] text-slate-400 dark:text-zinc-600 font-bold uppercase tracking-widest font-mono">or</span>
+                <div className="flex-grow border-t border-slate-100 dark:border-zinc-900"></div>
               </div>
 
               <button
                 type="button"
                 onClick={handleGoogleAuth}
-                className="w-full py-3 bg-[#111111] hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-200 rounded-lg text-xs font-serif font-bold tracking-wide flex items-center justify-center gap-2 cursor-pointer shadow-sm transition-all"
+                className="w-full py-3 bg-slate-50 hover:bg-slate-100 dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 text-slate-700 dark:text-zinc-200 rounded-lg text-xs font-serif font-bold tracking-wide flex items-center justify-center gap-2 cursor-pointer shadow-sm transition-all"
               >
                 <span className="text-sm">🌟</span>
                 <span>Sign in with Google</span>
               </button>
             </form>
 
-            <div className="text-center pt-2 border-t border-zinc-900/60">
-              <p className="text-xs text-zinc-500">
+            <div className="text-center pt-2 border-t border-slate-100 dark:border-zinc-900/60">
+              <p className="text-xs text-slate-500 dark:text-zinc-500">
                 Don't have an account?{' '}
                 <button
                   type="button"
@@ -1340,19 +1340,19 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.4 }}
-            className="w-full max-w-xl bg-[#111111]/95 backdrop-blur-md p-5 md:p-6 rounded-2xl border border-zinc-800 relative z-10 shadow-2xl space-y-4 my-auto"
+            className="w-full max-w-xl bg-white dark:bg-[#1e2533] backdrop-blur-md p-5 md:p-6 rounded-2xl border border-slate-200 dark:border-zinc-800 relative z-10 shadow-2xl space-y-4 my-auto transition-colors duration-200"
           >
-            <div className="flex justify-between items-center border-b border-zinc-900 pb-3">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-zinc-900 pb-3">
               <div className="flex items-center gap-3">
                 <EthioLearnLogo size={36} />
                 <div>
-                  <h3 className="font-serif text-sm font-bold text-[#F0EDE8]">Academic Registration</h3>
-                  <p className="text-[9px] text-zinc-500">SET UP COHORT MEMBERSHIP</p>
+                  <h3 className="font-serif text-sm font-bold text-slate-800 dark:text-[#F0EDE8]">Academic Registration</h3>
+                  <p className="text-[9px] text-slate-400 dark:text-zinc-500">SET UP COHORT MEMBERSHIP</p>
                 </div>
               </div>
               <button
                 onClick={() => { playClickChime(); setMode('signin'); }}
-                className="p-1.5 text-zinc-500 hover:text-zinc-300 transition-colors"
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-300 transition-colors"
                 title="Go back"
               >
                 <ArrowLeft className="w-4 h-4" />
@@ -1419,7 +1419,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
               {/* Account Credentials Group */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block">
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-widest block">
                     Full Student Name
                   </label>
                   <input
@@ -1428,12 +1428,12 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                     placeholder="e.g. Abebe Kebede"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-zinc-900/90 border border-zinc-700 hover:border-zinc-600 focus:border-[#C8962E] rounded-lg px-3 py-2 text-zinc-100 placeholder-zinc-500 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20"
+                    className="w-full bg-slate-50 dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-700 hover:border-slate-300 dark:hover:border-zinc-600 focus:border-[#C8962E] rounded-lg px-3 py-2 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block">
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-widest block">
                     Gmail Address
                   </label>
                   <input
@@ -1442,12 +1442,12 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                     placeholder="student@gmail.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-zinc-900/90 border border-zinc-700 hover:border-zinc-600 focus:border-[#C8962E] rounded-lg px-3 py-2 text-zinc-100 placeholder-zinc-500 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20"
+                    className="w-full bg-slate-50 dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-700 hover:border-slate-300 dark:hover:border-zinc-600 focus:border-[#C8962E] rounded-lg px-3 py-2 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block">
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-widest block">
                     Academy Password
                   </label>
                   <input
@@ -1456,7 +1456,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                     placeholder="Min 5 chars"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-zinc-900/90 border border-zinc-700 hover:border-zinc-600 focus:border-[#C8962E] rounded-lg px-3 py-2 text-zinc-100 placeholder-zinc-500 outline-none text-xs transition-all font-mono focus:ring-1 focus:ring-[#C8962E]/20"
+                    className="w-full bg-slate-50 dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-700 hover:border-slate-300 dark:hover:border-zinc-600 focus:border-[#C8962E] rounded-lg px-3 py-2 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500 outline-none text-xs transition-all font-mono focus:ring-1 focus:ring-[#C8962E]/20"
                   />
                 </div>
               </div>
@@ -1476,7 +1476,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
               {/* School & Year Group */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-zinc-400 uppercase block">
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase block">
                     University / High School
                   </label>
                   <input
@@ -1484,18 +1484,18 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                     placeholder="e.g. Wolkite University"
                     value={university}
                     onChange={(e) => setUniversity(e.target.value)}
-                    className="w-full bg-zinc-900/90 border border-zinc-700 hover:border-zinc-600 focus:border-[#C8962E] rounded-lg px-3 py-2 text-zinc-100 placeholder-zinc-500 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20"
+                    className="w-full bg-slate-50 dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-700 hover:border-slate-300 dark:hover:border-zinc-600 focus:border-[#C8962E] rounded-lg px-3 py-2 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-zinc-400 uppercase block">
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase block">
                     Academic standing
                   </label>
                   <select
                     value={year}
                     onChange={(e) => setYear(e.target.value)}
-                    className="w-full bg-zinc-900/90 border border-zinc-700 hover:border-zinc-600 focus:border-[#C8962E] rounded-lg px-3 py-2 text-zinc-100 outline-none text-xs transition-all appearance-none cursor-pointer focus:ring-1 focus:ring-[#C8962E]/20"
+                    className="w-full bg-slate-50 dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-700 hover:border-slate-300 dark:hover:border-zinc-600 focus:border-[#C8962E] rounded-lg px-3 py-2 text-slate-800 dark:text-zinc-100 outline-none text-xs transition-all appearance-none cursor-pointer focus:ring-1 focus:ring-[#C8962E]/20"
                   >
                     <option value="Grade 12">Grade 12 (Preparatory Senior)</option>
                     <option value="University">University Student</option>
@@ -1505,7 +1505,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
 
               {/* Enrolled Subjects */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-zinc-400 uppercase block">
+                <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase block">
                   Assign Campus Focus Modules (Select one or more)
                 </label>
                 <div className="flex flex-wrap gap-1.5">
@@ -1519,7 +1519,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                         className={`text-[10px] px-2.5 py-1.5 rounded-lg border font-medium cursor-pointer transition-all ${
                           selected
                             ? 'bg-[#C8962E]/10 border-[#C8962E] text-[#C8962E]'
-                            : 'bg-[#090909] border-zinc-900 text-zinc-500 hover:text-zinc-300'
+                            : 'bg-slate-50 dark:bg-zinc-950/80 border-slate-200 dark:border-zinc-900 text-slate-500 dark:text-zinc-450 hover:text-slate-800 dark:hover:text-zinc-300'
                         }`}
                       >
                         {subject}
@@ -1530,9 +1530,9 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
               </div>
 
               {/* API Key */}
-              <div className="space-y-1 bg-zinc-950/40 p-2.5 rounded-xl border border-zinc-900">
+              <div className="space-y-1 bg-slate-50 dark:bg-zinc-950/40 p-2.5 rounded-xl border border-slate-150 dark:border-zinc-900">
                 <div className="flex justify-between items-center">
-                  <label className="text-[10px] font-bold text-zinc-400 uppercase block">
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase block">
                     Custom LLM Model API Key (Optional)
                   </label>
                   <span className="text-[9px] text-[#C8962E] flex gap-1.5 shrink-0">
@@ -1547,12 +1547,12 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                     placeholder="Optional. Press view key or leave blank to proxy built-in AI models."
                     value={claudeApiKey}
                     onChange={(e) => setClaudeApiKey(e.target.value)}
-                    className="w-full bg-zinc-900/90 border border-zinc-700 hover:border-zinc-600 focus:border-[#C8962E] rounded-lg pl-3 pr-10 py-1.5 text-zinc-200 placeholder-zinc-500 outline-none text-xs font-mono focus:ring-1 focus:ring-[#C8962E]/20"
+                    className="w-full bg-slate-50 dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-700 hover:border-slate-300 dark:hover:border-zinc-600 focus:border-[#C8962E] rounded-lg pl-3 pr-10 py-1.5 text-slate-800 dark:text-zinc-200 placeholder-slate-400 dark:placeholder-zinc-500 outline-none text-xs font-mono focus:ring-1 focus:ring-[#C8962E]/20"
                   />
                   <button
                     type="button"
                     onClick={() => setShowKey(!showKey)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-[#C8962E]"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-450 dark:text-zinc-500 hover:text-[#C8962E]"
                   >
                     {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                   </button>
@@ -1565,9 +1565,9 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="rounded border-zinc-800 bg-zinc-900 text-amber-500 focus:ring-0 cursor-pointer"
+                    className="rounded border-slate-350 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900 text-amber-500 focus:ring-0 cursor-pointer"
                   />
-                  <span className="text-[11px] text-zinc-400">Remember session (One-click Login)</span>
+                  <span className="text-[11px] text-slate-500 dark:text-zinc-400">Remember session (One-click Login)</span>
                 </label>
               </div>
 
@@ -1579,23 +1579,23 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
               </button>
 
               <div className="relative flex py-2 items-center">
-                <div className="flex-grow border-t border-zinc-800"></div>
-                <span className="flex-shrink mx-4 text-[10px] text-zinc-500 font-bold uppercase tracking-widest">or</span>
-                <div className="flex-grow border-t border-zinc-800"></div>
+                <div className="flex-grow border-t border-slate-100 dark:border-zinc-850"></div>
+                <span className="flex-shrink mx-4 text-[10px] text-slate-400 dark:text-zinc-500 font-bold uppercase tracking-widest">or</span>
+                <div className="flex-grow border-t border-slate-100 dark:border-zinc-850"></div>
               </div>
 
               <button
                 type="button"
                 onClick={handleGoogleAuth}
-                className="w-full py-3 bg-[#111111] hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-200 rounded-lg text-xs font-serif font-bold tracking-wide flex items-center justify-center gap-2 cursor-pointer shadow-sm transition-all"
+                className="w-full py-3 bg-slate-50 hover:bg-slate-100 dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 text-slate-700 dark:text-zinc-200 rounded-lg text-xs font-serif font-bold tracking-wide flex items-center justify-center gap-2 cursor-pointer shadow-sm transition-all"
               >
                 <span className="text-sm">🎯</span>
                 <span>Register instantly with Google</span>
               </button>
             </form>
 
-            <div className="text-center pt-2 border-t border-zinc-900/60">
-              <p className="text-xs text-zinc-500">
+            <div className="text-center pt-2 border-t border-slate-100 dark:border-zinc-900/60">
+              <p className="text-xs text-slate-500 dark:text-zinc-500">
                 Already have an account?{' '}
                 <button
                   type="button"

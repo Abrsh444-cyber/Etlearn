@@ -294,7 +294,7 @@ export default function App() {
     syncWithSupabase();
   }, [currentPage]);
 
-  // Sync theme setup (allows toggling both light and dark modes)
+  // Sync theme setup (allows toggling both light and dark modes with premium lighting)
   useEffect(() => {
     if (themeMode === 'dark') {
       document.documentElement.classList.add('dark');
@@ -729,22 +729,24 @@ export default function App() {
               </button>
             </div>
 
-            {/* Interactive Theme Mode Toggle */}
+            {/* Interactive Theme Mode Toggle with Pro Lighting */}
             <button
               onClick={() => {
                 const newTheme = themeMode === 'dark' ? 'light' : 'dark';
                 setThemeMode(newTheme);
                 playClickChime();
               }}
-              className="p-2.5 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900 rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-500 dark:text-zinc-450 cursor-pointer transition-colors"
+              className="p-2.5 border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900 rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-850 text-slate-500 dark:text-zinc-400 cursor-pointer transition-colors"
               title={themeMode === 'dark' ? "Switch to Light Mode" : "Switch to Dark Mode"}
             >
               {themeMode === 'dark' ? (
                 <Sun className="w-4 h-4 text-amber-500" />
               ) : (
-                <Moon className="w-4 h-4 text-slate-500 dark:text-zinc-405" />
+                <Moon className="w-4 h-4 text-slate-500" />
               )}
             </button>
+
+
 
             {profile.isPro && (
               <div 
