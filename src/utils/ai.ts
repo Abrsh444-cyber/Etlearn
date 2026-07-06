@@ -89,7 +89,7 @@ export async function submitClaudeChat(
       });
 
       const stream = await ai.models.generateContentStream({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.5-flash',
         contents: geminiContents,
         config: {
           systemInstruction: systemPrompt || undefined,

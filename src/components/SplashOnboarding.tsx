@@ -1533,18 +1533,16 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
               <div className="space-y-1 bg-slate-50 dark:bg-zinc-950/40 p-2.5 rounded-xl border border-slate-150 dark:border-zinc-900">
                 <div className="flex justify-between items-center">
                   <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase block">
-                    Custom LLM Model API Key (Optional)
+                    Custom LLM Model API Key (Fully Optional)
                   </label>
-                  <span className="text-[9px] text-[#C8962E] flex gap-1.5 shrink-0">
-                    <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" className="hover:underline">OpenRouter</a>
-                    <span>|</span>
-                    <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" className="hover:underline">Groq</a>
+                  <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold flex gap-1.5 shrink-0">
+                    🟢 Built-in Server AI Active
                   </span>
                 </div>
                 <div className="relative mt-1">
                   <input
                     type={showKey ? "text" : "password"}
-                    placeholder="Optional. Press view key or leave blank to proxy built-in AI models."
+                    placeholder="Not required. Server-side built-in AI is pre-configured and active."
                     value={claudeApiKey}
                     onChange={(e) => setClaudeApiKey(e.target.value)}
                     className="w-full bg-slate-50 dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-700 hover:border-slate-300 dark:hover:border-zinc-600 focus:border-[#C8962E] rounded-lg pl-3 pr-10 py-1.5 text-slate-800 dark:text-zinc-200 placeholder-slate-400 dark:placeholder-zinc-500 outline-none text-xs font-mono focus:ring-1 focus:ring-[#C8962E]/20"

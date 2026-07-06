@@ -184,7 +184,7 @@ async function startServer() {
     }
   });
 
-  // Support chat with Ezra persona using Google Gemini 3.5-flash
+  // Support chat with Ezra persona using Google Gemini 3.5-flash or any other server key
   app.post(['/api/support/chat', '/api/support/chat/'], async (req, res) => {
     try {
       const { messages } = req.body;
@@ -192,46 +192,152 @@ async function startServer() {
         return res.status(400).json({ error: 'Messages array is required for support assistant.' });
       }
 
-      const apiKey = process.env.GEMINI_API_KEY || cachedMasterApiKey;
+      const apiKey = process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY || process.env.GROQ_API_KEY || cachedMasterApiKey;
       if (!apiKey || apiKey === 'no-key' || apiKey === 'no-api-key') {
         return res.status(401).json({ 
-          error: 'Missing Gemini API Key for support assistant. Set GEMINI_API_KEY on the server.' 
+          error: 'Missing API Key for support assistant. Please configure a server-side API key.' 
         });
       }
-
-      // Initialize Google Gen AI client using @google/genai
-      const ai = new GoogleGenAI({
-        apiKey: apiKey,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          }
-        }
-      });
 
       // Prepare system instruction for Ezra persona
       const systemInstruction = `You are Ezra, the creator, lead developer, and academic advisor of EthioLearn (ezrat2116@gmail.com). You are a friendly, encouraging, and brilliant Ethiopian tech student and educator who built this platform to help Ethiopian high school and university students excel in their studies.
 Your tone is warm, personal, professional, and deeply supportive of students' academic journeys. Feel free to use phrases like 'my friend', 'እሺ' (Ishi), or brief Amharic greetings naturally when appropriate to make Ethiopian students feel at home, but respond primarily in the language the student asks in (English, Amharic, or a mix of both).
 Explain with enthusiasm when they ask about features like flashcards, customizable soundscapes, exam prep, or study notes. Keep your answers concise, practical, and highly empathetic. If they encounter technical bugs or need direct support, remind them that they can also submit a formal support ticket to you (ezrat2116@gmail.com) from their Profile tab. Always talk in the first person ('I', 'me', 'my platform') as Ezra himself.`;
 
-      // Convert messages format to Gemini contents schema
-      const geminiContents = messages.map((m: any) => {
-        return {
-          role: m.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: m.content || '' }]
-        };
-      });
+      const useGemini = apiKey.startsWith('AIzaSy') || (!!process.env.GEMINI_API_KEY && apiKey === process.env.GEMINI_API_KEY);
+      const useAnthropic = apiKey.startsWith('sk-ant-') || (!!process.env.ANTHROPIC_API_KEY && apiKey === process.env.ANTHROPIC_API_KEY);
+      const useOpenAi = (apiKey.startsWith('sk-') && !apiKey.startsWith('sk-or-') && !apiKey.startsWith('sk-ant-') && !apiKey.startsWith('gsk_')) || (!!process.env.OPENAI_API_KEY && apiKey === process.env.OPENAI_API_KEY);
+      const useGroq = apiKey.startsWith('gsk_') || (!!process.env.GROQ_API_KEY && apiKey === process.env.GROQ_API_KEY);
 
-      // Generate response using basic text task model: gemini-3.5-flash
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
-        contents: geminiContents,
-        config: {
-          systemInstruction: systemInstruction,
-        },
-      });
+      let replyText = "";
 
-      const replyText = response.text || "I'm sorry, I encountered a brief issue processing that. Ask me again, my friend!";
+      if (useGemini) {
+        // Initialize Google Gen AI client using @google/genai
+        const ai = new GoogleGenAI({
+          apiKey: apiKey,
+          httpOptions: {
+            headers: {
+              'User-Agent': 'aistudio-build',
+            }
+          }
+        });
+
+        const geminiContents = messages.map((m: any) => {
+          return {
+            role: m.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: m.content || '' }]
+          };
+        });
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.5-flash',
+          contents: geminiContents,
+          config: {
+            systemInstruction: systemInstruction,
+          },
+        });
+
+        replyText = response.text || "";
+      } else if (useAnthropic) {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: 'claude-3-5-sonnet-20241022',
+            messages: messages.map((m: any) => ({ role: m.role, content: m.content || '' })),
+            system: systemInstruction,
+            max_tokens: 1500,
+          })
+        });
+        if (response.ok) {
+          const data = await response.json();
+          replyText = data.content?.[0]?.text || "";
+        } else {
+          const errText = await response.text();
+          throw new Error(`Anthropic support chat error: ${errText}`);
+        }
+      } else if (useOpenAi) {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              { role: 'system', content: systemInstruction },
+              ...messages.map((m: any) => ({ role: m.role, content: m.content || '' }))
+            ],
+            max_tokens: 1500,
+          })
+        });
+        if (response.ok) {
+          const data = await response.json();
+          replyText = data.choices?.[0]?.message?.content || "";
+        } else {
+          const errText = await response.text();
+          throw new Error(`OpenAI support chat error: ${errText}`);
+        }
+      } else if (useGroq) {
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: 'llama-3.3-70b-versatile',
+            messages: [
+              { role: 'system', content: systemInstruction },
+              ...messages.map((m: any) => ({ role: m.role, content: m.content || '' }))
+            ],
+            max_tokens: 1500,
+          })
+        });
+        if (response.ok) {
+          const data = await response.json();
+          replyText = data.choices?.[0]?.message?.content || "";
+        } else {
+          const errText = await response.text();
+          throw new Error(`Groq support chat error: ${errText}`);
+        }
+      } else {
+        // Default to OpenRouter
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+            'HTTP-Referer': 'https://ai.studio/build',
+            'X-Title': 'EthioLearn',
+          },
+          body: JSON.stringify({
+            model: 'google/gemini-2.5-flash',
+            messages: [
+              { role: 'system', content: systemInstruction },
+              ...messages.map((m: any) => ({ role: m.role, content: m.content || '' }))
+            ],
+            max_tokens: 1500,
+          })
+        });
+        if (response.ok) {
+          const data = await response.json();
+          replyText = data.choices?.[0]?.message?.content || "";
+        } else {
+          const errText = await response.text();
+          throw new Error(`OpenRouter support chat error: ${errText}`);
+        }
+      }
+
+      if (!replyText) {
+        replyText = "I'm sorry, I encountered a brief issue processing that. Ask me again, my friend!";
+      }
+
       return res.json({ success: true, reply: replyText });
     } catch (e: any) {
       console.error('[Support Assistant Chat Error]:', e);
@@ -425,11 +531,11 @@ Explain with enthusiasm when they ask about features like flashcards, customizab
       }
       
       // Prioritize client-provided API key from settings, then fallback to server env, then cached master key
-      const apiKey = resolvedUserKey || req.headers['x-api-key'] || process.env.GEMINI_API_KEY || process.env.OPENROUTER_API_KEY || process.env.GROQ_API_KEY || cachedMasterApiKey; 
+      const apiKey = resolvedUserKey || req.headers['x-api-key'] || process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY || process.env.GROQ_API_KEY || cachedMasterApiKey; 
       
       if (!apiKey || apiKey === 'no-key' || apiKey === 'no-api-key') {
         return res.status(401).json({ 
-          error: 'Missing API Key. Please provide an API key in Onboarding or Settings to enable AI tutoring features.' 
+          error: 'Missing API Key. Please configure your GEMINI_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY environment variable on the server.' 
         });
       }
 
@@ -440,10 +546,10 @@ Explain with enthusiasm when they ask about features like flashcards, customizab
       const useGroqDirectly = apiKey.startsWith('gsk_') || (!!process.env.GROQ_API_KEY && apiKey === process.env.GROQ_API_KEY);
 
       // Check if we can use native Anthropic API directly
-      const useAnthropicDirectly = apiKey.startsWith('sk-ant-');
+      const useAnthropicDirectly = apiKey.startsWith('sk-ant-') || (!!process.env.ANTHROPIC_API_KEY && apiKey === process.env.ANTHROPIC_API_KEY);
 
       // Check if we can use native OpenAI API directly
-      const useOpenAiDirectly = (apiKey.startsWith('sk-') && !apiKey.startsWith('sk-or-') && !apiKey.startsWith('sk-ant-') && !apiKey.startsWith('gsk_'));
+      const useOpenAiDirectly = (apiKey.startsWith('sk-') && !apiKey.startsWith('sk-or-') && !apiKey.startsWith('sk-ant-') && !apiKey.startsWith('gsk_')) || (!!process.env.OPENAI_API_KEY && apiKey === process.env.OPENAI_API_KEY);
 
       if (useGeminiDirectly) {
         // Configure chunks for Server-Sent Events (SSE) streaming helper
@@ -485,7 +591,7 @@ Explain with enthusiasm when they ask about features like flashcards, customizab
         });
 
         const stream = await ai.models.generateContentStream({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3.5-flash',
           contents: geminiContents,
           config: {
             systemInstruction: system || undefined,
