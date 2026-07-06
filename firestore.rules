@@ -1,0 +1,78 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global Safety Net - default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Liveness test collection
+    match /test/{docId} {
+      allow read: if true;
+    }
+
+    // Common Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Profiles Schema Validation
+    function isValidProfile(data) {
+      return data.keys().hasAll(['name', 'year', 'subjects'])
+        && data.name is string && data.name.size() <= 200
+        && data.year is string && data.year.size() <= 50
+        && data.subjects is list;
+    }
+
+    // Notes Schema Validation
+    function isValidNote(data) {
+      return data.keys().hasAll(['id', 'title', 'content', 'subject'])
+        && data.id is string && data.id.size() <= 128
+        && data.title is string && data.title.size() <= 300
+        && data.content is string && data.content.size() <= 500000
+        && data.subject is string && data.subject.size() <= 200;
+    }
+
+    // Study Sessions Schema Validation
+    function isValidStudySession(data) {
+      return data.keys().hasAll(['id', 'subject', 'date', 'durationMinutes'])
+        && data.id is string && data.id.size() <= 128
+        && data.subject is string && data.subject.size() <= 200
+        && data.date is string && data.date.size() <= 50
+        && data.durationMinutes is int;
+    }
+
+    // 2. Profiles Collection
+    match /profiles/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidProfile(request.resource.data);
+      allow update: if isOwner(userId) && isValidProfile(request.resource.data);
+      allow delete: if isOwner(userId);
+
+      // 3. Notes Subcollection
+      match /notes/{noteId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(noteId) && isValidNote(request.resource.data);
+        allow update: if isOwner(userId) && isValidId(noteId) && isValidNote(request.resource.data);
+        allow delete: if isOwner(userId) && isValidId(noteId);
+      }
+
+      // 4. Study Sessions Subcollection
+      match /study_sessions/{sessionId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(sessionId) && isValidStudySession(request.resource.data);
+        allow update: if isOwner(userId) && isValidId(sessionId) && isValidStudySession(request.resource.data);
+        allow delete: if isOwner(userId) && isValidId(sessionId);
+      }
+    }
+  }
+}

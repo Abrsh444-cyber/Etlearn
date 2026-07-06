@@ -1,0 +1,62 @@
+{
+  "entities": {
+    "profile": {
+      "title": "StudentProfile",
+      "description": "The student learning profile, school level, and academic settings.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "university": { "type": "string" },
+        "year": { "type": "string" },
+        "subjects": { "type": "array" },
+        "claudeApiKey": { "type": "string" },
+        "dailyGoalHours": { "type": "integer" },
+        "theme": { "type": "string" },
+        "language": { "type": "string" }
+      },
+      "required": ["name", "year", "subjects"]
+    },
+    "note": {
+      "title": "CustomNote",
+      "description": "A student study note, generated summary, or textbook highlight.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "subject": { "type": "string" },
+        "tags": { "type": "array" },
+        "color": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "title", "content", "subject"]
+    },
+    "study_session": {
+      "title": "StudySession",
+      "description": "A tracked active study session.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "subject": { "type": "string" },
+        "date": { "type": "string" },
+        "durationMinutes": { "type": "integer" }
+      },
+      "required": ["id", "subject", "date", "durationMinutes"]
+    }
+  },
+  "firestore": {
+    "/profiles/{userId}": {
+      "schema": "profile",
+      "description": "Collection of student learning profiles mapped by Firebase UID."
+    },
+    "/profiles/{userId}/notes/{noteId}": {
+      "schema": "note",
+      "description": "Subcollection of custom study guides and notes for the student."
+    },
+    "/profiles/{userId}/study_sessions/{sessionId}": {
+      "schema": "study_session",
+      "description": "Subcollection of logged active focus study sessions."
+    }
+  }
+}
