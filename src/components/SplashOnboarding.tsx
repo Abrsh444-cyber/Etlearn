@@ -1340,19 +1340,19 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.4 }}
-            className="w-full max-w-xl bg-white dark:bg-[#1e2533] backdrop-blur-md p-5 md:p-6 rounded-2xl border border-slate-200 dark:border-zinc-800 relative z-10 shadow-2xl space-y-4 my-auto transition-colors duration-200"
+            className="w-full max-w-4xl bg-white dark:bg-[#151c28] backdrop-blur-md p-6 md:p-8 rounded-2xl border border-slate-200 dark:border-zinc-800/80 relative z-10 shadow-2xl space-y-6 my-auto transition-colors duration-200"
           >
-            <div className="flex justify-between items-center border-b border-slate-100 dark:border-zinc-900 pb-3">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-zinc-800/60 pb-4">
               <div className="flex items-center gap-3">
-                <EthioLearnLogo size={36} />
+                <EthioLearnLogo size={40} />
                 <div>
-                  <h3 className="font-serif text-sm font-bold text-slate-800 dark:text-[#F0EDE8]">Academic Registration</h3>
-                  <p className="text-[9px] text-slate-400 dark:text-zinc-500">SET UP COHORT MEMBERSHIP</p>
+                  <h3 className="font-serif text-base font-black text-slate-800 dark:text-[#F0EDE8] tracking-tight">Academic Registration</h3>
+                  <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-semibold tracking-wider uppercase font-mono">SET UP COHORT MEMBERSHIP</p>
                 </div>
               </div>
               <button
                 onClick={() => { playClickChime(); setMode('signin'); }}
-                className="p-1.5 text-slate-400 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-300 transition-colors"
+                className="p-2 text-slate-400 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-300 transition-colors bg-slate-50 dark:bg-zinc-900 rounded-lg border border-slate-100 dark:border-zinc-800"
                 title="Go back"
               >
                 <ArrowLeft className="w-4 h-4" />
@@ -1360,14 +1360,14 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
             </div>
 
             {authError && (
-              <div className="p-3 bg-red-950/20 border border-red-500/30 text-red-400 text-xs rounded-lg flex items-start gap-2">
+              <div className="p-3 bg-red-950/20 border border-red-500/30 text-red-400 text-xs rounded-xl flex items-start gap-2.5">
                 <ShieldAlert className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
                 <p>{authError}</p>
               </div>
             )}
 
             {infoMessage && (
-              <div className="p-3 bg-amber-950/20 border border-amber-500/30 text-amber-200 text-xs rounded-lg flex items-start gap-2">
+              <div className="p-3 bg-amber-950/20 border border-amber-500/30 text-amber-200 text-xs rounded-xl flex items-start gap-2.5">
                 <span className="text-base shrink-0">✉️</span>
                 <p className="font-medium">{infoMessage}</p>
               </div>
@@ -1375,7 +1375,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
 
             {isPopupBlocked && (
               <div className="p-4 bg-amber-950/20 border border-amber-500/30 text-amber-200 text-xs rounded-xl space-y-3">
-                <div className="flex items-start gap-2">
+                <div className="flex items-start gap-2.5">
                   <span className="text-base">⚠️</span>
                   <div>
                     <p className="font-extrabold text-amber-300 uppercase tracking-wider text-[11.5px]">Popup Window Blocked</p>
@@ -1394,14 +1394,14 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                   <button
                     type="button"
                     onClick={handleGoogleRedirect}
-                    className="px-3 py-1.5 bg-[#C8962E] hover:bg-[#b08123] text-black font-extrabold rounded-lg text-[10.5px] transition-all cursor-pointer"
+                    className="px-3.5 py-2 bg-[#C8962E] hover:bg-[#b08123] text-black font-extrabold rounded-lg text-[10.5px] transition-all cursor-pointer"
                   >
                     ⚡ Try Redirect Sign-In
                   </button>
                   <button
                     type="button"
                     onClick={() => { playClickChime(); setIsPopupBlocked(false); }}
-                    className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold rounded-lg text-[10.5px] transition-all cursor-pointer"
+                    className="px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold rounded-lg text-[10.5px] transition-all cursor-pointer"
                   >
                     Dismiss
                   </button>
@@ -1410,195 +1410,206 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
             )}
 
             {/* Supabase connection manager */}
-            <div className="mb-4">
+            <div className="border border-slate-100 dark:border-zinc-800/65 rounded-xl p-1 bg-slate-50/50 dark:bg-zinc-950/20">
               {renderSupabaseConfigPanel()}
             </div>
 
-            <form onSubmit={handleRegister} className="space-y-4">
+            <form onSubmit={handleRegister} className="space-y-6">
               
-              {/* Account Credentials Group */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-widest block">
-                    Full Student Name
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Abebe Kebede"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-700 hover:border-slate-300 dark:hover:border-zinc-600 focus:border-[#C8962E] rounded-lg px-3 py-2 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20"
-                  />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                
+                {/* Left Column: Personal Identity & Persona */}
+                <div className="space-y-4">
+                  <div className="border-b border-slate-100 dark:border-zinc-800 pb-2">
+                    <h4 className="text-[10.5px] font-bold text-[#C8962E] uppercase tracking-wider font-mono">
+                      1. Student Identity & Persona
+                    </h4>
+                  </div>
+
+                  {/* Name Input */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider block">
+                      Full Student Name
+                    </label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500" />
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Abebe Kebede"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-zinc-900/95 border border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-750 focus:border-[#C8962E] rounded-lg pl-9 pr-3 py-2 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-550 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Gmail Address Input */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider block">
+                      Gmail Address
+                    </label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500" />
+                      <input
+                        type="email"
+                        required
+                        placeholder="student@gmail.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-zinc-900/95 border border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-750 focus:border-[#C8962E] rounded-lg pl-9 pr-3 py-2 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-550 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Academy Password Input */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider block">
+                      Academy Password
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500" />
+                      <input
+                        type="password"
+                        required
+                        placeholder="Min 5 chars"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-zinc-900/95 border border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-750 focus:border-[#C8962E] rounded-lg pl-9 pr-3 py-2 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-550 outline-none text-xs transition-all font-mono focus:ring-1 focus:ring-[#C8962E]/20"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Choose Portrait Avatar Selector */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-[#C8962E] uppercase block tracking-wider">
+                      Select Custom Portrait Avatar
+                    </label>
+                    <StudentAvatarSelector
+                      currentAvatar={avatar}
+                      name={name || 'Student'}
+                      onChange={setAvatar}
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-widest block">
-                    Gmail Address
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="student@gmail.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-700 hover:border-slate-300 dark:hover:border-zinc-600 focus:border-[#C8962E] rounded-lg px-3 py-2 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20"
-                  />
-                </div>
+                {/* Right Column: Academic Focus & Enrolled Modules */}
+                <div className="space-y-4">
+                  <div className="border-b border-slate-100 dark:border-zinc-800 pb-2">
+                    <h4 className="text-[10.5px] font-bold text-[#C8962E] uppercase tracking-wider font-mono">
+                      2. Academic Standing & Enrollment
+                    </h4>
+                  </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-widest block">
-                    Academy Password
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="Min 5 chars"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-700 hover:border-slate-300 dark:hover:border-zinc-600 focus:border-[#C8962E] rounded-lg px-3 py-2 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500 outline-none text-xs transition-all font-mono focus:ring-1 focus:ring-[#C8962E]/20"
-                  />
-                </div>
-              </div>
+                  {/* School / University Input */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase block tracking-wider">
+                      University / High School
+                    </label>
+                    <div className="relative">
+                      <Landmark className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500" />
+                      <input
+                        type="text"
+                        placeholder="e.g. Wolkite University"
+                        value={university}
+                        onChange={(e) => setUniversity(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-zinc-900/95 border border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-750 focus:border-[#C8962E] rounded-lg pl-9 pr-3 py-2 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-550 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20"
+                      />
+                    </div>
+                  </div>
 
-              {/* Choose Picture */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-[#C8962E] uppercase block">
-                  Select Custom Portrait Avatar
-                </label>
-                <StudentAvatarSelector
-                  currentAvatar={avatar}
-                  name={name || 'Student'}
-                  onChange={setAvatar}
-                />
-              </div>
-
-              {/* School & Year Group */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase block">
-                    University / High School
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Wolkite University"
-                    value={university}
-                    onChange={(e) => setUniversity(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-700 hover:border-slate-300 dark:hover:border-zinc-600 focus:border-[#C8962E] rounded-lg px-3 py-2 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase block">
-                    Academic standing
-                  </label>
-                  <select
-                    value={year}
-                    onChange={(e) => setYear(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-700 hover:border-slate-300 dark:hover:border-zinc-600 focus:border-[#C8962E] rounded-lg px-3 py-2 text-slate-800 dark:text-zinc-100 outline-none text-xs transition-all appearance-none cursor-pointer focus:ring-1 focus:ring-[#C8962E]/20"
-                  >
-                    <option value="Grade 12">Grade 12 (Preparatory Senior)</option>
-                    <option value="University">University Student</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Enrolled Subjects */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase block">
-                  Assign Campus Focus Modules (Select one or more)
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {subjectsList.map((subject) => {
-                    const selected = selectedSubjects.includes(subject);
-                    return (
-                      <button
-                        key={subject}
-                        type="button"
-                        onClick={() => toggleSubject(subject)}
-                        className={`text-[10px] px-2.5 py-1.5 rounded-lg border font-medium cursor-pointer transition-all ${
-                          selected
-                            ? 'bg-[#C8962E]/10 border-[#C8962E] text-[#C8962E]'
-                            : 'bg-slate-50 dark:bg-zinc-950/80 border-slate-200 dark:border-zinc-900 text-slate-500 dark:text-zinc-450 hover:text-slate-800 dark:hover:text-zinc-300'
-                        }`}
+                  {/* Academic standing selection */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase block tracking-wider">
+                      Academic Standing
+                    </label>
+                    <div className="relative">
+                      <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500 pointer-events-none" />
+                      <select
+                        value={year}
+                        onChange={(e) => setYear(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-zinc-900/95 border border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-750 focus:border-[#C8962E] rounded-lg pl-9 pr-8 py-2 text-slate-800 dark:text-zinc-100 outline-none text-xs transition-all appearance-none cursor-pointer focus:ring-1 focus:ring-[#C8962E]/20"
                       >
-                        {subject}
-                      </button>
-                    );
-                  })}
+                        <option value="Grade 12">Grade 12 (Preparatory Senior)</option>
+                        <option value="University">University Student</option>
+                      </select>
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 dark:text-zinc-500 text-[10px]">▼</div>
+                    </div>
+                  </div>
+
+                  {/* Enrolled Focus Modules */}
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase block tracking-wider">
+                      Assign Campus Focus Modules (Select one or more)
+                    </label>
+                    <div className="grid grid-cols-2 gap-2 max-h-[180px] overflow-y-auto pr-1">
+                      {subjectsList.map((subject) => {
+                        const selected = selectedSubjects.includes(subject);
+                        return (
+                          <button
+                            key={subject}
+                            type="button"
+                            onClick={() => toggleSubject(subject)}
+                            className={`text-[10px] text-left px-2.5 py-2 rounded-lg border font-medium cursor-pointer transition-all truncate flex items-center gap-1.5 ${
+                              selected
+                                ? 'bg-[#C8962E]/15 border-[#C8962E] text-[#C8962E] font-bold shadow-sm'
+                                : 'bg-slate-50 dark:bg-zinc-900/50 border-slate-150 dark:border-zinc-800/80 text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-350 hover:border-slate-200'
+                            }`}
+                          >
+                            <span className={selected ? "text-[#C8962E]" : "text-transparent"}>✓</span>
+                            <span>{subject}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Remember Me Checkbox */}
+                  <div className="flex items-center justify-between py-1 bg-slate-50 dark:bg-zinc-900/30 p-2.5 rounded-lg border border-slate-100 dark:border-zinc-800/40">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={rememberMe}
+                        onChange={(e) => setRememberMe(e.target.checked)}
+                        className="rounded border-slate-350 dark:border-zinc-750 bg-slate-50 dark:bg-zinc-900 text-amber-500 focus:ring-0 cursor-pointer w-3.5 h-3.5"
+                      />
+                      <span className="text-[11px] text-slate-500 dark:text-zinc-400">Remember session (One-click Login)</span>
+                    </label>
+                  </div>
                 </div>
+
               </div>
 
-              {/* API Key */}
-              <div className="space-y-1 bg-slate-50 dark:bg-zinc-950/40 p-2.5 rounded-xl border border-slate-150 dark:border-zinc-900">
-                <div className="flex justify-between items-center">
-                  <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase block">
-                    Custom LLM Model API Key (Fully Optional)
-                  </label>
-                  <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold flex gap-1.5 shrink-0">
-                    🟢 Built-in Server AI Active
-                  </span>
-                </div>
-                <div className="relative mt-1">
-                  <input
-                    type={showKey ? "text" : "password"}
-                    placeholder="Not required. Server-side built-in AI is pre-configured and active."
-                    value={claudeApiKey}
-                    onChange={(e) => setClaudeApiKey(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-700 hover:border-slate-300 dark:hover:border-zinc-600 focus:border-[#C8962E] rounded-lg pl-3 pr-10 py-1.5 text-slate-800 dark:text-zinc-200 placeholder-slate-400 dark:placeholder-zinc-500 outline-none text-xs font-mono focus:ring-1 focus:ring-[#C8962E]/20"
-                  />
+              {/* Action buttons and Google integration */}
+              <div className="border-t border-slate-100 dark:border-zinc-800/60 pt-5 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <button
+                    type="submit"
+                    className="w-full py-3 bg-gradient-to-r from-[#C8962E] to-[#1A7A3C] hover:brightness-105 active:scale-98 text-black font-serif font-extrabold text-xs tracking-wider uppercase rounded-xl cursor-pointer flex items-center justify-center gap-2 shadow-lg transition-all"
+                  >
+                    Register & Enter Campus <ArrowRight className="w-4 h-4" />
+                  </button>
+
                   <button
                     type="button"
-                    onClick={() => setShowKey(!showKey)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-450 dark:text-zinc-500 hover:text-[#C8962E]"
+                    onClick={handleGoogleAuth}
+                    className="w-full py-3 bg-slate-50 hover:bg-slate-100 dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 text-slate-700 dark:text-zinc-200 rounded-xl text-xs font-serif font-bold tracking-wide flex items-center justify-center gap-2 cursor-pointer shadow-sm transition-all"
                   >
-                    {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    <span className="text-sm">🎯</span>
+                    <span>Register instantly with Google</span>
                   </button>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between py-1">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="rounded border-slate-350 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900 text-amber-500 focus:ring-0 cursor-pointer"
-                  />
-                  <span className="text-[11px] text-slate-500 dark:text-zinc-400">Remember session (One-click Login)</span>
-                </label>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-3.5 bg-gradient-to-r from-[#C8962E] to-[#1A7A3C] text-black font-serif font-extrabold text-xs tracking-wider uppercase rounded-lg cursor-pointer flex items-center justify-center gap-2 shadow"
-              >
-                Register & Enter Campus <ArrowRight className="w-4 h-4" />
-              </button>
-
-              <div className="relative flex py-2 items-center">
-                <div className="flex-grow border-t border-slate-100 dark:border-zinc-850"></div>
-                <span className="flex-shrink mx-4 text-[10px] text-slate-400 dark:text-zinc-500 font-bold uppercase tracking-widest">or</span>
-                <div className="flex-grow border-t border-slate-100 dark:border-zinc-850"></div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleGoogleAuth}
-                className="w-full py-3 bg-slate-50 hover:bg-slate-100 dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 text-slate-700 dark:text-zinc-200 rounded-lg text-xs font-serif font-bold tracking-wide flex items-center justify-center gap-2 cursor-pointer shadow-sm transition-all"
-              >
-                <span className="text-sm">🎯</span>
-                <span>Register instantly with Google</span>
-              </button>
             </form>
 
-            <div className="text-center pt-2 border-t border-slate-100 dark:border-zinc-900/60">
-              <p className="text-xs text-slate-500 dark:text-zinc-500">
+            <div className="text-center pt-4 border-t border-slate-100 dark:border-zinc-800/50">
+              <p className="text-xs text-slate-500 dark:text-zinc-500 font-medium">
                 Already have an account?{' '}
                 <button
                   type="button"
                   onClick={() => { playClickChime(); setMode('signin'); }}
-                  className="text-[#C8962E] font-bold hover:underline cursor-pointer"
+                  className="text-[#C8962E] font-bold hover:underline cursor-pointer ml-1"
                 >
                   Sign in
                 </button>

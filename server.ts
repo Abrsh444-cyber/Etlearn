@@ -4,6 +4,7 @@
  */
 
 import express from 'express';
+import cors from 'cors';
 import path from 'path';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
@@ -40,6 +41,7 @@ const PORT = 3000;
     return true; // Accept any key structure to maximize compatibility with all academic AI integrations
   };
 
+  app.use(cors());
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 

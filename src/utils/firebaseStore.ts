@@ -20,7 +20,9 @@ import { StudentProfile, CustomNote } from '../types';
 
 // Safe initialization to prevent "duplicate default app" warnings
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-export const db = getFirestore(app);
+export const db = firebaseConfig.firestoreDatabaseId 
+  ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
+  : getFirestore(app);
 export const auth = getAuth(app);
 
 // Error Operation Enum
