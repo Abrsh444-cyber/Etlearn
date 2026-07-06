@@ -430,7 +430,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                 placeholder="https://your-project.supabase.co"
                 value={supabaseUrlInput}
                 onChange={(e) => setSupabaseUrlInput(e.target.value)}
-                className="w-full bg-black border border-zinc-800 rounded px-2.5 py-1.5 text-[11px] font-mono text-zinc-200 outline-none focus:border-amber-500 transition-all"
+                className="w-full bg-zinc-900/90 border border-zinc-700 rounded px-2.5 py-1.5 text-[11px] font-mono text-zinc-200 outline-none focus:border-amber-500 transition-all focus:ring-1 focus:ring-amber-500/20"
               />
             </div>
 
@@ -443,7 +443,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                 placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                 value={supabaseKeyInput}
                 onChange={(e) => setSupabaseKeyInput(e.target.value)}
-                className="w-full bg-black border border-zinc-800 rounded px-2.5 py-1.5 text-[11px] font-mono text-zinc-200 outline-none focus:border-amber-500 transition-all"
+                className="w-full bg-zinc-900/90 border border-zinc-700 rounded px-2.5 py-1.5 text-[11px] font-mono text-zinc-200 outline-none focus:border-amber-500 transition-all focus:ring-1 focus:ring-amber-500/20"
               />
             </div>
 
@@ -1224,7 +1224,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                       setEmail(e.target.value);
                       if (emailError) setEmailError(null);
                     }}
-                    className={`w-full bg-[#090909] border ${emailError ? 'border-red-500/80 focus:border-red-500' : 'border-zinc-800 focus:border-[#C8962E]'} rounded-lg pl-10 pr-4 py-2.5 text-zinc-100 outline-none text-xs transition-all`}
+                    className={`w-full bg-zinc-900/90 border ${emailError ? 'border-red-500/80 focus:border-red-500' : 'border-zinc-700 hover:border-zinc-600 focus:border-[#C8962E]'} rounded-lg pl-10 pr-4 py-2.5 text-zinc-100 placeholder-zinc-500 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20`}
                   />
                 </div>
                 {emailError && (
@@ -1246,7 +1246,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                       setPassword(e.target.value);
                       if (passwordError) setPasswordError(null);
                     }}
-                    className={`w-full bg-[#090909] border ${passwordError ? 'border-red-500/80 focus:border-red-500' : 'border-zinc-800 focus:border-[#C8962E]'} rounded-lg pl-10 pr-10 py-2.5 text-zinc-100 outline-none text-xs transition-all font-mono`}
+                    className={`w-full bg-zinc-900/90 border ${passwordError ? 'border-red-500/80 focus:border-red-500' : 'border-zinc-700 hover:border-zinc-600 focus:border-[#C8962E]'} rounded-lg pl-10 pr-10 py-2.5 text-zinc-100 placeholder-zinc-500 outline-none text-xs transition-all font-mono focus:ring-1 focus:ring-[#C8962E]/20`}
                   />
                   <button
                     type="button"
@@ -1428,7 +1428,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                     placeholder="e.g. Abebe Kebede"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-[#090909] border border-zinc-800 focus:border-[#C8962E] rounded-lg px-3 py-2 text-zinc-100 outline-none text-xs transition-all"
+                    className="w-full bg-zinc-900/90 border border-zinc-700 hover:border-zinc-600 focus:border-[#C8962E] rounded-lg px-3 py-2 text-zinc-100 placeholder-zinc-500 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20"
                   />
                 </div>
 
@@ -1442,7 +1442,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                     placeholder="student@gmail.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-[#090909] border border-zinc-800 focus:border-[#C8962E] rounded-lg px-3 py-2 text-zinc-100 outline-none text-xs transition-all"
+                    className="w-full bg-zinc-900/90 border border-zinc-700 hover:border-zinc-600 focus:border-[#C8962E] rounded-lg px-3 py-2 text-zinc-100 placeholder-zinc-500 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20"
                   />
                 </div>
 
@@ -1456,7 +1456,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                     placeholder="Min 5 chars"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-[#090909] border border-zinc-800 focus:border-[#C8962E] rounded-lg px-3 py-2 text-zinc-100 outline-none text-xs transition-all font-mono"
+                    className="w-full bg-zinc-900/90 border border-zinc-700 hover:border-zinc-600 focus:border-[#C8962E] rounded-lg px-3 py-2 text-zinc-100 placeholder-zinc-500 outline-none text-xs transition-all font-mono focus:ring-1 focus:ring-[#C8962E]/20"
                   />
                 </div>
               </div>
@@ -1484,7 +1484,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                     placeholder="e.g. Wolkite University"
                     value={university}
                     onChange={(e) => setUniversity(e.target.value)}
-                    className="w-full bg-[#090909] border border-zinc-800 focus:border-[#C8962E] rounded-lg px-3 py-2 text-zinc-100 outline-none text-xs transition-all"
+                    className="w-full bg-zinc-900/90 border border-zinc-700 hover:border-zinc-600 focus:border-[#C8962E] rounded-lg px-3 py-2 text-zinc-100 placeholder-zinc-500 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20"
                   />
                 </div>
 
@@ -1495,7 +1495,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                   <select
                     value={year}
                     onChange={(e) => setYear(e.target.value)}
-                    className="w-full bg-[#090909] border border-zinc-800 focus:border-[#C8962E] rounded-lg px-3 py-2 text-zinc-100 outline-none text-xs transition-all appearance-none cursor-pointer"
+                    className="w-full bg-zinc-900/90 border border-zinc-700 hover:border-zinc-600 focus:border-[#C8962E] rounded-lg px-3 py-2 text-zinc-100 outline-none text-xs transition-all appearance-none cursor-pointer focus:ring-1 focus:ring-[#C8962E]/20"
                   >
                     <option value="Grade 12">Grade 12 (Preparatory Senior)</option>
                     <option value="University">University Student</option>
@@ -1547,7 +1547,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                     placeholder="Optional. Press view key or leave blank to proxy built-in AI models."
                     value={claudeApiKey}
                     onChange={(e) => setClaudeApiKey(e.target.value)}
-                    className="w-full bg-[#050505] border border-zinc-900 focus:border-[#C8962E] rounded-lg pl-3 pr-10 py-1.5 text-zinc-200 outline-none text-xs font-mono"
+                    className="w-full bg-zinc-900/90 border border-zinc-700 hover:border-zinc-600 focus:border-[#C8962E] rounded-lg pl-3 pr-10 py-1.5 text-zinc-200 placeholder-zinc-500 outline-none text-xs font-mono focus:ring-1 focus:ring-[#C8962E]/20"
                   />
                   <button
                     type="button"
