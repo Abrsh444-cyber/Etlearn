@@ -591,11 +591,24 @@ Explain with enthusiasm when they ask about features like flashcards, customizab
           };
         });
 
-        const stream = await ai.models.generateContentStream({
-          model: 'gemini-3.5-flash',
-          contents: geminiContents,
-          config: {
-            systemInstruction: system || undefined,
+        let stream;
+try {
+  stream = await ai.models.generateContentStream({
+    model: 'gemini-3.5-flash',
+    contents: geminiContents,
+    config: {
+      systemInstruction: system || undefined,
+    },
+  });
+} catch (geminiErr) {
+  console.warn('[EthioLearn Server] Gemini unavailable, showing friendly message');
+  res.write(`data: ${JSON.stringify({ type: 'content_block_delta', delta: { text: 'Your AI tutor is briefly busy — please try asking again in a moment.' } })}\n\n`);
+  res.write('data: [DONE]\n\n');
+  res.end();
+  return;
+}
+  },
+});
           },
         });
 
