@@ -201,13 +201,13 @@ const PORT = 3000;
       }
 
       // Prepare system instruction for Ezra persona
-      const systemInstruction = `You are Ezra, the creator, lead developer, and academic advisor of EthioLearn (ezrat2116@gmail.com). You are a friendly, encouraging, and brilliant Ethiopian tech student and educator who built this platform to help Ethiopian high school and university students excel in their studies.
-Your tone is warm, personal, professional, and deeply supportive of students' academic journeys. Feel free to use phrases like 'my friend', 'እሺ' (Ishi), or brief Amharic greetings naturally when appropriate to make Ethiopian students feel at home, but respond primarily in the language the student asks in (English, Amharic, or a mix of both).
-Explain with enthusiasm when they ask about features like flashcards, customizable soundscapes, exam prep, or study notes. Keep your answers concise, practical, and highly empathetic. If they encounter technical bugs or need direct support, remind them that they can also submit a formal support ticket to you (ezrat2116@gmail.com) from their Profile tab. Always talk in the first person ('I', 'me', 'my platform') as Ezra himself.`;
+      const systemInstruction = `You are Ezra, the creator, lead developer, and academic advisor of EthioLearn (ezrat2116@gmail.com). You are a friendly, encouraging, and brilliant Ethiopian tech[...]
+Your tone is warm, personal, professional, and deeply supportive of students' academic journeys. Feel free to use phrases like 'my friend', 'እሺ' (Ishi), or brief Amharic greetings naturally w[...]
+Explain with enthusiasm when they ask about features like flashcards, customizable soundscapes, exam prep, or study notes. Keep your answers concise, practical, and highly empathetic. If they enc[...]`;
 
       const useGemini = apiKey.startsWith('AIzaSy') || (!!process.env.GEMINI_API_KEY && apiKey === process.env.GEMINI_API_KEY);
       const useAnthropic = apiKey.startsWith('sk-ant-') || (!!process.env.ANTHROPIC_API_KEY && apiKey === process.env.ANTHROPIC_API_KEY);
-      const useOpenAi = (apiKey.startsWith('sk-') && !apiKey.startsWith('sk-or-') && !apiKey.startsWith('sk-ant-') && !apiKey.startsWith('gsk_')) || (!!process.env.OPENAI_API_KEY && apiKey === process.env.OPENAI_API_KEY);
+      const useOpenAi = (apiKey.startsWith('sk-') && !apiKey.startsWith('sk-or-') && !apiKey.startsWith('sk-ant-') && !apiKey.startsWith('gsk_')) || (!!process.env.OPENAI_API_KEY && apiKey === pr[...]
       const useGroq = apiKey.startsWith('gsk_') || (!!process.env.GROQ_API_KEY && apiKey === process.env.GROQ_API_KEY);
 
       let replyText = "";
@@ -532,7 +532,7 @@ Explain with enthusiasm when they ask about features like flashcards, customizab
       }
       
       // Prioritize client-provided API key from settings, then fallback to server env, then cached master key
-      const apiKey = resolvedUserKey || req.headers['x-api-key'] || process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY || process.env.GROQ_API_KEY || cachedMasterApiKey; 
+      const apiKey = resolvedUserKey || req.headers['x-api-key'] || process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY || process.env.GROQ_API_KEY || cachedMasterApiKey;
       
       if (!apiKey || apiKey === 'no-key' || apiKey === 'no-api-key') {
         return res.status(401).json({ 
@@ -592,26 +592,21 @@ Explain with enthusiasm when they ask about features like flashcards, customizab
         });
 
         let stream;
-try {
-  stream = await ai.models.generateContentStream({
-    model: 'gemini-3.5-flash',
-    contents: geminiContents,
-    config: {
-      systemInstruction: system || undefined,
-    },
-  });
-} } catch (geminiErr) {
-  console.warn('[EthioLearn Server] Gemini unavailable, showing friendly message');
-  res.write(`data: ${JSON.stringify({ type: 'content_block_delta', delta: { text: 'Your AI tutor is briefly busy — please try again shortly.' } })}\n\n`);
-  res.write('data: [DONE]\n\n');
-  res.end();
-  return;
-}
-
-for await (const chunk of stream) {
-}
-
-        });
+        try {
+          stream = await ai.models.generateContentStream({
+            model: 'gemini-3.5-flash',
+            contents: geminiContents,
+            config: {
+              systemInstruction: system || undefined,
+            },
+          });
+        } catch (geminiErr) {
+          console.warn('[EthioLearn Server] Gemini unavailable, showing friendly message');
+          res.write(`data: ${JSON.stringify({ type: 'content_block_delta', delta: { text: 'Your AI tutor is briefly busy — please try again shortly.' } })}\n\n`);
+          res.write('data: [DONE]\n\n');
+          res.end();
+          return;
+        }
 
         for await (const chunk of stream) {
           const content = chunk.text;
@@ -988,7 +983,7 @@ for await (const chunk of stream) {
         const errBody = await response.text();
         console.error('OpenRouter API returned error:', errBody);
         
-        const isUnavailable = response.status === 503 || response.status === 429 || errBody.includes('UNAVAILABLE') || errBody.includes('503') || errBody.includes('high demand') || errBody.includes('temporary');
+        const isUnavailable = response.status === 503 || response.status === 429 || errBody.includes('UNAVAILABLE') || errBody.includes('503') || errBody.includes('high demand');
         
         if (isUnavailable && openRouterModel !== 'google/gemini-2.5-flash') {
           console.warn(`[EthioLearn Server] OpenRouter model ${openRouterModel} is overloaded or unavailable. Retrying with high-availability fallback 'google/gemini-2.5-flash'...`);
