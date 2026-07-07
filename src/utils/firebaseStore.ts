@@ -20,10 +20,47 @@ import { StudentProfile, CustomNote } from '../types';
 
 // Safe initialization to prevent "duplicate default app" warnings
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-export const db = firebaseConfig.firestoreDatabaseId 
-  ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
-  : getFirestore(app);
-export const auth = getAuth(app);
+
+let firestoreInstance: ReturnType<typeof getFirestore> | null = null;
+export function getDb() {
+  if (!firestoreInstance) {
+    firestoreInstance = firebaseConfig.firestoreDatabaseId 
+      ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
+      : getFirestore(app);
+  }
+  return firestoreInstance;
+}
+
+let authInstance: ReturnType<typeof getAuth> | null = null;
+export function getAuthInstance() {
+  if (!authInstance) {
+    authInstance = getAuth(app);
+  }
+  return authInstance;
+}
+
+// Proxies as highly compatible backward-compatible exports
+export const db = new Proxy({} as any, {
+  get(target, prop, receiver) {
+    const instance = getDb();
+    const value = Reflect.get(instance, prop, receiver);
+    if (typeof value === 'function') {
+      return value.bind(instance);
+    }
+    return value;
+  }
+}) as unknown as ReturnType<typeof getFirestore>;
+
+export const auth = new Proxy({} as any, {
+  get(target, prop, receiver) {
+    const instance = getAuthInstance();
+    const value = Reflect.get(instance, prop, receiver);
+    if (typeof value === 'function') {
+      return value.bind(instance);
+    }
+    return value;
+  }
+}) as unknown as ReturnType<typeof getAuth>;
 
 // Error Operation Enum
 export enum OperationType {
@@ -60,12 +97,12 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+      userId: getAuthInstance().currentUser?.uid,
+      email: getAuthInstance().currentUser?.email,
+      emailVerified: getAuthInstance().currentUser?.emailVerified,
+      isAnonymous: getAuthInstance().currentUser?.isAnonymous,
+      tenantId: getAuthInstance().currentUser?.tenantId,
+      providerInfo: getAuthInstance().currentUser?.providerData?.map(provider => ({
         providerId: provider.providerId,
         email: provider.email,
       })) || []
@@ -82,7 +119,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
  */
 export async function testFirestoreConnection() {
   try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
+    await getDocFromServer(doc(getDb(), 'test', 'connection'));
     console.log('[Firestore Service] Initial boot liveness check succeeded.');
   } catch (error) {
     if (error instanceof Error && error.message.includes('the client is offline')) {
@@ -108,7 +145,7 @@ export async function syncProfileToFirestore(userId: string, profile: StudentPro
       theme: profile.theme || 'dark',
       language: profile.language || 'en'
     };
-    await setDoc(doc(db, 'profiles', userId), cleanProfile);
+    await setDoc(doc(getDb(), 'profiles', userId), cleanProfile);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -120,7 +157,7 @@ export async function syncProfileToFirestore(userId: string, profile: StudentPro
 export async function fetchProfileFromFirestore(userId: string): Promise<StudentProfile | null> {
   const path = `profiles/${userId}`;
   try {
-    const snap = await getDoc(doc(db, 'profiles', userId));
+    const snap = await getDoc(doc(getDb(), 'profiles', userId));
     if (snap.exists()) {
       return snap.data() as StudentProfile;
     }
@@ -136,7 +173,7 @@ export async function fetchProfileFromFirestore(userId: string): Promise<Student
 export async function saveNoteToFirestore(userId: string, note: CustomNote): Promise<void> {
   const path = `profiles/${userId}/notes/${note.id}`;
   try {
-    await setDoc(doc(db, 'profiles', userId, 'notes', note.id), note);
+    await setDoc(doc(getDb(), 'profiles', userId, 'notes', note.id), note);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -148,7 +185,7 @@ export async function saveNoteToFirestore(userId: string, note: CustomNote): Pro
 export async function deleteNoteFromFirestore(userId: string, noteId: string): Promise<void> {
   const path = `profiles/${userId}/notes/${noteId}`;
   try {
-    await deleteDoc(doc(db, 'profiles', userId, 'notes', noteId));
+    await deleteDoc(doc(getDb(), 'profiles', userId, 'notes', noteId));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
   }
@@ -160,7 +197,7 @@ export async function deleteNoteFromFirestore(userId: string, noteId: string): P
 export async function fetchNotesFromFirestore(userId: string): Promise<CustomNote[]> {
   const path = `profiles/${userId}/notes`;
   try {
-    const querySnapshot = await getDocs(collection(db, 'profiles', userId, 'notes'));
+    const querySnapshot = await getDocs(collection(getDb(), 'profiles', userId, 'notes'));
     const notes: CustomNote[] = [];
     querySnapshot.forEach((doc) => {
       notes.push(doc.data() as CustomNote);

@@ -3,9 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { initializeApp } from 'firebase/app';
 import { 
-  getAuth, 
   signInWithPopup, 
   signInWithRedirect,
   getRedirectResult,
@@ -14,12 +12,8 @@ import {
   User,
   signOut
 } from 'firebase/auth';
-import firebaseConfig from '../../firebase-applet-config.json';
+import { getAuthInstance } from './firebaseStore';
 import { CustomNote } from '../types';
-
-// Initialize Firebase App
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
 
 // Configure Google OAuth Provider with Sheets and Docs permissions
 const provider = new GoogleAuthProvider();
@@ -44,7 +38,7 @@ export const initAuth = (
   onAuthFailure?: () => void
 ) => {
   // Handle redirect result if coming back from redirect flow
-  getRedirectResult(auth)
+  getRedirectResult(getAuthInstance())
     .then((result) => {
       if (result) {
         const credential = GoogleAuthProvider.credentialFromResult(result);
@@ -63,7 +57,7 @@ export const initAuth = (
       console.error('Redirect sign-in error:', error);
     });
 
-  return onAuthStateChanged(auth, async (user: User | null) => {
+  return onAuthStateChanged(getAuthInstance(), async (user: User | null) => {
     if (user) {
       if (!cachedAccessToken) {
         try {
@@ -94,7 +88,7 @@ export const initAuth = (
 export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
   try {
     isSigningIn = true;
-    const result = await signInWithPopup(auth, provider);
+    const result = await signInWithPopup(getAuthInstance(), provider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
     if (!credential?.accessToken) {
       throw new Error('Failed to get access token from Google.');
@@ -123,7 +117,7 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
 export const googleSignInRedirect = async (): Promise<void> => {
   try {
     isSigningIn = true;
-    await signInWithRedirect(auth, provider);
+    await signInWithRedirect(getAuthInstance(), provider);
   } catch (error: any) {
     console.error('Sign in redirect error:', error);
     throw error;
@@ -143,7 +137,7 @@ export const getAccessToken = async (): Promise<string | null> => {
  * Google Log Out
  */
 export const logoutGoogle = async () => {
-  await signOut(auth);
+  await signOut(getAuthInstance());
   cachedAccessToken = null;
   try {
     sessionStorage.removeItem('ethiolearn_google_token');

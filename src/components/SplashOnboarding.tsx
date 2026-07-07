@@ -11,7 +11,8 @@ import { googleSignIn, googleSignInRedirect } from '../utils/workspace';
 import { getSupabase, saveSupabaseCredentials, initSupabaseConfig } from '../utils/supabaseClient';
 import { 
   Key, User, Landmark, GraduationCap, ArrowRight, Info, Eye, EyeOff, 
-  Mail, Lock, LogIn, UserPlus, ArrowLeft, ShieldAlert, CheckCircle, Database
+  Mail, Lock, LogIn, UserPlus, ArrowLeft, ShieldAlert, CheckCircle, Database,
+  Bot, Sparkles, BookOpen, Layers, MessageSquare, Globe, ChevronRight, ChevronLeft, ThumbsUp, Send, RefreshCw, X
 } from 'lucide-react';
 import EthioLearnLogo from './EthioLearnLogo';
 import StudentAvatarSelector from './StudentAvatarSelector';
@@ -128,6 +129,179 @@ export const onboardingTranslations = {
   }
 };
 
+// Onboarding Translation Config
+export const onboardingFlowTranslations = {
+  en: {
+    skip: "Skip",
+    next: "Next",
+    back: "Back",
+    getStarted: "Get Started",
+    tryItNow: "Try it Now",
+    createAccount: "Create Free Account",
+    loginLink: "Already have an account? Sign In",
+    
+    // Screen 1: Welcome
+    screen1Bubble: "ሰላም! እኔ አስጎብኚ ነኝ 👋 / Hi! I'm አስጎብኚ, your study buddy",
+    screen1Headline: "EthioLearn Pro",
+    screen1Tagline: "AI-Powered Educational Platform for Ethiopian University Students",
+    
+    // Screen 2: AI Tutor
+    screen2Bubble: "Ask me anything — in Amharic or English — anytime you're stuck.",
+    screen2Headline: "Personal AI Study Companion",
+    screen2Sub: "Get instant step-by-step guidance tailored specifically to your university and high school curriculum.",
+    
+    // Screen 3: Flashcards
+    screen3Bubble: "I'll quiz you with flashcards that get smarter the more you study.",
+    screen3Headline: "Adaptive Smart Flashcards",
+    screen3Sub: "Interactive study decks that track your strengths and weaknesses to supercharge active recall.",
+    
+    // Screen 4: Universities
+    screen4Bubble: "I know what your university needs — Wolkite, AAU, and more.",
+    screen4Headline: "Aligned with Ethiopian Campuses",
+    screen4Sub: "Access past department exams, focus modules, and curricula from Wolkite, AAU, ASTU, and other local universities.",
+    
+    // Screen 5: Try AI Tutor
+    screen5BubbleInitial: "Go ahead! Ask me a study question to see me in action.",
+    screen5BubbleResponse: "See? That's me at work. Want unlimited access?",
+    screen5Headline: "Interact with አስጎብኚ",
+    screen5Sub: "Experience our high-speed, bilingual academic AI with no registration required.",
+    chatPlaceholder: "Ask me anything about your courses..."
+  },
+  am: {
+    skip: "ዝለል",
+    next: "ቀጣይ",
+    back: "ተመለስ",
+    getStarted: "እንጀምር",
+    tryItNow: "አሁን ይሞክሩ",
+    createAccount: "ነፃ መለያ ፍጠር",
+    loginLink: "ቀድሞውኑ መለያ አለዎት? ይግቡ",
+    
+    // Screen 1: Welcome
+    screen1Bubble: "ሰላም! እኔ አስጎብኚ ነኝ 👋 / Hi! I'm አስጎብኚ, your study buddy",
+    screen1Headline: "ኢትዮለርን ፕሮ",
+    screen1Tagline: "ለኢትዮጵያ ዩኒቨርሲቲ ተማሪዎች በAI የተደገፈ የትምህርት መድረክ",
+    
+    // Screen 2: AI Tutor
+    screen2Bubble: "በአማርኛ ወይም በእንግሊዝኛ ማንኛውንም ነገር ይጠይቁኝ — በማንኛውም ጊዜ ሲቸገሩ።",
+    screen2Headline: "የግል የጥናት ረዳት",
+    screen2Sub: "ለዩኒቨርሲቲዎ እና ለሁለተኛ ደረጃ ትምህርት ስርዓት በተለየ መልኩ የተዘጋጀ ፈጣን ምላሽ ያግኙ።",
+    
+    // Screen 3: Flashcards
+    screen3Bubble: "በጥናቱ መጠን ይበልጥ ጎበዝ በሚሆኑ ብልጥ ፍላሽ ካርዶች እፈትሻለሁ።",
+    screen3Headline: "ብልጥ የፍላሽ ካርድ ጥያቄዎች",
+    screen3Sub: "ንቁ የማስታወስ ችሎታን ለማሳደግ ጥንካሬዎችዎን እና ድክመቶችዎን የሚከታተሉ የጥናት ካርዶች።",
+    
+    // Screen 4: Universities
+    screen4Bubble: "ዩኒቨርሲቲዎ ምን እንደሚያስፈልገው አውቃለሁ — ወልቂጤ፣ አዲስ አበባ ዩኒቨርሲቲ እና ሌሎችም።",
+    screen4Headline: "ከኢትዮጵያ ግቢዎች ጋር የተናበበ",
+    screen4Sub: "የወልቂጤ፣ የአዲስ አበባ፣ የአዳማ ሳይንስ እና ቴክኖሎጂ እና የሌሎች ዩኒቨርሲቲዎችን የፈተና ጥያቄዎች ያግኙ።",
+    
+    // Screen 5: Try AI Tutor
+    screen5BubbleInitial: "ይቀጥሉ! በስራ ላይ እኔን ለማየት የጥናት ጥያቄ ይጠይቁኝ።",
+    screen5BubbleResponse: "አዩት አይደል? እኔ በስራ ላይ ነኝ። ያልተገደበ አገልግሎት ይፈልጋሉ?",
+    screen5Headline: "ከአስጎብኚ ጋር ይነጋገሩ",
+    screen5Sub: "ምንም ምዝገባ ሳይኖርብዎት ፈጣን የሁለት ቋንቋ የጥናት AI ረዳታችንን ይሞክሩ።",
+    chatPlaceholder: "ስለ ኮርሶችዎ ማንኛውንም ነገር ይጠይቁኝ..."
+  }
+};
+
+interface AsgobanyiProps {
+  action?: 'wave' | 'point' | 'thumbs-up' | 'idle';
+  className?: string;
+  size?: number;
+}
+
+export function Asgobanyi({ action = 'idle', className = '', size = 100 }: AsgobanyiProps) {
+  return (
+    <div 
+      className={`relative select-none ${className}`}
+      style={{ 
+        width: size, 
+        height: size,
+        animation: 'asgobanyi-bounce 3s ease-in-out infinite'
+      }}
+    >
+      <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-[0_4px_12px_rgba(200,150,46,0.25)]">
+        {/* Antenna */}
+        <line x1="50" y1="22" x2="50" y2="10" stroke="#C8962E" strokeWidth="3" strokeLinecap="round" />
+        <circle 
+          cx="50" 
+          cy="9" 
+          r="4.5" 
+          fill="#D4AF37" 
+          style={{ 
+            animation: 'glow-pulse 1.5s infinite alternate' 
+          }} 
+        />
+        
+        {/* Ears / Side Connectors */}
+        <rect x="26" y="27" width="6" height="12" rx="2" fill="#0f172a" stroke="#D4AF37" strokeWidth="2" />
+        <rect x="68" y="27" width="6" height="12" rx="2" fill="#0f172a" stroke="#D4AF37" strokeWidth="2" />
+        
+        {/* Head */}
+        <rect x="30" y="20" width="40" height="26" rx="8" fill="#1e293b" stroke="#D4AF37" strokeWidth="2.5" />
+        {/* Screen Background */}
+        <rect x="35" y="24" width="30" height="18" rx="4" fill="#090f1d" />
+        
+        {/* Glowing Eyes */}
+        <g>
+          {/* Left Eye */}
+          <circle cx="43" cy="33" r="3" fill="#D4AF37" className="animate-pulse" />
+          <circle cx="43" cy="33" r="1" fill="#fff" />
+          
+          {/* Right Eye */}
+          <circle cx="57" cy="33" r="3" fill="#D4AF37" className="animate-pulse" />
+          <circle cx="57" cy="33" r="1" fill="#fff" />
+        </g>
+        
+        {/* Cute Smiling Mouth */}
+        <path d="M 46,38 Q 50,41 54,38" stroke="#D4AF37" strokeWidth="2" fill="none" strokeLinecap="round" />
+        
+        {/* Neck */}
+        <rect x="46" y="46" width="8" height="6" fill="#0f172a" stroke="#D4AF37" strokeWidth="1.5" />
+        
+        {/* Body */}
+        <path d="M 34,52 L 66,52 L 62,74 L 38,74 Z" fill="#1e293b" stroke="#D4AF37" strokeWidth="2.5" />
+        {/* Screen/Chestplate Accent with Ethiopian Flag Line */}
+        <rect x="42" y="56" width="16" height="10" rx="2" fill="#090f1d" stroke="#D4AF37" strokeWidth="1" />
+        <g transform="translate(44, 59)">
+          <rect x="0" y="0" width="12" height="1.5" fill="#10B981" />
+          <rect x="0" y="1.5" width="12" height="1.5" fill="#FFECA7" />
+          <rect x="0" y="3" width="12" height="1.5" fill="#EF4444" />
+        </g>
+        
+        {/* Arms */}
+        {/* Left Arm */}
+        {action === 'point' ? (
+          <path d="M 34,56 Q 16,56 12,50" stroke="#D4AF37" strokeWidth="3" fill="none" strokeLinecap="round" />
+        ) : (
+          <path d="M 34,56 C 26,58 26,68 30,72" stroke="#D4AF37" strokeWidth="3" fill="none" strokeLinecap="round" />
+        )}
+        
+        {/* Right Arm */}
+        {action === 'wave' ? (
+          <g style={{ transformOrigin: '66px 56px', animation: 'asgobanyi-wave 1s ease-in-out infinite alternate' }}>
+            <path d="M 66,56 Q 84,46 80,30" stroke="#D4AF37" strokeWidth="3" fill="none" strokeLinecap="round" />
+            <circle cx="80" cy="30" r="3" fill="#D4AF37" />
+          </g>
+        ) : action === 'thumbs-up' ? (
+          <g>
+            <path d="M 66,56 Q 82,56 82,48" stroke="#D4AF37" strokeWidth="3" fill="none" strokeLinecap="round" />
+            <path d="M 82,48 L 84,48 L 84,42 Q 86,42 86,45 L 82,48" fill="#D4AF37" stroke="#D4AF37" strokeWidth="1" />
+            <circle cx="82" cy="48" r="3" fill="#D4AF37" />
+          </g>
+        ) : (
+          <path d="M 66,56 C 74,58 74,68 70,72" stroke="#D4AF37" strokeWidth="3" fill="none" strokeLinecap="round" />
+        )}
+        
+        {/* Tread/Legs base */}
+        <ellipse cx="50" cy="80" rx="14" ry="4" fill="#0f172a" stroke="#D4AF37" strokeWidth="2" />
+        <line x1="42" y1="82" x2="58" y2="82" stroke="#D4AF37" strokeWidth="2.5" />
+      </svg>
+    </div>
+  );
+}
+
 interface SplashOnboardingProps {
   onComplete: (profile: StudentProfile) => void;
   initialProfile?: StudentProfile | null;
@@ -141,8 +315,91 @@ interface AccountInfo {
 }
 
 export default function SplashOnboarding({ onComplete, initialProfile }: SplashOnboardingProps) {
-  // Mode switcher: 'splash' | 'signin' | 'signup'
-  const [mode, setMode] = useState<'splash' | 'signin' | 'signup'>('signin');
+  // Mode switcher: 'onboarding' | 'splash' | 'signin' | 'signup'
+  const [mode, setMode] = useState<'onboarding' | 'splash' | 'signin' | 'signup'>('onboarding');
+  
+  // Onboarding states
+  const [onboardingStep, setOnboardingStep] = useState(1);
+  const [onboardingChatText, setOnboardingChatText] = useState('');
+  const [onboardingChatMessages, setOnboardingChatMessages] = useState<any[]>([]);
+  const [onboardingIsTyping, setOnboardingIsTyping] = useState(false);
+  const [onboardingAiResponded, setOnboardingAiResponded] = useState(false);
+  const [flashcardFlipped, setFlashcardFlipped] = useState(false);
+
+  const getOnboardingFallbackResponse = (query: string, lang: 'en' | 'am') => {
+    const q = query.toLowerCase();
+    if (q.includes('photo') || q.includes('ቅንጅት')) {
+      return lang === 'am'
+        ? "ፎቶሲንተሲስ ማለት ዕፅዋት የፀሐይ ብርሃንን፣ ውሃን እና ካርቦን ዳይኦክሳይድን በመጠቀም ኦክስጅንን እና የስኳር ሃይልን የሚያመርቱበት ሂደት ነው! 🌿✨"
+        : "Photosynthesis is the process where plants use sunlight, water, and carbon dioxide to create oxygen and energy in the form of sugar! 🌿✨";
+    }
+    if (q.includes('gdp') || q.includes('econ') || q.includes('ኢኮኖሚ')) {
+      return lang === 'am'
+        ? "ጂዲፒ (ጠቅላላ የአገር ውስጥ ምርት) በአንድ ዓመት ውስጥ በአገር ውስጥ የተመረቱ ዕቃዎችና አገልግሎቶች ጠቅላላ ዋጋ ነው። የአንድ አገር ኢኮኖሚያዊ ውጤት መለኪያ ነው! 📊🇪🇹"
+        : "GDP (Gross Domestic Product) is the total value of all goods and services produced in a country in a year. It's like a country's economic report card! 📊🇪🇹";
+    }
+    if (q.includes('wolkite') || q.includes('ወልቂጤ')) {
+      return lang === 'am'
+        ? "ወልቂጤ ዩኒቨርሲቲ በጉራጌ ዞን የሚገኝ ኩሩ የኢትዮጵያ ተቋም ነው። በኢንጂነሪንግ፣ በግብርና እና በጥናት ጥራት የታወቀ ነው! 🏫🎓"
+        : "Wolkite University (WKU) is a proud Ethiopian institution located in the Gurage Zone. It is known for engineering, agriculture, and academic excellence! 🏫🎓";
+    }
+    if (q.includes('aau') || q.includes('አዲስ አበባ')) {
+      return lang === 'am'
+        ? "የአዲስ አበባ ዩኒቨርሲቲ በኢትዮጵያ አንጋፋው እና ትልቁ ዩኒቨርሲቲ ሲሆን፣ ከ1950 ጀምሮ ለምርምር፣ ለታሪክ እና ለሕክምና ግንባር ቀደም ማዕከል ነው! 🏛️🦁"
+        : "Addis Ababa University (AAU) is the oldest and largest university in Ethiopia, a leading center for research, history, and medicine since 1950! 🏛️🦁";
+    }
+    return lang === 'am'
+      ? "ይህ በጣም ግሩም የጥናት ጥያቄ ነው! አስጎብኚ ነኝ፣ ጥያቄዎችን ለመፍታት፣ ምዕራፎችን ለማጠቃለል እና ፈተናዎችዎን ለማለፍ እረዳዎታለሁ። አብረን እናጥና! 🚀📚"
+      : "That is a great academic question! As your study buddy, I'm here to help you solve equations, summarize chapters, and ace your exams in both Amharic and English. Let's study together! 🚀📚";
+  };
+
+  const handleOnboardingChatSubmit = async (text: string) => {
+    if (!text.trim() || onboardingIsTyping) return;
+    const query = text.trim();
+    setOnboardingChatText('');
+    
+    const userMsg = { role: 'user', content: query };
+    const updated = [...onboardingChatMessages, userMsg];
+    setOnboardingChatMessages(updated);
+    setOnboardingIsTyping(true);
+    
+    let finished = false;
+    const fallbackTimeout = setTimeout(() => {
+      if (!finished) {
+        const fbResponse = getOnboardingFallbackResponse(query, preferredLanguage);
+        setOnboardingChatMessages([...updated, { role: 'assistant', content: fbResponse }]);
+        setOnboardingIsTyping(false);
+        setOnboardingAiResponded(true);
+        playSuccessChime();
+        finished = true;
+      }
+    }, 2000);
+
+    try {
+      const { submitClaudeChat } = await import('../utils/ai');
+      await submitClaudeChat(
+        updated as any,
+        "You are አስጎብኚ (Asgobanyi), a friendly bilingual study partner robot for Ethiopian university students. Keep your response brief, encouraging, and exactly 2-3 sentences. Always relate back to helping them in their academic courses. Response can be in Amharic or English.",
+        claudeApiKey || "no-key",
+        {
+          onChunk: () => {},
+          onComplete: (fullText) => {
+            if (!finished) {
+              clearTimeout(fallbackTimeout);
+              setOnboardingChatMessages([...updated, { role: 'assistant', content: fullText }]);
+              setOnboardingIsTyping(false);
+              setOnboardingAiResponded(true);
+              playSuccessChime();
+              finished = true;
+            }
+          },
+          onError: () => {}
+        }
+      );
+    } catch (e) {
+      console.error(e);
+    }
+  };
   
   // Registration and Authentication inputs
   const [email, setEmail] = useState('');
@@ -912,6 +1169,525 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
 
       <AnimatePresence mode="wait">
         
+        {/* Step ONBOARDING */}
+        {mode === 'onboarding' && (
+          <motion.div
+            key="onboarding"
+            initial={{ opacity: 0, scale: 0.97, y: 15 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20, scale: 0.96 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            className="w-full max-w-md flex flex-col items-center relative z-10 px-4"
+          >
+            <style>{`
+              @keyframes asgobanyi-bounce {
+                0%, 100% { transform: translateY(0); }
+                50% { transform: translateY(-4px); }
+              }
+              @keyframes asgobanyi-wave {
+                0%, 100% { transform: rotate(0deg); }
+                50% { transform: rotate(18deg); }
+              }
+              @keyframes glow-pulse {
+                0%, 100% { filter: drop-shadow(0 0 3px rgba(200, 150, 46, 0.4)); opacity: 0.85; }
+                50% { filter: drop-shadow(0 0 10px rgba(200, 150, 46, 0.85)); opacity: 1; }
+              }
+              @keyframes float-slow {
+                0%, 100% { transform: translateY(0px) rotate(0deg); }
+                50% { transform: translateY(-6px) rotate(2deg); }
+              }
+              @keyframes float-slower {
+                0%, 100% { transform: translateY(0px) rotate(0deg); }
+                50% { transform: translateY(-9px) rotate(-2deg); }
+              }
+            `}</style>
+
+            <div className="w-full bg-[#0a0f1d]/90 border border-zinc-800/80 p-6 md:p-8 rounded-3xl relative overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.6)] flex flex-col justify-between">
+              
+              {/* Subtle background glow representing Ethiopian flag */}
+              <div className="absolute -top-16 -left-16 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
+              <div className="absolute top-1/2 -right-16 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
+              <div className="absolute -bottom-16 -left-16 w-32 h-32 bg-red-500/5 rounded-full blur-2xl pointer-events-none" />
+
+              {/* Header: Skip & Language Selector */}
+              <div className="flex justify-between items-center w-full mb-4">
+                {/* Skip top-left (hidden on step 5) */}
+                {onboardingStep < 5 ? (
+                  <button
+                    onClick={() => { playClickChime(); setMode('signin'); }}
+                    className="px-3 py-1.5 rounded-full text-[11px] font-bold text-zinc-400 hover:text-zinc-100 bg-zinc-900/40 border border-zinc-800/50 hover:border-zinc-700/60 transition-all cursor-pointer flex items-center gap-1"
+                  >
+                    <span>{onboardingFlowTranslations[preferredLanguage].skip}</span>
+                    <ChevronRight className="w-3 h-3" />
+                  </button>
+                ) : (
+                  <div className="w-6 h-6" /> // spacer
+                )}
+
+                {/* Bilingual Toggle top-right (always visible) */}
+                <div className="flex items-center gap-1 bg-zinc-900/80 border border-zinc-800 p-1 rounded-full backdrop-blur-md">
+                  <button
+                    onClick={() => { playClickChime(); setPreferredLanguage('am'); }}
+                    className={`px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase transition-all cursor-pointer ${preferredLanguage === 'am' ? 'bg-[#C8962E] text-black shadow-md' : 'text-zinc-400 hover:text-white'}`}
+                  >
+                    አማ
+                  </button>
+                  <button
+                    onClick={() => { playClickChime(); setPreferredLanguage('en'); }}
+                    className={`px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase transition-all cursor-pointer ${preferredLanguage === 'en' ? 'bg-[#C8962E] text-black shadow-md' : 'text-zinc-400 hover:text-white'}`}
+                  >
+                    EN
+                  </button>
+                </div>
+              </div>
+
+              {/* Dynamic Step Content */}
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={onboardingStep}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.25 }}
+                  className="w-full flex-grow flex flex-col justify-center"
+                >
+                  
+                  {/* STEP 1: Welcome */}
+                  {onboardingStep === 1 && (
+                    <div className="flex flex-col items-center justify-center py-4 text-center space-y-4">
+                      {/* Centered Logo with pulsing glow */}
+                      <div className="relative mb-2">
+                        <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500 via-[#C8962E] to-red-500 rounded-full blur-xl opacity-25 animate-pulse" />
+                        <EthioLearnLogo size={90} showCardBackground={false} className="relative transform hover:scale-105 transition-transform duration-300" />
+                      </div>
+                      
+                      {/* Mascot አስጎብኚ waves */}
+                      <div className="flex justify-center my-3">
+                        <Asgobanyi action="wave" size={120} />
+                      </div>
+                      
+                      {/* Speech Bubble */}
+                      <div className="relative bg-zinc-900/90 border border-[#C8962E]/30 px-5 py-3 rounded-2xl max-w-xs text-center shadow-xl mb-2">
+                        {/* Speech Bubble Arrow */}
+                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-zinc-900" />
+                        <p className="text-xs font-serif font-bold text-[#F0EDE8] leading-relaxed">
+                          {onboardingFlowTranslations[preferredLanguage].screen1Bubble}
+                        </p>
+                      </div>
+                      
+                      {/* Text Headings */}
+                      <div className="space-y-1.5 pt-1">
+                        <h1 className="font-serif text-3xl font-black text-[#C8962E] tracking-tight">
+                          {onboardingFlowTranslations[preferredLanguage].screen1Headline}
+                        </h1>
+                        <p className="text-xs text-zinc-300 max-w-sm leading-relaxed px-2">
+                          {onboardingFlowTranslations[preferredLanguage].screen1Tagline}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* STEP 2: AI Tutor */}
+                  {onboardingStep === 2 && (
+                    <div className="flex flex-col items-center py-2 space-y-4">
+                      {/* Interactive Mockup for Chat */}
+                      <div className="relative w-full max-w-[280px] aspect-[1.9/1] rounded-2xl bg-zinc-950/80 border border-zinc-800/80 p-3 shadow-2xl flex flex-col justify-between overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+                        
+                        {/* Floating Tag */}
+                        <div className="flex justify-between items-center border-b border-zinc-900 pb-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            <span className="text-[8px] font-mono uppercase tracking-wider text-zinc-500">Live AI Chat</span>
+                          </div>
+                          <span className="text-[8px] font-mono text-zinc-600 font-sans">Amharic / English</span>
+                        </div>
+
+                        {/* Messages list */}
+                        <div className="space-y-2 py-1 flex-grow overflow-hidden flex flex-col justify-end text-left">
+                          <div className="self-end bg-[#C8962E]/10 border border-[#C8962E]/20 rounded-xl px-2.5 py-1 text-[9px] text-zinc-300 max-w-[85%] font-sans">
+                            {preferredLanguage === 'am' ? 'GDP በአማርኛ ምንድነው?' : 'Explain GDP in Amharic?'}
+                          </div>
+                          <div className="self-start bg-zinc-900 border border-zinc-850 rounded-xl px-2.5 py-1 text-[9px] text-zinc-400 max-w-[85%] flex items-start gap-1 font-sans">
+                            <Sparkles className="w-2.5 h-2.5 text-[#C8962E] mt-0.5 shrink-0" />
+                            <span>{preferredLanguage === 'am' ? 'ጠቅላላ የአገር ውስጥ ምርት (GDP) ማለት...' : 'Gross Domestic Product (GDP) means...'}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Mascot አስጎብኚ + Speech bubble side by side */}
+                      <div className="flex items-center gap-3 max-w-sm bg-zinc-900/40 p-3 rounded-2xl border border-zinc-850/60 w-full">
+                        <Asgobanyi action="point" size={80} className="shrink-0" />
+                        <div className="relative bg-zinc-950/80 border border-[#C8962E]/30 p-2.5 rounded-xl flex-grow text-left">
+                          <p className="text-[10px] text-zinc-200 leading-normal font-medium font-sans">
+                            {onboardingFlowTranslations[preferredLanguage].screen2Bubble}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Typography */}
+                      <div className="text-center px-2 space-y-1">
+                        <h2 className="text-base font-serif font-bold text-[#C8962E]">
+                          {onboardingFlowTranslations[preferredLanguage].screen2Headline}
+                        </h2>
+                        <p className="text-[10.5px] text-zinc-400 max-w-sm leading-relaxed mx-auto font-sans">
+                          {onboardingFlowTranslations[preferredLanguage].screen2Sub}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* STEP 3: Flashcards */}
+                  {onboardingStep === 3 && (
+                    <div className="flex flex-col items-center py-2 space-y-4">
+                      {/* 3D Flipping Flashcard Mockup */}
+                      <div 
+                        onClick={() => { playClickChime(); setFlashcardFlipped(!flashcardFlipped); }}
+                        className="group relative w-full max-w-[280px] h-[120px] cursor-pointer"
+                        style={{ perspective: '1000px' }}
+                      >
+                        <div 
+                          className="relative w-full h-full duration-500 transition-transform"
+                          style={{ 
+                            transformStyle: 'preserve-3d', 
+                            transform: flashcardFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)' 
+                          }}
+                        >
+                          {/* Front of Card */}
+                          <div 
+                            className="absolute inset-0 w-full h-full rounded-2xl bg-zinc-900 border-2 border-zinc-800/85 p-3.5 flex flex-col justify-between shadow-2xl"
+                            style={{ backfaceVisibility: 'hidden' }}
+                          >
+                            <div className="flex justify-between items-center">
+                              <span className="px-2 py-0.5 rounded-full bg-zinc-850 border border-zinc-800 text-[8px] text-[#C8962E] font-mono tracking-wider uppercase">
+                                Front (ጥያቄ)
+                              </span>
+                              <Layers className="w-3.5 h-3.5 text-zinc-500" />
+                            </div>
+                            <div className="text-center py-1 text-left">
+                              <p className="text-[11px] font-serif text-[#F0EDE8] font-bold">
+                                What is the primary organic outcome of Photosynthesis?
+                              </p>
+                            </div>
+                            <div className="text-center text-[8px] text-zinc-500 font-mono animate-pulse">
+                              {preferredLanguage === 'am' ? 'ለመገልበጥ ንካ 🔄' : 'Click or Tap to Flip 🔄'}
+                            </div>
+                          </div>
+
+                          {/* Back of Card */}
+                          <div 
+                            className="absolute inset-0 w-full h-full rounded-2xl bg-[#0f172a] border-2 border-[#C8962E]/60 p-3.5 flex flex-col justify-between shadow-2xl"
+                            style={{ 
+                              backfaceVisibility: 'hidden',
+                              transform: 'rotateY(180deg)' 
+                            }}
+                          >
+                            <div className="flex justify-between items-center">
+                              <span className="px-2 py-0.5 rounded-full bg-[#C8962E]/10 border border-[#C8962E]/20 text-[8px] text-emerald-400 font-mono tracking-wider uppercase">
+                                Back (መልስ)
+                              </span>
+                              <Sparkles className="w-3.5 h-3.5 text-[#C8962E] animate-pulse" />
+                            </div>
+                            <div className="text-center py-0.5">
+                              <p className="text-[11px] text-zinc-300 font-medium">
+                                Synthesis of glucose sugars and release of oxygen gas! 🌿
+                              </p>
+                            </div>
+                            <div className="text-center text-[8px] text-emerald-500/70 font-bold font-mono">
+                              Mastered! (+10 XP)
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Mascot አስጎብኚ + Speech bubble side by side */}
+                      <div className="flex items-center gap-3 max-w-sm bg-zinc-900/40 p-3 rounded-2xl border border-zinc-850/60 w-full">
+                        <Asgobanyi action="idle" size={80} className="shrink-0" />
+                        <div className="relative bg-zinc-950/80 border border-[#C8962E]/30 p-2.5 rounded-xl flex-grow text-left">
+                          <p className="text-[10px] text-zinc-200 leading-normal font-medium font-sans">
+                            {onboardingFlowTranslations[preferredLanguage].screen3Bubble}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Typography */}
+                      <div className="text-center px-2 space-y-1">
+                        <h2 className="text-base font-serif font-bold text-[#C8962E]">
+                          {onboardingFlowTranslations[preferredLanguage].screen3Headline}
+                        </h2>
+                        <p className="text-[10.5px] text-zinc-400 max-w-sm leading-relaxed mx-auto font-sans">
+                          {onboardingFlowTranslations[preferredLanguage].screen3Sub}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* STEP 4: Universities */}
+                  {onboardingStep === 4 && (
+                    <div className="flex flex-col items-center py-2 space-y-4">
+                      {/* University Badges Grid */}
+                      <div className="relative w-full max-w-[280px] py-1.5 flex justify-center gap-2.5 overflow-hidden">
+                        {/* Background glow */}
+                        <div className="absolute inset-0 bg-red-500/5 rounded-full blur-xl pointer-events-none" />
+                        
+                        {/* AAU Badge */}
+                        <div className="w-[64px] h-[64px] rounded-2xl bg-zinc-900 border border-zinc-800 flex flex-col items-center justify-center p-1 shadow-lg animate-[float-slow_4s_infinite_ease-in-out]">
+                          <span className="text-base">🏛️</span>
+                          <span className="text-[8px] font-bold text-zinc-300 font-mono mt-0.5">AAU</span>
+                          <span className="text-[6px] text-zinc-500 font-mono">Addis Ababa</span>
+                        </div>
+
+                        {/* Wolkite Badge */}
+                        <div className="w-[64px] h-[64px] rounded-2xl bg-zinc-900 border-2 border-[#C8962E]/40 flex flex-col items-center justify-center p-1 shadow-lg animate-[float-slower_5s_infinite_ease-in-out]">
+                          <span className="text-base">🦁</span>
+                          <span className="text-[8px] font-bold text-amber-300 font-mono mt-0.5">WKU</span>
+                          <span className="text-[6px] text-zinc-500 font-mono">Wolkite</span>
+                        </div>
+
+                        {/* ASTU Badge */}
+                        <div className="w-[64px] h-[64px] rounded-2xl bg-zinc-900 border border-zinc-800 flex flex-col items-center justify-center p-1 shadow-lg animate-[float-slow_6s_infinite_ease-in-out] [animation-delay:1s]">
+                          <span className="text-base">🔬</span>
+                          <span className="text-[8px] font-bold text-zinc-300 font-mono mt-0.5">ASTU</span>
+                          <span className="text-[6px] text-zinc-500 font-mono">Adama</span>
+                        </div>
+                      </div>
+
+                      {/* Mascot አስጎብኚ + Speech bubble side by side */}
+                      <div className="flex items-center gap-3 max-w-sm bg-zinc-900/40 p-3 rounded-2xl border border-zinc-850/60 w-full">
+                        <Asgobanyi action="point" size={80} className="shrink-0" />
+                        <div className="relative bg-zinc-950/80 border border-[#C8962E]/30 p-2.5 rounded-xl flex-grow text-left">
+                          <p className="text-[10px] text-zinc-200 leading-normal font-medium font-sans">
+                            {onboardingFlowTranslations[preferredLanguage].screen4Bubble}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Typography */}
+                      <div className="text-center px-2 space-y-1">
+                        <h2 className="text-base font-serif font-bold text-[#C8962E]">
+                          {onboardingFlowTranslations[preferredLanguage].screen4Headline}
+                        </h2>
+                        <p className="text-[10.5px] text-zinc-400 max-w-sm leading-relaxed mx-auto font-sans">
+                          {onboardingFlowTranslations[preferredLanguage].screen4Sub}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* STEP 5: Interactive Chat Preview (No Signup) */}
+                  {onboardingStep === 5 && (
+                    <div className="flex flex-col py-1 space-y-3">
+                      {/* Chat History Container */}
+                      <div className="w-full bg-zinc-950/90 border border-zinc-850 rounded-2xl p-3 shadow-inner flex flex-col justify-between overflow-hidden relative">
+                        {/* Floating Backdrop Glow */}
+                        <div className="absolute top-0 right-0 w-24 h-24 bg-[#C8962E]/5 rounded-full blur-xl pointer-events-none" />
+                        
+                        {/* Messages Box */}
+                        <div className="h-[145px] overflow-y-auto space-y-2 pr-1 text-left flex flex-col scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
+                          {onboardingChatMessages.length === 0 ? (
+                            <div className="my-auto text-center space-y-2.5 px-2 flex flex-col justify-center items-center">
+                              <span className="text-base animate-bounce">💬</span>
+                              <p className="text-[9.5px] text-zinc-400 leading-normal max-w-[220px] font-sans">
+                                {preferredLanguage === 'am' ? 'ባለ ሁለት ቋንቋ ጥያቄዎችን ለመጠየቅ ከታች ካሉት አማራጮች አንዱን ይምረጡ ወይም ይፃፉ።' : 'Ask a study question to test አስጎብኚ right now!'}
+                              </p>
+                              
+                              {/* Quick Questions */}
+                              <div className="flex flex-wrap gap-1 justify-center pt-0.5">
+                                <button
+                                  onClick={() => handleOnboardingChatSubmit(preferredLanguage === 'am' ? "ስለ ወልቂጤ ዩኒቨርሲቲ ንገረኝ" : "Tell me about Wolkite University")}
+                                  className="px-2 py-0.5 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 rounded text-[8px] text-zinc-300 font-semibold transition cursor-pointer"
+                                >
+                                  🏫 Wolkite Univ
+                                </button>
+                                <button
+                                  onClick={() => handleOnboardingChatSubmit(preferredLanguage === 'am' ? "ፎቶሲንተሲስ ምንድን ነው?" : "What is Photosynthesis?")}
+                                  className="px-2 py-0.5 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 rounded text-[8px] text-zinc-300 font-semibold transition cursor-pointer"
+                                >
+                                  🌿 Photosynthesis
+                                </button>
+                                <button
+                                  onClick={() => handleOnboardingChatSubmit(preferredLanguage === 'am' ? "GDP በምሳሌ አስረዳኝ" : "Explain GDP with an example")}
+                                  className="px-2 py-0.5 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 rounded text-[8px] text-zinc-300 font-semibold transition cursor-pointer"
+                                >
+                                  📊 GDP Economy
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-2 pb-1">
+                              {onboardingChatMessages.map((msg, idx) => (
+                                <div 
+                                  key={idx} 
+                                  className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
+                                >
+                                  <div 
+                                    className={`px-3 py-1.5 rounded-2xl text-[10px] max-w-[85%] leading-relaxed ${
+                                      msg.role === 'user' 
+                                        ? 'bg-gradient-to-r from-[#C8962E] to-amber-500 text-black font-semibold rounded-tr-none' 
+                                        : 'bg-zinc-900 text-zinc-200 border border-zinc-850 rounded-tl-none font-sans'
+                                    }`}
+                                  >
+                                    {msg.content}
+                                  </div>
+                                </div>
+                              ))}
+                              {onboardingIsTyping && (
+                                <div className="flex items-center gap-1 bg-zinc-900/50 border border-zinc-850/50 rounded-xl px-2.5 py-1 self-start text-[9px] text-zinc-500 font-mono italic">
+                                  <RefreshCw className="w-2.5 h-2.5 animate-spin text-[#C8962E]" />
+                                  <span>{preferredLanguage === 'am' ? 'አስጎብኚ በማመንጨት ላይ...' : 'Asgobanyi is thinking...'}</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Input form */}
+                        <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-xl px-2 py-1 mt-1.5">
+                          <input
+                            type="text"
+                            value={onboardingChatText}
+                            onChange={(e) => setOnboardingChatText(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleOnboardingChatSubmit(onboardingChatText); }}
+                            placeholder={onboardingFlowTranslations[preferredLanguage].chatPlaceholder}
+                            disabled={onboardingIsTyping}
+                            className="flex-grow bg-transparent text-[10px] text-zinc-100 outline-none placeholder:text-zinc-600 font-sans"
+                          />
+                          <button
+                            onClick={() => handleOnboardingChatSubmit(onboardingChatText)}
+                            disabled={!onboardingChatText.trim() || onboardingIsTyping}
+                            className="p-1.5 bg-[#C8962E] disabled:bg-zinc-800 text-black disabled:text-zinc-600 rounded-lg transition cursor-pointer flex items-center justify-center shrink-0"
+                          >
+                            <Send className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Mascot አስጎብኚ + Speech bubble side by side */}
+                      <div className="flex items-center gap-3 max-w-sm bg-zinc-900/40 p-2 rounded-2xl border border-zinc-850/60 w-full transition-all">
+                        <Asgobanyi action={onboardingAiResponded ? 'thumbs-up' : 'idle'} size={75} className="shrink-0" />
+                        <div className="relative bg-zinc-950/80 border border-[#C8962E]/30 p-2.5 rounded-xl flex-grow text-left">
+                          <p className="text-[10px] text-zinc-200 leading-normal font-semibold font-sans">
+                            {onboardingAiResponded 
+                              ? onboardingFlowTranslations[preferredLanguage].screen5BubbleResponse 
+                              : onboardingFlowTranslations[preferredLanguage].screen5BubbleInitial}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Registration Banner & Buttons displayed once they ask a question */}
+                      <AnimatePresence>
+                        {onboardingAiResponded && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="w-full text-center space-y-2 pt-0.5"
+                          >
+                            {/* Banner */}
+                            <div className="bg-gradient-to-r from-emerald-950/20 via-amber-950/20 to-red-950/20 border border-[#C8962E]/30 p-2 rounded-xl shadow-lg">
+                              <p className="text-[9px] font-medium text-zinc-300 leading-relaxed font-sans">
+                                {preferredLanguage === 'am' 
+                                  ? 'ተጨማሪ አገልግሎቶችን ይክፈቱ! የፈተና ጥያቄዎች፣ የመጽሃፍ መደብር፣ ብልጥ ካርዶች እና ሙሉ የትምህርት ሞጁሎች!'
+                                  : 'Unlock complete focus modules, past exams, textbook library, smart decks & study counters!'}
+                              </p>
+                            </div>
+                            
+                            {/* Sign Up Button */}
+                            <button
+                              onClick={() => { playClickChime(); setMode('signup'); }}
+                              className="w-full py-2.5 bg-gradient-to-r from-emerald-500 via-[#C8962E] to-red-500 hover:from-emerald-400 hover:via-amber-400 hover:to-red-400 text-black font-extrabold text-[10px] tracking-widest uppercase rounded-xl cursor-pointer shadow-md transition-all flex items-center justify-center gap-1 border border-amber-300/20 font-serif"
+                            >
+                              <Bot className="w-3.5 h-3.5" />
+                              <span>{onboardingFlowTranslations[preferredLanguage].createAccount}</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </button>
+
+                            {/* Alternate link */}
+                            <button
+                              onClick={() => { playClickChime(); setMode('signin'); }}
+                              className="text-[10px] text-[#C8962E] hover:underline font-bold transition cursor-pointer inline-block"
+                            >
+                              {onboardingFlowTranslations[preferredLanguage].loginLink}
+                            </button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  )}
+
+                </motion.div>
+              </AnimatePresence>
+
+              {/* Bottom Navigation Panel (Progress indicators & Buttons) */}
+              {onboardingStep < 5 && (
+                <div className="flex items-center justify-between mt-6 pt-4 border-t border-zinc-900">
+                  
+                  {/* Left / Back Button */}
+                  {onboardingStep > 1 ? (
+                    <button
+                      onClick={() => { playClickChime(); setOnboardingStep(onboardingStep - 1); }}
+                      className="px-4 py-2 rounded-xl text-xs font-bold text-zinc-400 hover:text-zinc-100 border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex items-center gap-1"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                      <span>{onboardingFlowTranslations[preferredLanguage].back}</span>
+                    </button>
+                  ) : (
+                    <div className="w-12 h-8" /> // Spacer
+                  )}
+
+                  {/* Center Progress Dots (only shown on slides 2, 3, 4 as 1/3, 2/3, 3/3) */}
+                  {onboardingStep > 1 && onboardingStep < 5 ? (
+                    <div className="flex items-center gap-1.5">
+                      {[1, 2, 3].map((dotIdx) => {
+                        const active = onboardingStep - 1 === dotIdx;
+                        return (
+                          <span
+                            key={dotIdx}
+                            className={`h-1.5 rounded-full transition-all duration-300 ${
+                              active ? 'w-5 bg-[#C8962E]' : 'w-1.5 bg-zinc-800'
+                            }`}
+                          />
+                        );
+                      })}
+                    </div>
+                  ) : onboardingStep === 1 ? (
+                    <div className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#C8962E] animate-pulse" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                    </div>
+                  ) : null}
+
+                  {/* Right / Next Button */}
+                  <button
+                    onClick={() => {
+                      playClickChime();
+                      if (onboardingStep < 4) {
+                        setOnboardingStep(onboardingStep + 1);
+                      } else if (onboardingStep === 4) {
+                        setOnboardingStep(5);
+                      }
+                    }}
+                    className="px-5 py-2 bg-gradient-to-r from-[#C8962E] to-amber-500 text-black font-extrabold text-xs tracking-wider uppercase rounded-xl hover:opacity-90 shadow-md transition-all cursor-pointer flex items-center gap-1"
+                  >
+                    <span>
+                      {onboardingStep === 1 
+                        ? onboardingFlowTranslations[preferredLanguage].getStarted 
+                        : onboardingStep === 4 
+                          ? onboardingFlowTranslations[preferredLanguage].tryItNow 
+                          : onboardingFlowTranslations[preferredLanguage].next}
+                    </span>
+                    <ChevronRight className="w-3.5 h-3.5 text-black" />
+                  </button>
+
+                </div>
+              )}
+
+              {/* Ethiopian Flag Ribbons Border */}
+              <div className="h-[2.5px] bg-gradient-to-r from-emerald-500 via-[#C8962E] to-red-500 rounded-full w-2/3 mx-auto mt-4 opacity-75" />
+            </div>
+          </motion.div>
+        )}
+
         {/* Step SPLASH */}
         {mode === 'splash' && (
           <motion.div
