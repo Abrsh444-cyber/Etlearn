@@ -600,16 +600,17 @@ try {
       systemInstruction: system || undefined,
     },
   });
-} catch (geminiErr) {
+} } catch (geminiErr) {
   console.warn('[EthioLearn Server] Gemini unavailable, showing friendly message');
-  res.write(`data: ${JSON.stringify({ type: 'content_block_delta', delta: { text: 'Your AI tutor is briefly busy — please try asking again in a moment.' } })}\n\n`);
+  res.write(`data: ${JSON.stringify({ type: 'content_block_delta', delta: { text: 'Your AI tutor is briefly busy — please try again shortly.' } })}\n\n`);
   res.write('data: [DONE]\n\n');
   res.end();
   return;
 }
-  },
-});
-          },
+
+for await (const chunk of stream) {
+}
+
         });
 
         for await (const chunk of stream) {
