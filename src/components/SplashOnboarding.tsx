@@ -17,6 +17,117 @@ import EthioLearnLogo from './EthioLearnLogo';
 import StudentAvatarSelector from './StudentAvatarSelector';
 import StudentAvatar from './StudentAvatar';
 
+export const ETHIOPIAN_UNIVERSITIES = [
+  "Addis Ababa University (AAU)",
+  "Adama Science and Technology University (ASTU)",
+  "Addis Ababa Science and Technology University (AASTU)",
+  "Ambo University (AU)",
+  "Arba Minch University (AMU)",
+  "Admas University (Private)",
+  "Assosa University",
+  "Arsi University",
+  "Bahir Dar University (BDU)",
+  "Bule Hora University",
+  "Debre Markos University (DMU)",
+  "Debre Birhan University (DBU)",
+  "Dire Dawa University (DDU)",
+  "Dilla University",
+  "Gondar University (UoG)",
+  "Gambella University",
+  "Haramaya University (HrU)",
+  "Hawassa University (HU)",
+  "Jimma University (JU)",
+  "Jijiga University (JJU)",
+  "Kotebe Metropolitan University",
+  "Mekelle University (MU)",
+  "Mettu University",
+  "Mizan-Tepi University",
+  "MicroLink Information Technology College",
+  "Rift Valley University (Private)",
+  "Semera University",
+  "St. Mary's University (Private)",
+  "Unity University (Private)",
+  "Wolkite University (WKU)",
+  "Wollo University (WU)",
+  "Wachemo University",
+  "Other / Private College"
+];
+
+export const onboardingTranslations = {
+  en: {
+    title: "Create Account",
+    academicReg: "Academic Registration",
+    setCohort: "SET UP COHORT MEMBERSHIP",
+    tagline: "AI-Powered Educational Platform for Ethiopian University Students",
+    fullName: "Full Name",
+    fullNamePlaceholder: "e.g. Abebe Kebede",
+    university: "University / College",
+    universityPlaceholder: "Search or select your university",
+    email: "Email Address",
+    emailPlaceholder: "student@gmail.com",
+    password: "Academy Password",
+    passwordPlaceholder: "Minimum 5 characters",
+    confirmPassword: "Confirm Password",
+    confirmPasswordPlaceholder: "Re-enter your password",
+    alreadyHaveAccount: "Already have an account?",
+    loginLink: "Log in",
+    createAccountBtn: "Create Account",
+    loading: "Creating Account...",
+    googleRegisterBtn: "Register instantly with Google",
+    validationName: "Please enter your full name.",
+    validationUniversity: "Please select or type your university.",
+    validationEmail: "Please enter a valid Gmail address (@gmail.com).",
+    validationPassword: "Password must be at least 5 characters long.",
+    validationConfirmPassword: "Passwords do not match.",
+    academicStanding: "Academic Standing",
+    academicStandingPlaceholder: "Select your standing",
+    grade12: "Grade 12 (Preparatory Senior)",
+    universityStudent: "University Student",
+    chooseAvatar: "Select Custom Portrait Avatar",
+    assignModules: "Assign Campus Focus Modules (Select one or more)",
+    rememberSession: "Remember session (One-click Login)",
+    personalIdentity: "1. Student Identity & Persona",
+    academicStandingHeader: "2. Academic Standing & Enrollment",
+    registerEnter: "Register & Enter Campus"
+  },
+  am: {
+    title: "መለያ ፍጠር",
+    academicReg: "የአካዳሚክ ምዝገባ",
+    setCohort: "የቡድን አባልነት ያዋቅሩ",
+    tagline: "ለኢትዮጵያ ዩኒቨርሲቲ ተማሪዎች በAI የተደገፈ የትምህርት መድረክ",
+    fullName: "ሙሉ ስም",
+    fullNamePlaceholder: "ምሳሌ፡ አበበ ከበደ",
+    university: "ዩኒቨርሲቲ / ኮሌጅ",
+    universityPlaceholder: "ዩኒቨርሲቲዎን ይፈልጉ ወይም ይምረጡ",
+    email: "የኢሜይል አድራሻ",
+    emailPlaceholder: "student@gmail.com",
+    password: "የአካዳሚ የይለፍ ቃል",
+    passwordPlaceholder: "ቢያንስ 5 ቁምፊዎች",
+    confirmPassword: "የይለፍ ቃል ያረጋግጡ",
+    confirmPasswordPlaceholder: "የይለፍ ቃልዎን እንደገና ያስገቡ",
+    alreadyHaveAccount: "ቀድሞውኑ መለያ አለዎት?",
+    loginLink: "ይግቡ",
+    createAccountBtn: "መለያ ፍጠር",
+    loading: "በመፍጠር ላይ...",
+    googleRegisterBtn: "በGoogle ፈጣን ምዝገባ",
+    validationName: "እባክዎን ሙሉ ስምዎን ያስገቡ።",
+    validationUniversity: "እባክዎን ዩኒቨርሲቲዎን ይምረጡ ወይም ያስገቡ።",
+    validationEmail: "እባክዎን ትክክለኛ የጂሜይል አድራሻ ያስገቡ (@gmail.com)።",
+    validationPassword: "የይለፍ ቃል ቢያንስ 5 ቁምፊዎች መሆን አለበት።",
+    validationConfirmPassword: "የይለፍ ቃሎች አይዛመዱም።",
+    academicStanding: "የትምህርት ደረጃ",
+    academicStandingPlaceholder: "ደረጃዎን ይምረጡ",
+    grade12: "ክፍል 12 (ዝግጅት ከፍተኛ)",
+    universityStudent: "የዩኒቨርሲቲ ተማሪ",
+    chooseAvatar: "ብጁ የቁም አምሳያ ይምረጡ",
+    assignModules: "የካምፓስ የትኩረት ሞጁሎችን ይመድቡ (አንድ ወይም ከዚያ በላይ ይምረጡ)",
+    rememberSession: "ክፍለ-ጊዜን አስታውስ (ባንድ ጠቅታ መግቢያ)",
+    personalIdentity: "1. የተማሪ ማንነት እና ባህሪ",
+    academicStandingHeader: "2. የትምህርት ደረጃ እና ምዝገባ",
+    registerEnter: "ይመዝገቡ እና ግቢ ይግቡ"
+  }
+};
+
 interface SplashOnboardingProps {
   onComplete: (profile: StudentProfile) => void;
   initialProfile?: StudentProfile | null;
@@ -36,9 +147,13 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
   // Registration and Authentication inputs
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [preferredLanguage, setPreferredLanguage] = useState<'en' | 'am'>('en');
   const [rememberMe, setRememberMe] = useState(true);
   const [name, setName] = useState('');
   const [university, setUniversity] = useState('');
+  const [univSearch, setUnivSearch] = useState('');
+  const [showUnivDropdown, setShowUnivDropdown] = useState(false);
   const [year, setYear] = useState('Grade 12');
   const [avatar, setAvatar] = useState('star');
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([
@@ -81,6 +196,9 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [universityError, setUniversityError] = useState<string | null>(null);
+  const [confirmPasswordError, setConfirmPasswordError] = useState<string | null>(null);
   const [isPopupBlocked, setIsPopupBlocked] = useState(false);
 
   // Accounts list from local state
@@ -103,6 +221,11 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
   useEffect(() => {
     setAuthError(null);
     setInfoMessage(null);
+    setEmailError(null);
+    setPasswordError(null);
+    setNameError(null);
+    setUniversityError(null);
+    setConfirmPasswordError(null);
   }, [mode]);
   
   const subjectsList = [
@@ -579,25 +702,47 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
     e.preventDefault();
     setAuthError(null);
     setInfoMessage(null);
+    setNameError(null);
+    setUniversityError(null);
+    setEmailError(null);
+    setPasswordError(null);
+    setConfirmPasswordError(null);
 
     const nameTrim = name.trim();
     const emailTrim = email.trim().toLowerCase();
     const passwordTrim = password.trim();
+    const confirmPasswordTrim = confirmPassword.trim();
+    const univTrim = university.trim();
 
-    if (!nameTrim || !emailTrim || !passwordTrim) {
-      setAuthError("Full Name, Email, and Password are required to enroll.");
-      playFailureChime();
-      return;
+    let hasErrors = false;
+    const t = onboardingTranslations[preferredLanguage];
+
+    if (!nameTrim) {
+      setNameError(t.validationName);
+      hasErrors = true;
     }
 
-    if (!emailTrim.endsWith('@gmail.com')) {
-      setAuthError("For security and verification, you must register using a valid Gmail address (@gmail.com).");
-      playFailureChime();
-      return;
+    if (!univTrim) {
+      setUniversityError(t.validationUniversity);
+      hasErrors = true;
+    }
+
+    if (!emailTrim || !emailTrim.endsWith('@gmail.com')) {
+      setEmailError(t.validationEmail);
+      hasErrors = true;
     }
 
     if (passwordTrim.length < 5) {
-      setAuthError("For safety, password must be at least 6 characters long.");
+      setPasswordError(t.validationPassword);
+      hasErrors = true;
+    }
+
+    if (passwordTrim !== confirmPasswordTrim) {
+      setConfirmPasswordError(t.validationConfirmPassword);
+      hasErrors = true;
+    }
+
+    if (hasErrors) {
       playFailureChime();
       return;
     }
@@ -607,7 +752,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
     // Check pre-existing accounts locally to avoid visual duplicates
     const exists = registeredAccounts.some(acc => acc.email.toLowerCase() === emailTrim);
     if (exists) {
-      setAuthError("An academic account with this email address already exists.");
+      setEmailError(preferredLanguage === 'am' ? "በዚህ ኢሜይል አድራሻ አስቀድሞ የተመዘገበ አካውንት አለ።" : "An academic account with this email address already exists.");
       playFailureChime();
       setLoading(false);
       return;
@@ -617,13 +762,13 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
     const profile: StudentProfile = {
       name: nameTrim,
       email: emailTrim,
-      university: university.trim() || "Wolkite University",
+      university: univTrim,
       year,
       subjects: selectedSubjects,
       claudeApiKey: claudeApiKey.trim(),
       dailyGoalHours: 2,
       theme: 'dark',
-      language: 'both',
+      language: preferredLanguage === 'am' ? 'am' : 'en',
       avatar,
       isRegistered: true,
       unregisteredAICredits: 5
@@ -1340,41 +1485,61 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.4 }}
-            className="w-full max-w-4xl bg-white dark:bg-[#151c28] backdrop-blur-md p-6 md:p-8 rounded-2xl border border-slate-200 dark:border-zinc-800/80 relative z-10 shadow-2xl space-y-6 my-auto transition-colors duration-200"
+            className="w-full max-w-lg bg-[#0e1628]/95 backdrop-blur-md p-6 md:p-8 rounded-2xl border border-zinc-800/80 relative z-10 shadow-[0_0_50px_rgba(0,0,0,0.5)] space-y-6 my-auto transition-all duration-300"
           >
-            <div className="flex justify-between items-center border-b border-slate-100 dark:border-zinc-800/60 pb-4">
-              <div className="flex items-center gap-3">
-                <EthioLearnLogo size={40} />
-                <div>
-                  <h3 className="font-serif text-base font-black text-slate-800 dark:text-[#F0EDE8] tracking-tight">Academic Registration</h3>
-                  <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-semibold tracking-wider uppercase font-mono">SET UP COHORT MEMBERSHIP</p>
-                </div>
+            {/* Logo, Tagline & Language Toggle */}
+            <div className="flex flex-col items-center justify-center text-center">
+              <EthioLearnLogo size={64} className="animate-pulse drop-shadow-[0_0_12px_rgba(200,150,46,0.35)]" />
+              <h3 className="font-serif text-2xl font-black bg-gradient-to-r from-[#FFECA7] via-[#D4AF37] to-[#F3E5AB] bg-clip-text text-transparent tracking-tight mt-3">
+                EthioLearn Pro
+              </h3>
+              
+              {/* Subtle Ethiopian Flag Accent line */}
+              <div className="flex h-[3px] w-20 overflow-hidden rounded-full mx-auto opacity-90 mt-1.5 select-none">
+                <div className="flex-1 bg-emerald-600 h-full" />
+                <div className="flex-1 bg-[#C8962E] h-full" />
+                <div className="flex-1 bg-red-600 h-full" />
               </div>
-              <button
-                onClick={() => { playClickChime(); setMode('signin'); }}
-                className="p-2 text-slate-400 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-300 transition-colors bg-slate-50 dark:bg-zinc-900 rounded-lg border border-slate-100 dark:border-zinc-800"
-                title="Go back"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </button>
+              
+              <p className="text-[11px] text-zinc-400 font-medium tracking-normal mt-2.5 max-w-sm">
+                {onboardingTranslations[preferredLanguage].tagline}
+              </p>
+
+              {/* Smooth Language Toggle Pill */}
+              <div className="flex justify-center items-center p-0.5 bg-[#090f1d] border border-zinc-800/60 rounded-xl max-w-[150px] mx-auto mt-4 w-full shadow-inner">
+                <button
+                  type="button"
+                  onClick={() => { playClickChime(); setPreferredLanguage('en'); }}
+                  className={`flex-1 py-1.5 text-center font-bold text-[10px] rounded-lg transition-all cursor-pointer ${preferredLanguage === 'en' ? 'bg-gradient-to-r from-[#C8962E] to-[#B08123] text-black font-extrabold shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                  English
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { playClickChime(); setPreferredLanguage('am'); }}
+                  className={`flex-1 py-1.5 text-center font-bold text-[10px] rounded-lg transition-all cursor-pointer ${preferredLanguage === 'am' ? 'bg-gradient-to-r from-[#C8962E] to-[#B08123] text-black font-extrabold shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                  አማርኛ
+                </button>
+              </div>
             </div>
 
             {authError && (
-              <div className="p-3 bg-red-950/20 border border-red-500/30 text-red-400 text-xs rounded-xl flex items-start gap-2.5">
+              <div className="p-3 bg-red-950/25 border border-red-500/30 text-red-400 text-xs rounded-xl flex items-start gap-2.5">
                 <ShieldAlert className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
                 <p>{authError}</p>
               </div>
             )}
 
             {infoMessage && (
-              <div className="p-3 bg-amber-950/20 border border-amber-500/30 text-amber-200 text-xs rounded-xl flex items-start gap-2.5">
+              <div className="p-3 bg-amber-950/25 border border-amber-500/30 text-amber-200 text-xs rounded-xl flex items-start gap-2.5">
                 <span className="text-base shrink-0">✉️</span>
                 <p className="font-medium">{infoMessage}</p>
               </div>
             )}
 
             {isPopupBlocked && (
-              <div className="p-4 bg-amber-950/20 border border-amber-500/30 text-amber-200 text-xs rounded-xl space-y-3">
+              <div className="p-4 bg-amber-950/25 border border-amber-500/30 text-amber-200 text-xs rounded-xl space-y-3">
                 <div className="flex items-start gap-2.5">
                   <span className="text-base">⚠️</span>
                   <div>
@@ -1410,208 +1575,222 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
             )}
 
             {/* Supabase connection manager */}
-            <div className="border border-slate-100 dark:border-zinc-800/65 rounded-xl p-1 bg-slate-50/50 dark:bg-zinc-950/20">
+            <div className="border border-zinc-800 rounded-xl p-1 bg-zinc-950/30">
               {renderSupabaseConfigPanel()}
             </div>
 
-            <form onSubmit={handleRegister} className="space-y-6">
+            {/* Registration Form */}
+            <form onSubmit={handleRegister} className="space-y-4">
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-                
-                {/* Left Column: Personal Identity & Persona */}
-                <div className="space-y-4">
-                  <div className="border-b border-slate-100 dark:border-zinc-800 pb-2">
-                    <h4 className="text-[10.5px] font-bold text-[#C8962E] uppercase tracking-wider font-mono">
-                      1. Student Identity & Persona
-                    </h4>
-                  </div>
-
-                  {/* Name Input */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider block">
-                      Full Student Name
-                    </label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500" />
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. Abebe Kebede"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        className="w-full bg-slate-50 dark:bg-zinc-900/95 border border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-750 focus:border-[#C8962E] rounded-lg pl-9 pr-3 py-2 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-550 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Gmail Address Input */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider block">
-                      Gmail Address
-                    </label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500" />
-                      <input
-                        type="email"
-                        required
-                        placeholder="student@gmail.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="w-full bg-slate-50 dark:bg-zinc-900/95 border border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-750 focus:border-[#C8962E] rounded-lg pl-9 pr-3 py-2 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-550 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Academy Password Input */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider block">
-                      Academy Password
-                    </label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500" />
-                      <input
-                        type="password"
-                        required
-                        placeholder="Min 5 chars"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="w-full bg-slate-50 dark:bg-zinc-900/95 border border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-750 focus:border-[#C8962E] rounded-lg pl-9 pr-3 py-2 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-550 outline-none text-xs transition-all font-mono focus:ring-1 focus:ring-[#C8962E]/20"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Choose Portrait Avatar Selector */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-[#C8962E] uppercase block tracking-wider">
-                      Select Custom Portrait Avatar
-                    </label>
-                    <StudentAvatarSelector
-                      currentAvatar={avatar}
-                      name={name || 'Student'}
-                      onChange={setAvatar}
-                    />
-                  </div>
+              {/* Full Student Name Input */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  {onboardingTranslations[preferredLanguage].fullName}
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500" />
+                  <input
+                    type="text"
+                    placeholder={onboardingTranslations[preferredLanguage].fullNamePlaceholder}
+                    value={name}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      if (nameError) setNameError(null);
+                    }}
+                    className={`w-full bg-[#0a0f1d] border ${nameError ? 'border-red-500/80 focus:border-red-500' : 'border-zinc-800 focus:border-[#C8962E]'} rounded-lg pl-10 pr-4 py-2.5 text-zinc-100 placeholder-zinc-500 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20`}
+                  />
                 </div>
-
-                {/* Right Column: Academic Focus & Enrolled Modules */}
-                <div className="space-y-4">
-                  <div className="border-b border-slate-100 dark:border-zinc-800 pb-2">
-                    <h4 className="text-[10.5px] font-bold text-[#C8962E] uppercase tracking-wider font-mono">
-                      2. Academic Standing & Enrollment
-                    </h4>
-                  </div>
-
-                  {/* School / University Input */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase block tracking-wider">
-                      University / High School
-                    </label>
-                    <div className="relative">
-                      <Landmark className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500" />
-                      <input
-                        type="text"
-                        placeholder="e.g. Wolkite University"
-                        value={university}
-                        onChange={(e) => setUniversity(e.target.value)}
-                        className="w-full bg-slate-50 dark:bg-zinc-900/95 border border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-750 focus:border-[#C8962E] rounded-lg pl-9 pr-3 py-2 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-550 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Academic standing selection */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase block tracking-wider">
-                      Academic Standing
-                    </label>
-                    <div className="relative">
-                      <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500 pointer-events-none" />
-                      <select
-                        value={year}
-                        onChange={(e) => setYear(e.target.value)}
-                        className="w-full bg-slate-50 dark:bg-zinc-900/95 border border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-750 focus:border-[#C8962E] rounded-lg pl-9 pr-8 py-2 text-slate-800 dark:text-zinc-100 outline-none text-xs transition-all appearance-none cursor-pointer focus:ring-1 focus:ring-[#C8962E]/20"
-                      >
-                        <option value="Grade 12">Grade 12 (Preparatory Senior)</option>
-                        <option value="University">University Student</option>
-                      </select>
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 dark:text-zinc-500 text-[10px]">▼</div>
-                    </div>
-                  </div>
-
-                  {/* Enrolled Focus Modules */}
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase block tracking-wider">
-                      Assign Campus Focus Modules (Select one or more)
-                    </label>
-                    <div className="grid grid-cols-2 gap-2 max-h-[180px] overflow-y-auto pr-1">
-                      {subjectsList.map((subject) => {
-                        const selected = selectedSubjects.includes(subject);
-                        return (
-                          <button
-                            key={subject}
-                            type="button"
-                            onClick={() => toggleSubject(subject)}
-                            className={`text-[10px] text-left px-2.5 py-2 rounded-lg border font-medium cursor-pointer transition-all truncate flex items-center gap-1.5 ${
-                              selected
-                                ? 'bg-[#C8962E]/15 border-[#C8962E] text-[#C8962E] font-bold shadow-sm'
-                                : 'bg-slate-50 dark:bg-zinc-900/50 border-slate-150 dark:border-zinc-800/80 text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-350 hover:border-slate-200'
-                            }`}
-                          >
-                            <span className={selected ? "text-[#C8962E]" : "text-transparent"}>✓</span>
-                            <span>{subject}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Remember Me Checkbox */}
-                  <div className="flex items-center justify-between py-1 bg-slate-50 dark:bg-zinc-900/30 p-2.5 rounded-lg border border-slate-100 dark:border-zinc-800/40">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={rememberMe}
-                        onChange={(e) => setRememberMe(e.target.checked)}
-                        className="rounded border-slate-350 dark:border-zinc-750 bg-slate-50 dark:bg-zinc-900 text-amber-500 focus:ring-0 cursor-pointer w-3.5 h-3.5"
-                      />
-                      <span className="text-[11px] text-slate-500 dark:text-zinc-400">Remember session (One-click Login)</span>
-                    </label>
-                  </div>
-                </div>
-
+                {nameError && (
+                  <p className="text-[11px] text-red-500 font-medium pl-1 mt-0.5 animate-pulse">{nameError}</p>
+                )}
               </div>
 
-              {/* Action buttons and Google integration */}
-              <div className="border-t border-slate-100 dark:border-zinc-800/60 pt-5 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <button
-                    type="submit"
-                    className="w-full py-3 bg-gradient-to-r from-[#C8962E] to-[#1A7A3C] hover:brightness-105 active:scale-98 text-black font-serif font-extrabold text-xs tracking-wider uppercase rounded-xl cursor-pointer flex items-center justify-center gap-2 shadow-lg transition-all"
-                  >
-                    Register & Enter Campus <ArrowRight className="w-4 h-4" />
-                  </button>
-
+              {/* University drop-down with default search */}
+              <div className="space-y-1.5 relative">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  {onboardingTranslations[preferredLanguage].university}
+                </label>
+                <div className="relative">
+                  <Landmark className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder={onboardingTranslations[preferredLanguage].universityPlaceholder}
+                    value={univSearch}
+                    onFocus={() => setShowUnivDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowUnivDropdown(false), 250)}
+                    onChange={(e) => {
+                      setUnivSearch(e.target.value);
+                      setUniversity(e.target.value);
+                      if (universityError) setUniversityError(null);
+                    }}
+                    className={`w-full bg-[#0a0f1d] border ${universityError ? 'border-red-500/80 focus:border-red-500' : 'border-zinc-800 focus:border-[#C8962E]'} rounded-lg pl-10 pr-10 py-2.5 text-zinc-100 placeholder-zinc-500 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20`}
+                  />
                   <button
                     type="button"
-                    onClick={handleGoogleAuth}
-                    className="w-full py-3 bg-slate-50 hover:bg-slate-100 dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 text-slate-700 dark:text-zinc-200 rounded-xl text-xs font-serif font-bold tracking-wide flex items-center justify-center gap-2 cursor-pointer shadow-sm transition-all"
+                    onClick={() => setShowUnivDropdown(!showUnivDropdown)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 cursor-pointer"
                   >
-                    <span className="text-sm">🎯</span>
-                    <span>Register instantly with Google</span>
+                    <span className="text-[10px]">▼</span>
                   </button>
                 </div>
+                {universityError && (
+                  <p className="text-[11px] text-red-500 font-medium pl-1 mt-0.5 animate-pulse">{universityError}</p>
+                )}
+
+                {showUnivDropdown && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-[#090f1d] border border-zinc-800 rounded-lg shadow-2xl z-50 max-h-48 overflow-y-auto divide-y divide-zinc-900 scrollbar-thin scrollbar-thumb-zinc-800">
+                    {ETHIOPIAN_UNIVERSITIES.filter(univ =>
+                      univ.toLowerCase().includes(univSearch.toLowerCase())
+                    ).map((univ) => (
+                      <button
+                        key={univ}
+                        type="button"
+                        onMouseDown={() => {
+                          setUniversity(univ);
+                          setUnivSearch(univ);
+                          setShowUnivDropdown(false);
+                          if (universityError) setUniversityError(null);
+                        }}
+                        className="w-full text-left px-3.5 py-2.5 text-[11px] text-zinc-300 hover:bg-[#1e293b] hover:text-white transition-all font-medium block truncate cursor-pointer"
+                      >
+                        {univ}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
+
+              {/* Email Input */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  {onboardingTranslations[preferredLanguage].email}
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500" />
+                  <input
+                    type="email"
+                    placeholder={onboardingTranslations[preferredLanguage].emailPlaceholder}
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (emailError) setEmailError(null);
+                    }}
+                    className={`w-full bg-[#0a0f1d] border ${emailError ? 'border-red-500/80 focus:border-red-500' : 'border-zinc-800 focus:border-[#C8962E]'} rounded-lg pl-10 pr-4 py-2.5 text-zinc-100 placeholder-zinc-500 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20`}
+                  />
+                </div>
+                {emailError && (
+                  <p className="text-[11px] text-red-500 font-medium pl-1 mt-0.5 animate-pulse">{emailError}</p>
+                )}
+              </div>
+
+              {/* Password Input */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  {onboardingTranslations[preferredLanguage].password}
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500" />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder={onboardingTranslations[preferredLanguage].passwordPlaceholder}
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      if (passwordError) setPasswordError(null);
+                    }}
+                    className={`w-full bg-[#0a0f1d] border ${passwordError ? 'border-red-500/80 focus:border-red-500' : 'border-zinc-800 focus:border-[#C8962E]'} rounded-lg pl-10 pr-10 py-2.5 text-zinc-100 placeholder-zinc-500 outline-none text-xs transition-all font-mono focus:ring-1 focus:ring-[#C8962E]/20`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {passwordError && (
+                  <p className="text-[11px] text-red-500 font-medium pl-1 mt-0.5 animate-pulse">{passwordError}</p>
+                )}
+              </div>
+
+              {/* Confirm Password Input */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  {onboardingTranslations[preferredLanguage].confirmPassword}
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500" />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder={onboardingTranslations[preferredLanguage].confirmPasswordPlaceholder}
+                    value={confirmPassword}
+                    onChange={(e) => {
+                      setConfirmPassword(e.target.value);
+                      if (confirmPasswordError) setConfirmPasswordError(null);
+                    }}
+                    className={`w-full bg-[#0a0f1d] border ${confirmPasswordError ? 'border-red-500/80 focus:border-red-500' : 'border-zinc-800 focus:border-[#C8962E]'} rounded-lg pl-10 pr-10 py-2.5 text-zinc-100 placeholder-zinc-500 outline-none text-xs transition-all font-mono focus:ring-1 focus:ring-[#C8962E]/20`}
+                  />
+                </div>
+                {confirmPasswordError && (
+                  <p className="text-[11px] text-red-500 font-medium pl-1 mt-0.5 animate-pulse">{confirmPasswordError}</p>
+                )}
+              </div>
+
+              {/* Remember session Option */}
+              <div className="flex items-center justify-between py-1">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="rounded border-zinc-800 bg-[#0a0f1d] text-[#C8962E] focus:ring-0 cursor-pointer w-3.5 h-3.5"
+                  />
+                  <span className="text-[11px] text-slate-400">{onboardingTranslations[preferredLanguage].rememberSession}</span>
+                </label>
+              </div>
+
+              {/* Create Account Gold Gradient Button */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3.5 bg-gradient-to-r from-[#C8962E] via-[#D4AF37] to-[#B08123] hover:brightness-105 active:scale-[0.99] text-black font-serif font-extrabold text-xs tracking-widest uppercase rounded-xl cursor-pointer flex items-center justify-center gap-2 shadow-[0_0_25px_rgba(200,150,46,0.25)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? (
+                  <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <UserPlus className="w-4 h-4 text-black" />
+                )}
+                <span>{loading ? onboardingTranslations[preferredLanguage].loading : onboardingTranslations[preferredLanguage].createAccountBtn}</span>
+              </button>
+
+              <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-zinc-900"></div>
+                <span className="flex-shrink mx-4 text-[9px] text-zinc-600 font-bold uppercase tracking-widest font-mono">or</span>
+                <div className="flex-grow border-t border-zinc-900"></div>
+              </div>
+
+              {/* Google Integration */}
+              <button
+                type="button"
+                onClick={handleGoogleAuth}
+                className="w-full py-3 bg-[#0a0f1d] hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 rounded-xl text-xs font-serif font-bold tracking-wide flex items-center justify-center gap-2 cursor-pointer shadow-sm transition-all"
+              >
+                <span className="text-sm">🌟</span>
+                <span>{onboardingTranslations[preferredLanguage].googleRegisterBtn}</span>
+              </button>
 
             </form>
 
-            <div className="text-center pt-4 border-t border-slate-100 dark:border-zinc-800/50">
-              <p className="text-xs text-slate-500 dark:text-zinc-500 font-medium">
-                Already have an account?{' '}
+            {/* Login Link at the Bottom */}
+            <div className="text-center pt-4 border-t border-zinc-900">
+              <p className="text-xs text-slate-400 font-medium">
+                {onboardingTranslations[preferredLanguage].alreadyHaveAccount}{' '}
                 <button
                   type="button"
                   onClick={() => { playClickChime(); setMode('signin'); }}
                   className="text-[#C8962E] font-bold hover:underline cursor-pointer ml-1"
                 >
-                  Sign in
+                  {onboardingTranslations[preferredLanguage].loginLink}
                 </button>
               </p>
             </div>

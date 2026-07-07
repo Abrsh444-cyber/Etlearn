@@ -40,8 +40,8 @@ export default function SupportChatBubble({ language, studentName }: SupportChat
 
   const initializeGreeting = () => {
     const greetingText = language === 'en'
-      ? `Hello my friend${studentName ? `, ${studentName}` : ''}! I'm Ezra, the creator of EthioLearn. 🇪🇹✨ How is your academic journey going? Ask me any questions about our focus courses, soundscapes, practice exams, or how to get the most out of our campus!`
-      : `ሰላም ጓደኛዬ${studentName ? ` ${studentName}` : ''}! እኔ የኢትዮለርን መስራች እዝራ ነኝ። 🇪🇹✨ የአካዳሚክ ጉዞዎ እንዴት እየሄደ ነው? ስለ ጥናት ሞጁሎች፣ ፈተናዎች ወይም መድረኩን እንዴት መጠቀም እንደሚችሉ ማንኛውንም ጥያቄ ይጠይቁኝ!`;
+      ? `Hello my friend${studentName ? `, ${studentName}` : ''}! I'm Abreham, the creator of EthioLearn. 🇪🇹✨ How is your academic journey going? Ask me any questions about our focus courses, soundscapes, practice exams, or how to get the most out of our campus!`
+      : `ሰላም ጓደኛዬ${studentName ? ` ${studentName}` : ''}! እኔ የኢትዮለርን መስራች አብርሃም ነኝ። 🇪🇹✨ የአካዳሚክ ጉዞዎ እንዴት እየሄደ ነው? ስለ ጥናት ሞጁሎች፣ ፈተናዎች ወይም መድረኩን እንዴት መጠቀም እንደሚችሉ ማንኛውንም ጥያቄ ይጠይቁኝ!`;
 
     const initial: Message = {
       id: 'greeting-id',
@@ -68,7 +68,7 @@ export default function SupportChatBubble({ language, studentName }: SupportChat
 
   const handleClearChat = () => {
     playClickChime();
-    if (window.confirm(language === 'en' ? "Do you want to reset your conversation with Ezra?" : "ከእዝራ ጋር ያለውን ውይይት ማጽዳት ይፈልጋሉ?")) {
+    if (window.confirm(language === 'en' ? "Do you want to reset your conversation with Abreham?" : "ከአብርሃም ጋር ያለውን ውይይት ማጽዳት ይፈልጋሉ?")) {
       localStorage.removeItem('ethiolearn_support_chat');
       initializeGreeting();
       setChatError(null);
@@ -132,8 +132,8 @@ export default function SupportChatBubble({ language, studentName }: SupportChat
     } catch (err: any) {
       console.error('[Support Chat Bubble Error]:', err);
       setChatError(language === 'en' 
-        ? "Connection to Ezra's assistant timed out. Check your academic AI master key." 
-        : "ከእዝራ ረዳት ጋር መገናኘት አልተቻለም። እባክዎን የኢንተርኔት ግንኙነትዎን ወይም የኤፒአይ ቁልፍዎን ያረጋግጡ።"
+        ? "Connection to Abreham's assistant timed out. Check your academic AI master key." 
+        : "ከአብርሃም ረዳት ጋር መገናኘት አልተቻለም። እባክዎን የኢንተርኔት ግንኙነትዎን ወይም የኤፒአይ ቁልፍዎን ያረጋግጡ።"
       );
       playFailureChime();
     } finally {
@@ -185,14 +185,14 @@ export default function SupportChatBubble({ language, studentName }: SupportChat
               </div>
 
               <div className="flex items-center gap-3 pt-1">
-                {/* Avatar Portrait for Ezra */}
+                {/* Avatar Portrait for Abreham */}
                 <div className="relative w-10 h-10 rounded-full bg-zinc-800 border-2 border-[#C8962E] flex items-center justify-center overflow-hidden">
                   <span className="text-lg">🧔</span>
                   <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-zinc-900" />
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <span className="font-serif font-extrabold text-sm text-[#F0EDE8]">Ezra (EthioLearn Creator)</span>
+                    <span className="font-serif font-extrabold text-sm text-[#F0EDE8]">Abreham (EthioLearn Creator)</span>
                     <Sparkles className="w-3.5 h-3.5 text-[#C8962E] fill-[#C8962E]/20" />
                   </div>
                   <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Active Academic Advisor</span>
@@ -246,7 +246,7 @@ export default function SupportChatBubble({ language, studentName }: SupportChat
                   <div className="flex flex-col items-start max-w-[80%]">
                     <div className="px-4 py-3 bg-zinc-900 text-zinc-400 rounded-2xl rounded-tl-none border border-zinc-850 flex items-center gap-1">
                       <span className="text-[10px] font-mono font-bold uppercase tracking-wider animate-pulse text-zinc-400">
-                        {language === 'en' ? "Ezra is replying" : "እዝራ እየመለሰ ነው"}
+                        {language === 'en' ? "Abreham is replying" : "አብርሃም እየመለሰ ነው"}
                       </span>
                       <div className="flex gap-1 items-center justify-center pl-1">
                         <div className="w-1.5 h-1.5 bg-[#C8962E] rounded-full animate-bounce [animation-delay:-0.3s]" />
@@ -266,7 +266,7 @@ export default function SupportChatBubble({ language, studentName }: SupportChat
                 type="text"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder={language === 'en' ? "Ask Ezra something..." : "እዝራን አንድ ነገር ጠይቀው..."}
+                placeholder={language === 'en' ? "Ask Abreham something..." : "አብርሃምን አንድ ነገር ጠይቀው..."}
                 className="flex-grow bg-zinc-900 border border-zinc-800 focus:border-[#C8962E] rounded-xl px-4 py-2 text-xs text-zinc-100 outline-none transition-all placeholder:text-zinc-600 font-sans"
               />
               <button
