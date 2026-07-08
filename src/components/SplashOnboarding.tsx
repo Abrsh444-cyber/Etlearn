@@ -315,8 +315,8 @@ interface AccountInfo {
 }
 
 export default function SplashOnboarding({ onComplete, initialProfile }: SplashOnboardingProps) {
-  // Mode switcher: 'onboarding' | 'splash' | 'signin' | 'signup'
-  const [mode, setMode] = useState<'onboarding' | 'splash' | 'signin' | 'signup'>('onboarding');
+  // Mode switcher: 'onboarding' | 'splash' | 'signin' | 'signup' | 'forgot_password' | 'update_password'
+  const [mode, setMode] = useState<'onboarding' | 'splash' | 'signin' | 'signup' | 'forgot_password' | 'update_password'>('onboarding');
   
   // Onboarding states
   const [onboardingStep, setOnboardingStep] = useState(1);
@@ -461,6 +461,8 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
   useEffect(() => {
     const supa = getSupabase();
     if (!supa) return;
+    
+    // Check session on load
     supa.auth.getSession().then(({ data }: any) => {
       const session = data?.session;
       if (session?.user && session.user.app_metadata?.provider === 'google') {
@@ -469,6 +471,30 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
         completeGoogleProfileSetup(userEmail, userName);
       }
     });
+
+    // Check url hash/query parameter for recovery
+    const hash = window.location.hash || '';
+    const query = window.location.search || '';
+    if (hash.includes('type=recovery') || hash.includes('recovery') || query.includes('type=recovery') || query.includes('recovery')) {
+      console.log('[Supabase Auth] URL recovery state detected! Transitioning to password update.');
+      setMode('update_password');
+    }
+
+    // Subscribe to password recovery triggers
+    const { data: { subscription } } = supa.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        console.log('[Supabase Auth] PASSWORD_RECOVERY event received.');
+        setMode('update_password');
+      } else if (session?.user && session.user.app_metadata?.provider === 'google') {
+        const userEmail = session.user.email || '';
+        const userName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || 'Scholar';
+        completeGoogleProfileSetup(userEmail, userName);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   // Accounts list from local state
@@ -752,6 +778,139 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
     } catch (err: any) {
       setAuthError(`Failed to save config: ${err.message || err}`);
       playFailureChime();
+    }
+  };
+
+  const handleSendResetEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    setEmailError(null);
+    setInfoMessage(null);
+
+    const emailTrim = email.trim().toLowerCase();
+    if (!emailTrim) {
+      setEmailError("Email address is required.");
+      playFailureChime();
+      return;
+    } else if (!emailTrim.includes('@')) {
+      setEmailError("Please enter a valid email address.");
+      playFailureChime();
+      return;
+    }
+
+    setLoading(true);
+
+    const supa = getSupabase();
+    if (!supa) {
+      setAuthError("Supabase is offline or not configured. Please link your own Supabase project first or use local credentials.");
+      playFailureChime();
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { error } = await supa.auth.resetPasswordForEmail(emailTrim, {
+        redirectTo: window.location.origin
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      playSuccessChime();
+      setInfoMessage(`A password reset link has been sent to ${emailTrim}! Please check your email inbox and spam folder.`);
+    } catch (err: any) {
+      console.error('[Supabase Send Reset Error]:', err);
+      setAuthError(err.message || 'Failed to dispatch password reset request.');
+      playFailureChime();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    setPasswordError(null);
+    setConfirmPasswordError(null);
+    setInfoMessage(null);
+
+    const passwordTrim = password.trim();
+    const confirmPasswordTrim = confirmPassword.trim();
+
+    let hasErrors = false;
+    if (!passwordTrim) {
+      setPasswordError("Password is required.");
+      hasErrors = true;
+    } else if (passwordTrim.length < 6) {
+      setPasswordError("Password must be at least 6 characters.");
+      hasErrors = true;
+    }
+
+    if (passwordTrim !== confirmPasswordTrim) {
+      setConfirmPasswordError("Passwords do not match.");
+      hasErrors = true;
+    }
+
+    if (hasErrors) {
+      playFailureChime();
+      return;
+    }
+
+    setLoading(true);
+
+    const supa = getSupabase();
+    if (!supa) {
+      setAuthError("Supabase is offline. Connection could not be established.");
+      playFailureChime();
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { error } = await supa.auth.updateUser({
+        password: passwordTrim
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      playSuccessChime();
+      setInfoMessage("Your password has been successfully updated! Redirecting to Sign In in 3 seconds...");
+      
+      // Update local storage account with new password if they had one cached
+      try {
+        const accountsData = localStorage.getItem('ethiolearn_accounts');
+        if (accountsData) {
+          const accounts: AccountInfo[] = JSON.parse(accountsData);
+          const activeEmail = localStorage.getItem('ethiolearn_active_email') || email;
+          if (activeEmail) {
+            const updatedAccs = accounts.map(acc => {
+              if (acc.email.toLowerCase() === activeEmail.toLowerCase()) {
+                return { ...acc, passwordEncrypted: passwordTrim };
+              }
+              return acc;
+            });
+            localStorage.setItem('ethiolearn_accounts', JSON.stringify(updatedAccs));
+          }
+        }
+      } catch (ex) {
+        console.warn('Could not update cached password locally:', ex);
+      }
+
+      setTimeout(() => {
+        setMode('signin');
+        setPassword('');
+        setConfirmPassword('');
+        setInfoMessage(null);
+      }, 3000);
+    } catch (err: any) {
+      console.error('[Supabase Update Password Error]:', err);
+      setAuthError(err.message || 'Failed to update security password.');
+      playFailureChime();
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -2364,7 +2523,9 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                     type="button"
                     onClick={() => {
                       playClickChime();
-                      setAuthError("To reset your password, please contact campus administrator Ezra at ezrat2116@gmail.com, or check your verification email.");
+                      setMode('forgot_password');
+                      setAuthError(null);
+                      setInfoMessage(null);
                     }}
                     className="text-[11px] text-[#C8962E] hover:underline transition-all cursor-pointer font-medium"
                   >
@@ -2426,6 +2587,204 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                   Sign up
                 </button>
               </p>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Step FORGOT PASSWORD */}
+        {mode === 'forgot_password' && (
+          <motion.div
+            key="forgot_password"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.4 }}
+            className="w-full max-w-md bg-white dark:bg-[#1e2533] p-6 md:p-8 rounded-2xl border border-slate-200 dark:border-zinc-800 relative z-10 shadow-2xl space-y-6 my-auto transition-colors duration-200"
+          >
+            <div className="flex items-center justify-center gap-3 border-b border-slate-100 dark:border-zinc-900/60 pb-4">
+              <EthioLearnLogo size={44} />
+              <div className="text-center">
+                <h3 className="font-serif text-lg font-black text-[#C8962E] tracking-tight">EthioLearn Pro</h3>
+                <p className="text-[10px] text-slate-500 dark:text-zinc-400 tracking-widest uppercase font-mono">Reset Your Password</p>
+              </div>
+            </div>
+
+            {authError && (
+              <div className="p-3 bg-red-950/20 border border-red-500/30 text-red-400 text-xs rounded-lg flex items-start gap-2.5">
+                <ShieldAlert className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <p>{authError}</p>
+              </div>
+            )}
+
+            {infoMessage && (
+              <div className="p-3 bg-emerald-950/20 border border-emerald-500/30 text-emerald-300 text-xs rounded-lg flex items-start gap-2.5">
+                <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <p className="font-medium">{infoMessage}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleSendResetEmail} className="space-y-4">
+              <div className="space-y-1.5">
+                <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-relaxed">
+                  Enter the email address associated with your account, and we'll send a secure password recovery link to your inbox.
+                </p>
+                <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider block pt-2">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500" />
+                  <input
+                    type="email"
+                    placeholder="student@gmail.com"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (emailError) setEmailError(null);
+                    }}
+                    className={`w-full bg-slate-50 dark:bg-zinc-900/90 border ${emailError ? 'border-red-500/80 focus:border-red-500' : 'border-slate-200 dark:border-zinc-700 hover:border-slate-300 dark:hover:border-zinc-600 focus:border-[#C8962E]'} rounded-lg pl-10 pr-4 py-2.5 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20`}
+                  />
+                </div>
+                {emailError && (
+                  <p className="text-[11px] text-red-500 font-medium pl-1">{emailError}</p>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 bg-gradient-to-r from-[#C8962E] to-[#B08123] hover:opacity-95 text-black font-serif font-extrabold text-xs tracking-wider uppercase rounded-lg cursor-pointer flex items-center justify-center gap-2 transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(200,150,46,0.2)]"
+              >
+                {loading ? (
+                  <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4 text-black" />
+                )}
+                <span>{loading ? "Sending reset email..." : "Send Reset Link"}</span>
+              </button>
+            </form>
+
+            <div className="text-center pt-2 border-t border-slate-100 dark:border-zinc-900/60">
+              <button
+                type="button"
+                onClick={() => { playClickChime(); setMode('signin'); setAuthError(null); setInfoMessage(null); }}
+                className="text-[#C8962E] font-bold text-xs hover:underline cursor-pointer flex items-center justify-center gap-1.5 mx-auto"
+              >
+                <span>← Back to Sign In</span>
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Step UPDATE PASSWORD */}
+        {mode === 'update_password' && (
+          <motion.div
+            key="update_password"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.4 }}
+            className="w-full max-w-md bg-white dark:bg-[#1e2533] p-6 md:p-8 rounded-2xl border border-slate-200 dark:border-zinc-800 relative z-10 shadow-2xl space-y-6 my-auto transition-colors duration-200"
+          >
+            <div className="flex items-center justify-center gap-3 border-b border-slate-100 dark:border-zinc-900/60 pb-4">
+              <EthioLearnLogo size={44} />
+              <div className="text-center">
+                <h3 className="font-serif text-lg font-black text-[#C8962E] tracking-tight">EthioLearn Pro</h3>
+                <p className="text-[10px] text-slate-500 dark:text-zinc-400 tracking-widest uppercase font-mono">Create New Password</p>
+              </div>
+            </div>
+
+            {authError && (
+              <div className="p-3 bg-red-950/20 border border-red-500/30 text-red-400 text-xs rounded-lg flex items-start gap-2.5">
+                <ShieldAlert className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <p>{authError}</p>
+              </div>
+            )}
+
+            {infoMessage && (
+              <div className="p-3 bg-emerald-950/20 border border-emerald-500/30 text-emerald-300 text-xs rounded-lg flex items-start gap-2.5">
+                <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <p className="font-medium">{infoMessage}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleUpdatePassword} className="space-y-4">
+              <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-relaxed">
+                Your credentials have been successfully validated. Define your new account password below.
+              </p>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider block">
+                  New Password
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500" />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Min 6 characters"
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      if (passwordError) setPasswordError(null);
+                    }}
+                    className={`w-full bg-slate-50 dark:bg-zinc-900/90 border ${passwordError ? 'border-red-500/80 focus:border-red-500' : 'border-slate-200 dark:border-zinc-700 hover:border-slate-300 dark:hover:border-zinc-600 focus:border-[#C8962E]'} rounded-lg pl-10 pr-10 py-2.5 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500 outline-none text-xs transition-all font-mono focus:ring-1 focus:ring-[#C8962E]/20`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {passwordError && (
+                  <p className="text-[11px] text-red-500 font-medium pl-1">{passwordError}</p>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider block">
+                  Confirm New Password
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500" />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Repeat new password"
+                    value={confirmPassword}
+                    onChange={(e) => {
+                      setConfirmPassword(e.target.value);
+                      if (confirmPasswordError) setConfirmPasswordError(null);
+                    }}
+                    className={`w-full bg-slate-50 dark:bg-zinc-900/90 border ${confirmPasswordError ? 'border-red-500/80 focus:border-red-500' : 'border-slate-200 dark:border-zinc-700 hover:border-slate-300 dark:hover:border-zinc-600 focus:border-[#C8962E]'} rounded-lg pl-10 pr-10 py-2.5 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500 outline-none text-xs transition-all font-mono focus:ring-1 focus:ring-[#C8962E]/20`}
+                  />
+                </div>
+                {confirmPasswordError && (
+                  <p className="text-[11px] text-red-500 font-medium pl-1">{confirmPasswordError}</p>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 bg-gradient-to-r from-[#C8962E] to-[#B08123] hover:opacity-95 text-black font-serif font-extrabold text-xs tracking-wider uppercase rounded-lg cursor-pointer flex items-center justify-center gap-2 transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(200,150,46,0.2)]"
+              >
+                {loading ? (
+                  <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <CheckCircle className="w-4 h-4 text-black" />
+                )}
+                <span>{loading ? "Updating password..." : "Update Password"}</span>
+              </button>
+            </form>
+
+            <div className="text-center pt-2 border-t border-slate-100 dark:border-zinc-900/60">
+              <button
+                type="button"
+                onClick={() => { playClickChime(); setMode('signin'); setAuthError(null); setInfoMessage(null); }}
+                className="text-[#C8962E] font-bold text-xs hover:underline cursor-pointer"
+              >
+                Cancel and return to Sign In
+              </button>
             </div>
           </motion.div>
         )}
