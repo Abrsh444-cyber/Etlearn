@@ -671,7 +671,6 @@ Explain with enthusiasm when they ask about features like flashcards, customizab
             return;
           }
         }
-        }
 
         for await (const chunk of stream) {
           const content = chunk.text;
