@@ -892,7 +892,109 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
 
     setLoading(true);
 
-    // Lookup credentials locally
+    // Try Supabase Auth first
+    const supa = getSupabase();
+    if (supa) {
+      try {
+        const { data, error } = await supa.auth.signInWithPassword({
+          email: emailTrim,
+          password: passwordTrim
+        });
+
+        if (error) {
+          // If Supabase authentication fails, check if the account exists locally as a fallback
+          const localAcc = registeredAccounts.find(
+            acc => acc.email.toLowerCase() === emailTrim && acc.passwordEncrypted === passwordTrim
+          );
+          if (localAcc) {
+            console.log('[Supabase Auth Fallback] Logging in using local storage account.');
+          } else {
+            setAuthError(error.message);
+            playFailureChime();
+            setLoading(false);
+            return;
+          }
+        }
+
+        // Successfully authenticated with Supabase or fallback!
+        // Pull student profile
+        const { data: supaRecord, error: supaError } = await supa
+          .from('student_profiles')
+          .select('*')
+          .eq('email', emailTrim)
+          .maybeSingle();
+
+        let profile: StudentProfile;
+        if (supaRecord && supaRecord.profile_data) {
+          profile = supaRecord.profile_data;
+          if (supaRecord.study_sessions) {
+            localStorage.setItem('ethiolearn_study_sessions', JSON.stringify(supaRecord.study_sessions));
+          }
+          if (supaRecord.notes_data) {
+            localStorage.setItem('ethiolearn_custom_notes', JSON.stringify(supaRecord.notes_data));
+          }
+          if (supaRecord.performance_data) {
+            localStorage.setItem('ethiolearn_quiz_perf', JSON.stringify(supaRecord.performance_data));
+          }
+        } else {
+          // Fallback or initial creation
+          profile = {
+            name: emailTrim.split('@')[0],
+            email: emailTrim,
+            university: "Addis Ababa University",
+            year: "University",
+            subjects: subjectsList,
+            claudeApiKey: "",
+            dailyGoalHours: 2,
+            theme: 'dark',
+            language: 'both',
+            avatar: 'champion',
+            isRegistered: true,
+            unregisteredAICredits: 5
+          };
+          await supa.from('student_profiles').upsert({
+            email: emailTrim,
+            profile_data: profile,
+            updated_at: new Date().toISOString()
+          });
+        }
+
+        // Save session locally
+        const newAccount: AccountInfo = {
+          email: emailTrim,
+          passwordEncrypted: passwordTrim,
+          rememberMe: rememberMe,
+          profile
+        };
+        const filteredAccounts = registeredAccounts.filter(acc => acc.email.toLowerCase() !== emailTrim);
+        const updated = [...filteredAccounts, newAccount];
+        localStorage.setItem('ethiolearn_accounts', JSON.stringify(updated));
+        localStorage.setItem('ethiolearn_active_email', emailTrim);
+
+        if (rememberMe) {
+          localStorage.setItem('ethiolearn_remember_login', JSON.stringify({
+            email: emailTrim,
+            password: passwordTrim,
+            rememberMe: true
+          }));
+        } else {
+          localStorage.removeItem('ethiolearn_remember_login');
+        }
+
+        playSuccessChime();
+        setLoading(false);
+        onComplete({ ...profile, isRegistered: true });
+        return;
+      } catch (err: any) {
+        console.error('[Supabase Auth Error]:', err);
+        setAuthError(err.message || 'An error occurred during authentication.');
+        playFailureChime();
+        setLoading(false);
+        return;
+      }
+    }
+
+    // Lookup credentials locally (fully offline / local sandbox fallback)
     const found = registeredAccounts.find(
       acc => acc.email.toLowerCase() === emailTrim && acc.passwordEncrypted === passwordTrim
     );
@@ -1006,6 +1108,104 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
 
     setLoading(true);
 
+    // Try Supabase Auth registration first
+    const supa = getSupabase();
+    if (supa) {
+      try {
+        const { data, error } = await supa.auth.signUp({
+          email: emailTrim,
+          password: passwordTrim,
+          options: {
+            data: {
+              display_name: nameTrim,
+              university: univTrim,
+              year,
+              avatar
+            }
+          }
+        });
+
+        if (error) {
+          setAuthError(error.message);
+          playFailureChime();
+          setLoading(false);
+          return;
+        }
+
+        // Successfully registered in Supabase! Now let's save the profile record
+        const profile: StudentProfile = {
+          name: nameTrim,
+          email: emailTrim,
+          university: univTrim,
+          year,
+          subjects: selectedSubjects,
+          claudeApiKey: claudeApiKey.trim(),
+          dailyGoalHours: 2,
+          theme: 'dark',
+          language: preferredLanguage === 'am' ? 'am' : 'en',
+          avatar,
+          isRegistered: true,
+          unregisteredAICredits: 5
+        };
+
+        const payloadRecord = {
+          email: emailTrim,
+          profile_data: {
+            ...profile,
+            password: passwordTrim
+          },
+          study_sessions: [],
+          notes_data: [],
+          performance_data: {},
+          updated_at: new Date().toISOString()
+        };
+
+        const { error: insertError } = await supa.from('student_profiles').insert(payloadRecord);
+        if (insertError) {
+          console.warn('[Supabase Onboarding] Could not insert profile record:', insertError.message);
+          // Try to upsert in case row exists
+          await supa.from('student_profiles').upsert(payloadRecord);
+        }
+
+        const newAccount: AccountInfo = {
+          email: emailTrim,
+          passwordEncrypted: passwordTrim,
+          rememberMe: rememberMe,
+          profile
+        };
+
+        const updated = [...registeredAccounts.filter(acc => acc.email.toLowerCase() !== emailTrim), newAccount];
+        localStorage.setItem('ethiolearn_accounts', JSON.stringify(updated));
+        localStorage.setItem('ethiolearn_active_email', emailTrim);
+
+        if (rememberMe) {
+          localStorage.setItem('ethiolearn_remember_login', JSON.stringify({
+            email: emailTrim,
+            password: passwordTrim,
+            rememberMe: true
+          }));
+        } else {
+          localStorage.removeItem('ethiolearn_remember_login');
+        }
+
+        // Inform the user if email confirmation is required
+        if (data?.user && !data.session) {
+          setInfoMessage(preferredLanguage === 'am' ? "እባክዎን አካውንትዎን ለማረጋገጥ ኢሜይልዎን ያረጋግጡ።" : "Please check your inbox to confirm your registration email before logging in.");
+        }
+
+        playSuccessChime();
+        setLoading(false);
+        onComplete(profile);
+        return;
+      } catch (err: any) {
+        console.error('[Supabase Register Error]:', err);
+        setAuthError(err.message || 'An error occurred during registration.');
+        playFailureChime();
+        setLoading(false);
+        return;
+      }
+    }
+
     // Check pre-existing accounts locally to avoid visual duplicates
     const exists = registeredAccounts.some(acc => acc.email.toLowerCase() === emailTrim);
     if (exists) {
@@ -1015,7 +1215,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
       return;
     }
 
-    // Create student profile
+    // Create student profile (offline fallback)
     const profile: StudentProfile = {
       name: nameTrim,
       email: emailTrim,
@@ -2350,10 +2550,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
               </div>
             )}
 
-            {/* Supabase connection manager */}
-            <div className="border border-zinc-800 rounded-xl p-1 bg-zinc-950/30">
-              {renderSupabaseConfigPanel()}
-            </div>
+            {/* DB Connection is established automatically in the background */}
 
             {/* Registration Form */}
             <form onSubmit={handleRegister} className="space-y-4">

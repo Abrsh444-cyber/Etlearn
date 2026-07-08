@@ -202,6 +202,7 @@ export default function App() {
   // Google Authentication variables
   const [googleUser, setGoogleUser] = useState<FirebaseUser | null>(null);
   const [googleToken, setGoogleToken] = useState<string | null>(null);
+  const [supaUser, setSupaUser] = useState<any | null>(null);
   const [isExportingSheets, setIsExportingSheets] = useState(false);
   const [isPopupBlockedApp, setIsPopupBlockedApp] = useState(false);
 
@@ -381,6 +382,105 @@ export default function App() {
   useEffect(() => {
     testFirestoreConnection();
   }, []);
+
+  // Supabase auth state listener & bidirectional data sync
+  useEffect(() => {
+    const supa = getSupabase();
+    if (!supa) return;
+
+    // Fetch current session/user on load
+    supa.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setSupaUser(session.user);
+      }
+    });
+
+    // Subscribe to auth state changes
+    const { data: { subscription } } = supa.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setSupaUser(session.user);
+      } else {
+        setSupaUser(null);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // Bidirectional Supabase Sync
+  useEffect(() => {
+    if (supaUser) {
+      const syncSupabaseState = async () => {
+        try {
+          const supa = getSupabase();
+          if (!supa) return;
+
+          console.log('[Supabase Sync] Initiating bidirectional sync for:', supaUser.email);
+          const email = supaUser.email?.toLowerCase();
+          if (!email) return;
+
+          const { data: supaRecord, error } = await supa
+            .from('student_profiles')
+            .select('*')
+            .eq('email', email)
+            .maybeSingle();
+
+          if (error) {
+            console.warn('[Supabase Sync Error]:', error);
+            return;
+          }
+
+          if (supaRecord) {
+            if (supaRecord.profile_data) {
+              console.log('[Supabase Sync] Pulled student profile from Supabase.');
+              setProfile(supaRecord.profile_data);
+              localStorage.setItem('ethiolearn_current_profile', JSON.stringify(supaRecord.profile_data));
+            }
+            if (supaRecord.notes_data && supaRecord.notes_data.length > 0) {
+              console.log('[Supabase Sync] Pulled custom notes from Supabase.');
+              setCustomNotes(supaRecord.notes_data);
+              localStorage.setItem('ethiolearn_custom_notes', JSON.stringify(supaRecord.notes_data));
+            }
+            if (supaRecord.study_sessions && supaRecord.study_sessions.length > 0) {
+              console.log('[Supabase Sync] Pulled study sessions from Supabase.');
+              localStorage.setItem('ethiolearn_study_sessions', JSON.stringify(supaRecord.study_sessions));
+            }
+            if (supaRecord.performance_data) {
+              console.log('[Supabase Sync] Pulled performance data from Supabase.');
+              localStorage.setItem('ethiolearn_quiz_perf', JSON.stringify(supaRecord.performance_data));
+            }
+          } else if (profile) {
+            console.log('[Supabase Sync] Row not found. Seeding initial profile data to student_profiles table.');
+            const studySessionsRaw = localStorage.getItem('ethiolearn_study_sessions');
+            const studySessions = studySessionsRaw ? JSON.parse(studySessionsRaw) : [];
+
+            const notesRaw = localStorage.getItem('ethiolearn_custom_notes');
+            const notesData = notesRaw ? JSON.parse(notesRaw) : [];
+
+            const quizRaw = localStorage.getItem('ethiolearn_quiz_perf');
+            const performanceData = quizRaw ? JSON.parse(quizRaw) : {};
+
+            const payloadRecord = {
+              email: email,
+              profile_data: profile,
+              study_sessions: studySessions,
+              notes_data: notesData,
+              performance_data: performanceData,
+              updated_at: new Date().toISOString()
+            };
+
+            await supa.from('student_profiles').insert(payloadRecord);
+          }
+        } catch (err) {
+          console.error('[Supabase Sync Failure]:', err);
+        }
+      };
+
+      syncSupabaseState();
+    }
+  }, [supaUser, profile]);
 
   // Bidirectional Firestore cloud sync
   useEffect(() => {

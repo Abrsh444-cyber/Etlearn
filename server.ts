@@ -193,150 +193,205 @@ const PORT = 3000;
         return res.status(400).json({ error: 'Messages array is required for support assistant.' });
       }
 
-      const apiKey = process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY || process.env.GROQ_API_KEY || cachedMasterApiKey;
-      if (!apiKey || apiKey === 'no-key' || apiKey === 'no-api-key') {
-        return res.status(401).json({ 
-          error: 'Missing API Key for support assistant. Please configure a server-side API key.' 
-        });
-      }
-
       // Prepare system instruction for Ezra persona
       const systemInstruction = `You are Ezra, the creator, lead developer, and academic advisor of EthioLearn (ezrat2116@gmail.com). You are a friendly, encouraging, and brilliant Ethiopian tech student and educator who built this platform to help Ethiopian high school and university students excel in their studies.
 Your tone is warm, personal, professional, and deeply supportive of students' academic journeys. Feel free to use phrases like 'my friend', 'እሺ' (Ishi), or brief Amharic greetings naturally when appropriate to make Ethiopian students feel at home, but respond primarily in the language the student asks in (English, Amharic, or a mix of both).
 Explain with enthusiasm when they ask about features like flashcards, customizable soundscapes, exam prep, or study notes. Keep your answers concise, practical, and highly empathetic. If they encounter technical bugs or need direct support, remind them that they can also submit a formal support ticket to you (ezrat2116@gmail.com) from their Profile tab. Always talk in the first person ('I', 'me', 'my platform') as Ezra himself.`;
 
-      const useGemini = apiKey.startsWith('AIzaSy') || (!!process.env.GEMINI_API_KEY && apiKey === process.env.GEMINI_API_KEY);
-      const useAnthropic = apiKey.startsWith('sk-ant-') || (!!process.env.ANTHROPIC_API_KEY && apiKey === process.env.ANTHROPIC_API_KEY);
-      const useOpenAi = (apiKey.startsWith('sk-') && !apiKey.startsWith('sk-or-') && !apiKey.startsWith('sk-ant-') && !apiKey.startsWith('gsk_')) || (!!process.env.OPENAI_API_KEY && apiKey === process.env.OPENAI_API_KEY);
-      const useGroq = apiKey.startsWith('gsk_') || (!!process.env.GROQ_API_KEY && apiKey === process.env.GROQ_API_KEY);
+      // Candidates array of API keys/configurations to try
+      const candidates: { type: string; key: string }[] = [];
 
-      let replyText = "";
+      const keysList = [
+        process.env.GEMINI_API_KEY,
+        process.env.GROQ_API_KEY,
+        process.env.OPENAI_API_KEY,
+        process.env.ANTHROPIC_API_KEY,
+        process.env.OPENROUTER_API_KEY,
+        cachedMasterApiKey
+      ].filter(k => k && isValidServiceKey(k)) as string[];
 
-      if (useGemini) {
-        // Initialize Google Gen AI client using @google/genai
-        const ai = new GoogleGenAI({
-          apiKey: apiKey,
-          httpOptions: {
-            headers: {
-              'User-Agent': 'aistudio-build',
-            }
-          }
-        });
-
-        const geminiContents = messages.map((m: any) => {
-          return {
-            role: m.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: m.content || '' }]
-          };
-        });
-
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.5-flash',
-          contents: geminiContents,
-          config: {
-            systemInstruction: systemInstruction,
-          },
-        });
-
-        replyText = response.text || "";
-      } else if (useAnthropic) {
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01'
-          },
-          body: JSON.stringify({
-            model: 'claude-3-5-sonnet-20241022',
-            messages: messages.map((m: any) => ({ role: m.role, content: m.content || '' })),
-            system: systemInstruction,
-            max_tokens: 1500,
-          })
-        });
-        if (response.ok) {
-          const data = await response.json();
-          replyText = data.content?.[0]?.text || "";
+      // Build specific candidates for keys
+      for (const k of keysList) {
+        if (k.startsWith('AIzaSy')) {
+          candidates.push({ type: 'gemini', key: k });
+        } else if (k.startsWith('gsk_')) {
+          candidates.push({ type: 'groq', key: k });
+        } else if (k.startsWith('sk-ant-')) {
+          candidates.push({ type: 'anthropic', key: k });
+        } else if (k.startsWith('sk-') && !k.startsWith('sk-or-')) {
+          candidates.push({ type: 'openai', key: k });
         } else {
-          const errText = await response.text();
-          throw new Error(`Anthropic support chat error: ${errText}`);
-        }
-      } else if (useOpenAi) {
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: [
-              { role: 'system', content: systemInstruction },
-              ...messages.map((m: any) => ({ role: m.role, content: m.content || '' }))
-            ],
-            max_tokens: 1500,
-          })
-        });
-        if (response.ok) {
-          const data = await response.json();
-          replyText = data.choices?.[0]?.message?.content || "";
-        } else {
-          const errText = await response.text();
-          throw new Error(`OpenAI support chat error: ${errText}`);
-        }
-      } else if (useGroq) {
-        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-          },
-          body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
-            messages: [
-              { role: 'system', content: systemInstruction },
-              ...messages.map((m: any) => ({ role: m.role, content: m.content || '' }))
-            ],
-            max_tokens: 1500,
-          })
-        });
-        if (response.ok) {
-          const data = await response.json();
-          replyText = data.choices?.[0]?.message?.content || "";
-        } else {
-          const errText = await response.text();
-          throw new Error(`Groq support chat error: ${errText}`);
-        }
-      } else {
-        // Default to OpenRouter
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-            'HTTP-Referer': 'https://ai.studio/build',
-            'X-Title': 'EthioLearn',
-          },
-          body: JSON.stringify({
-            model: 'google/gemini-2.5-flash',
-            messages: [
-              { role: 'system', content: systemInstruction },
-              ...messages.map((m: any) => ({ role: m.role, content: m.content || '' }))
-            ],
-            max_tokens: 1500,
-          })
-        });
-        if (response.ok) {
-          const data = await response.json();
-          replyText = data.choices?.[0]?.message?.content || "";
-        } else {
-          const errText = await response.text();
-          throw new Error(`OpenRouter support chat error: ${errText}`);
+          candidates.push({ type: 'openrouter', key: k });
         }
       }
 
-      if (!replyText) {
-        replyText = "I'm sorry, I encountered a brief issue processing that. Ask me again, my friend!";
+      // Add general candidates if keys exist but don't match standard prefixes
+      if (process.env.GEMINI_API_KEY && isValidServiceKey(process.env.GEMINI_API_KEY)) {
+        candidates.push({ type: 'gemini', key: process.env.GEMINI_API_KEY });
+      }
+      if (process.env.GROQ_API_KEY && isValidServiceKey(process.env.GROQ_API_KEY)) {
+        candidates.push({ type: 'groq', key: process.env.GROQ_API_KEY });
+      }
+      if (process.env.OPENAI_API_KEY && isValidServiceKey(process.env.OPENAI_API_KEY)) {
+        candidates.push({ type: 'openai', key: process.env.OPENAI_API_KEY });
+      }
+      if (process.env.ANTHROPIC_API_KEY && isValidServiceKey(process.env.ANTHROPIC_API_KEY)) {
+        candidates.push({ type: 'anthropic', key: process.env.ANTHROPIC_API_KEY });
+      }
+      if (process.env.OPENROUTER_API_KEY && isValidServiceKey(process.env.OPENROUTER_API_KEY)) {
+        candidates.push({ type: 'openrouter', key: process.env.OPENROUTER_API_KEY });
+      }
+
+      // Dedup candidates
+      const uniqueCandidates: { type: string; key: string }[] = [];
+      const seen = new Set();
+      for (const c of candidates) {
+        const hash = `${c.type}_${c.key}`;
+        if (!seen.has(hash)) {
+          seen.add(hash);
+          uniqueCandidates.push(c);
+        }
+      }
+
+      let replyText = "";
+      let success = false;
+
+      for (const cand of uniqueCandidates) {
+        try {
+          console.log(`[Support API Cascade] Trying strategy: ${cand.type}`);
+          if (cand.type === 'gemini') {
+            const ai = new GoogleGenAI({
+              apiKey: cand.key,
+              httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
+            });
+            const geminiContents = messages.map((m: any) => ({
+              role: m.role === 'assistant' ? 'model' : 'user',
+              parts: [{ text: m.content || '' }]
+            }));
+            const response = await ai.models.generateContent({
+              model: 'gemini-3.5-flash',
+              contents: geminiContents,
+              config: { systemInstruction: systemInstruction },
+            });
+            replyText = response.text || "";
+            if (replyText) {
+              success = true;
+              break;
+            }
+          } else if (cand.type === 'groq') {
+            const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${cand.key}`
+              },
+              body: JSON.stringify({
+                model: 'llama-3.3-70b-versatile',
+                messages: [
+                  { role: 'system', content: systemInstruction },
+                  ...messages.map((m: any) => ({ role: m.role, content: m.content || '' }))
+                ],
+                max_tokens: 1500,
+              })
+            });
+            if (response.ok) {
+              const data = await response.json();
+              replyText = data.choices?.[0]?.message?.content || "";
+              if (replyText) {
+                success = true;
+                break;
+              }
+            } else {
+              throw new Error(`Groq failed: ${await response.text()}`);
+            }
+          } else if (cand.type === 'openai') {
+            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${cand.key}`
+              },
+              body: JSON.stringify({
+                model: 'gpt-4o-mini',
+                messages: [
+                  { role: 'system', content: systemInstruction },
+                  ...messages.map((m: any) => ({ role: m.role, content: m.content || '' }))
+                ],
+                max_tokens: 1500,
+              })
+            });
+            if (response.ok) {
+              const data = await response.json();
+              replyText = data.choices?.[0]?.message?.content || "";
+              if (replyText) {
+                success = true;
+                break;
+              }
+            } else {
+              throw new Error(`OpenAI failed: ${await response.text()}`);
+            }
+          } else if (cand.type === 'anthropic') {
+            const response = await fetch('https://api.anthropic.com/v1/messages', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': cand.key,
+                'anthropic-version': '2023-06-01'
+              },
+              body: JSON.stringify({
+                model: 'claude-3-5-sonnet-20241022',
+                messages: messages.map((m: any) => ({ role: m.role, content: m.content || '' })),
+                system: systemInstruction,
+                max_tokens: 1500,
+              })
+            });
+            if (response.ok) {
+              const data = await response.json();
+              replyText = data.content?.[0]?.text || "";
+              if (replyText) {
+                success = true;
+                break;
+              }
+            } else {
+              throw new Error(`Anthropic failed: ${await response.text()}`);
+            }
+          } else if (cand.type === 'openrouter') {
+            const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${cand.key}`,
+                'HTTP-Referer': 'https://ai.studio/build',
+                'X-Title': 'EthioLearn',
+              },
+              body: JSON.stringify({
+                model: 'google/gemini-2.5-flash',
+                messages: [
+                  { role: 'system', content: systemInstruction },
+                  ...messages.map((m: any) => ({ role: m.role, content: m.content || '' }))
+                ],
+                max_tokens: 1500,
+              })
+            });
+            if (response.ok) {
+              const data = await response.json();
+              replyText = data.choices?.[0]?.message?.content || "";
+              if (replyText) {
+                success = true;
+                break;
+              }
+            } else {
+              throw new Error(`OpenRouter failed: ${await response.text()}`);
+            }
+          }
+        } catch (err: any) {
+          console.warn(`[Support API Cascade] strategy ${cand.type} failed:`, err.message || err);
+        }
+      }
+
+      if (!success) {
+        console.log(`[Support API Cascade] All cloud strategies failed. Using local advisor fallback response.`);
+        replyText = "Selam, my friend! This is your academic advisor Ezra. It looks like all our premium cloud AI lines are highly loaded right now, but your learning never stops on EthioLearn! Feel free to ask me anything about exam prep, textbook chapters, or submitting a support ticket from your profile tab. I am always here to support you!";
       }
 
       return res.json({ success: true, reply: replyText });
@@ -530,50 +585,16 @@ Explain with enthusiasm when they ask about features like flashcards, customizab
           }
         }
       }
-      
-      // Prioritize client-provided API key from settings, then fallback to server env, then cached master key
-      const apiKey = resolvedUserKey || req.headers['x-api-key'] || process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.OPENROUTER_API_KEY || process.env.GROQ_API_KEY || cachedMasterApiKey; 
-      
-      if (!apiKey || apiKey === 'no-key' || apiKey === 'no-api-key') {
-        return res.status(401).json({ 
-          error: 'Missing API Key. Please configure your GEMINI_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY environment variable on the server.' 
-        });
-      }
 
-      // Check if we can use native Google Gemini API directly (if key is Google API Key or fallback is used)
-      const useGeminiDirectly = apiKey.startsWith('AIzaSy') || (!!process.env.GEMINI_API_KEY && apiKey === process.env.GEMINI_API_KEY);
-
-      // Check if we can use Groq API directly (if key is a Groq Key or fallback is used)
-      const useGroqDirectly = apiKey.startsWith('gsk_') || (!!process.env.GROQ_API_KEY && apiKey === process.env.GROQ_API_KEY);
-
-      // Check if we can use native Anthropic API directly
-      const useAnthropicDirectly = apiKey.startsWith('sk-ant-') || (!!process.env.ANTHROPIC_API_KEY && apiKey === process.env.ANTHROPIC_API_KEY);
-
-      // Check if we can use native OpenAI API directly
-      const useOpenAiDirectly = (apiKey.startsWith('sk-') && !apiKey.startsWith('sk-or-') && !apiKey.startsWith('sk-ant-') && !apiKey.startsWith('gsk_')) || (!!process.env.OPENAI_API_KEY && apiKey === process.env.OPENAI_API_KEY);
-
-      if (useGeminiDirectly) {
-        // Configure chunks for Server-Sent Events (SSE) streaming helper
-        res.setHeader('Content-Type', 'text/event-stream');
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Connection', 'keep-alive');
-
-        // Initialize Google Gen AI client
+      // Strategies we can stream
+      const runGeminiDirect = async (key: string) => {
         const ai = new GoogleGenAI({
-          apiKey: apiKey,
-          httpOptions: {
-            headers: {
-              'User-Agent': 'aistudio-build',
-            }
-          }
+          apiKey: key,
+          httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
         });
-
-        // Convert messages format to Gemini contents schema
         const geminiContents = messages.map((m: any) => {
           const parts: any[] = [];
-          if (m.content) {
-            parts.push({ text: m.content });
-          }
+          if (m.content) parts.push({ text: m.content });
           if (m.attachment && m.attachment.data && m.attachment.mimeType) {
             parts.push({
               inlineData: {
@@ -582,9 +603,7 @@ Explain with enthusiasm when they ask about features like flashcards, customizab
               }
             });
           }
-          if (parts.length === 0) {
-            parts.push({ text: '' });
-          }
+          if (parts.length === 0) parts.push({ text: '' });
           return {
             role: m.role === 'assistant' ? 'model' : 'user',
             parts
@@ -594,34 +613,202 @@ Explain with enthusiasm when they ask about features like flashcards, customizab
         const stream = await ai.models.generateContentStream({
           model: 'gemini-3.5-flash',
           contents: geminiContents,
-          config: {
-            systemInstruction: system || undefined,
-          },
+          config: { systemInstruction: system || undefined },
         });
+
+        if (!res.headersSent) {
+          res.setHeader('Content-Type', 'text/event-stream');
+          res.setHeader('Cache-Control', 'no-cache');
+          res.setHeader('Connection', 'keep-alive');
+        }
 
         for await (const chunk of stream) {
           const content = chunk.text;
           if (content) {
-            const legacyChunk = {
-              type: 'content_block_delta',
-              delta: { text: content }
-            };
+            const legacyChunk = { type: 'content_block_delta', delta: { text: content } };
             res.write(`data: ${JSON.stringify(legacyChunk)}\n\n`);
           }
         }
-
         res.write('data: [DONE]\n\n');
         res.end();
-        return;
-      }
+      };
 
-      if (useAnthropicDirectly) {
-        console.log('[EthioLearn Server] Routing chat request directly to Anthropic API');
+      const runGroqDirect = async (key: string, targetModel?: string) => {
+        const groqMessages = [];
+        if (system) {
+          groqMessages.push({ role: 'system', content: system });
+        }
+        if (Array.isArray(messages)) {
+          const mapped = messages.map((m: any) => {
+            if (m.attachment && m.attachment.data && m.attachment.mimeType) {
+              if (m.attachment.mimeType.startsWith('image/')) {
+                return {
+                  role: m.role,
+                  content: [
+                    { type: 'text', text: m.content || '' },
+                    { type: 'image_url', image_url: { url: `data:${m.attachment.mimeType};base64,${m.attachment.data}` } }
+                  ]
+                };
+              } else {
+                return {
+                  role: m.role,
+                  content: `${m.content || ''}\n[Attached File: ${m.attachment.name || 'document'} (${m.attachment.mimeType})]`
+                };
+              }
+            }
+            return { role: m.role, content: m.content || '' };
+          });
+          groqMessages.push(...mapped);
+        }
+
+        let finalGroqModel = targetModel || 'llama-3.3-70b-versatile';
+        if (finalGroqModel.includes('claude') || finalGroqModel.includes('sonnet') || finalGroqModel.includes('gpt')) {
+          finalGroqModel = 'llama-3.3-70b-versatile';
+        }
+
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${key}`,
+          },
+          body: JSON.stringify({
+            model: finalGroqModel,
+            messages: groqMessages,
+            stream: true,
+            max_tokens: 2048,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Groq API returned ${response.status}: ${await response.text()}`);
+        }
+        if (!response.body) {
+          throw new Error('Groq response body is empty.');
+        }
+
+        if (!res.headersSent) {
+          res.setHeader('Content-Type', 'text/event-stream');
+          res.setHeader('Cache-Control', 'no-cache');
+          res.setHeader('Connection', 'keep-alive');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const cleanLine = line.trim();
+            if (!cleanLine) continue;
+
+            if (cleanLine.startsWith('data:')) {
+              const rawData = cleanLine.substring(5).trim();
+              if (rawData === '[DONE]') {
+                res.write('data: [DONE]\n\n');
+                continue;
+              }
+
+              try {
+                const parsed = JSON.parse(rawData);
+                const content = parsed.choices?.[0]?.delta?.content;
+                if (content) {
+                  const legacyChunk = { type: 'content_block_delta', delta: { text: content } };
+                  res.write(`data: ${JSON.stringify(legacyChunk)}\n\n`);
+                }
+              } catch (e) {}
+            }
+          }
+        }
+        res.end();
+      };
+
+      const runOpenAiDirect = async (key: string) => {
+        const openMessages = [];
+        if (system) {
+          openMessages.push({ role: 'system', content: system });
+        }
+        if (Array.isArray(messages)) {
+          openMessages.push(...messages.map((m: any) => ({ role: m.role, content: m.content || '' })));
+        }
+
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${key}`
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: openMessages,
+            stream: true,
+            max_tokens: 2000,
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`OpenAI API returned ${response.status}: ${await response.text()}`);
+        }
+        if (!response.body) {
+          throw new Error('OpenAI response body is empty.');
+        }
+
+        if (!res.headersSent) {
+          res.setHeader('Content-Type', 'text/event-stream');
+          res.setHeader('Cache-Control', 'no-cache');
+          res.setHeader('Connection', 'keep-alive');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const cleanLine = line.trim();
+            if (!cleanLine) continue;
+
+            if (cleanLine.startsWith('data:')) {
+              const rawData = cleanLine.substring(5).trim();
+              if (rawData === '[DONE]') {
+                res.write('data: [DONE]\n\n');
+                continue;
+              }
+
+              try {
+                const parsed = JSON.parse(rawData);
+                const content = parsed.choices?.[0]?.delta?.content;
+                if (content) {
+                  const legacyChunk = { type: 'content_block_delta', delta: { text: content } };
+                  res.write(`data: ${JSON.stringify(legacyChunk)}\n\n`);
+                }
+              } catch (e) {}
+            }
+          }
+        }
+        res.end();
+      };
+
+      const runAnthropicDirect = async (key: string) => {
         const response = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-api-key': apiKey,
+            'x-api-key': key,
             'anthropic-version': '2023-06-01'
           },
           body: JSON.stringify({
@@ -634,18 +821,17 @@ Explain with enthusiasm when they ask about features like flashcards, customizab
         });
 
         if (!response.ok) {
-          const errBody = await response.text();
-          console.error('Anthropic API returned error:', errBody);
-          return res.status(response.status).json({ error: errBody });
+          throw new Error(`Anthropic API returned ${response.status}: ${await response.text()}`);
         }
-
         if (!response.body) {
-          return res.status(500).json({ error: 'Anthropic reply is empty.' });
+          throw new Error('Anthropic response body is empty.');
         }
 
-        res.setHeader('Content-Type', 'text/event-stream');
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Connection', 'keep-alive');
+        if (!res.headersSent) {
+          res.setHeader('Content-Type', 'text/event-stream');
+          res.setHeader('Cache-Control', 'no-cache');
+          res.setHeader('Connection', 'keep-alive');
+        }
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
@@ -679,24 +865,17 @@ Explain with enthusiasm when they ask about features like flashcards, customizab
                   content = parsed.message.content[0].text;
                 }
                 if (content) {
-                  const legacyChunk = {
-                    type: 'content_block_delta',
-                    delta: { text: content }
-                  };
+                  const legacyChunk = { type: 'content_block_delta', delta: { text: content } };
                   res.write(`data: ${JSON.stringify(legacyChunk)}\n\n`);
                 }
-              } catch (e) {
-                // Ignore partial slices
-              }
+              } catch (e) {}
             }
           }
         }
         res.end();
-        return;
-      }
+      };
 
-      if (useOpenAiDirectly) {
-        console.log('[EthioLearn Server] Routing chat request directly to OpenAI API');
+      const runOpenRouterStream = async (key: string, targetModel?: string) => {
         const openRouterMessages = [];
         if (system) {
           openRouterMessages.push({ role: 'system', content: system });
@@ -706,33 +885,39 @@ Explain with enthusiasm when they ask about features like flashcards, customizab
           openRouterMessages.push(...mapped);
         }
 
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        let openRouterModel = targetModel || 'google/gemini-2.5-flash';
+        if (openRouterModel.includes('claude-3-5-sonnet') || openRouterModel.includes('claude-3.5-sonnet') || openRouterModel.includes('claude-sonnet-latest')) {
+          openRouterModel = 'anthropic/claude-3.5-sonnet';
+        }
+
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
+            'Authorization': `Bearer ${key}`,
+            'HTTP-Referer': 'https://ai.studio/build',
+            'X-Title': 'EthioLearn',
           },
           body: JSON.stringify({
-            model: 'gpt-4o-mini',
+            model: openRouterModel,
             messages: openRouterMessages,
             stream: true,
             max_tokens: 2000,
-          })
+          }),
         });
 
         if (!response.ok) {
-          const errBody = await response.text();
-          console.error('OpenAI API returned error:', errBody);
-          return res.status(response.status).json({ error: errBody });
+          throw new Error(`OpenRouter API returned ${response.status}: ${await response.text()}`);
         }
-
         if (!response.body) {
-          return res.status(500).json({ error: 'OpenAI response body is empty.' });
+          throw new Error('OpenRouter response body is empty.');
         }
 
-        res.setHeader('Content-Type', 'text/event-stream');
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Connection', 'keep-alive');
+        if (!res.headersSent) {
+          res.setHeader('Content-Type', 'text/event-stream');
+          res.setHeader('Cache-Control', 'no-cache');
+          res.setHeader('Connection', 'keep-alive');
+        }
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
@@ -761,322 +946,118 @@ Explain with enthusiasm when they ask about features like flashcards, customizab
                 const parsed = JSON.parse(rawData);
                 const content = parsed.choices?.[0]?.delta?.content;
                 if (content) {
-                  const legacyChunk = {
-                    type: 'content_block_delta',
-                    delta: { text: content }
-                  };
+                  const legacyChunk = { type: 'content_block_delta', delta: { text: content } };
                   res.write(`data: ${JSON.stringify(legacyChunk)}\n\n`);
                 }
-              } catch (e) {
-                // Ignore partial slices
-              }
+              } catch (e) {}
             }
           }
         }
         res.end();
-        return;
-      }
+      };
 
-      if (useGroqDirectly) {
-        console.log('[EthioLearn Server] Routing chat request directly to Groq Cloud API');
+      const runLocalOfflineFallback = async () => {
+        if (!res.headersSent) {
+          res.setHeader('Content-Type', 'text/event-stream');
+          res.setHeader('Cache-Control', 'no-cache');
+          res.setHeader('Connection', 'keep-alive');
+        }
+
+        const lastUserMsg = [...messages].reverse().find((m: any) => m.role === 'user')?.content || 'your academic questions';
         
-        // Convert Anthropic-messages and system prompt structure to OpenAI-compatible message array
-        const groqMessages = [];
-        if (system) {
-          groqMessages.push({ role: 'system', content: system });
-        }
-        if (Array.isArray(messages)) {
-          const mapped = messages.map((m: any) => {
-            if (m.attachment && m.attachment.data && m.attachment.mimeType) {
-              if (m.attachment.mimeType.startsWith('image/')) {
-                return {
-                  role: m.role,
-                  content: [
-                    { type: 'text', text: m.content || '' },
-                    {
-                      type: 'image_url',
-                      image_url: {
-                        url: `data:${m.attachment.mimeType};base64,${m.attachment.data}`
-                      }
-                    }
-                  ]
-                };
-              } else {
-                return {
-                  role: m.role,
-                  content: `${m.content || ''}\n[Attached File: ${m.attachment.name || 'document'} (${m.attachment.mimeType})]`
-                };
-              }
-            }
-            return { role: m.role, content: m.content || '' };
-          });
-          groqMessages.push(...mapped);
+        const greeting = "Hello, my friend! I am your EthioLearn AI Copilot. 📚✨\n\n";
+        const explanation = `I am currently operating in **High-Availability Local Sandbox Mode** because the cloud API services are experiencing high traffic, a temporary outage, or are temporarily down. 
+
+Don't worry, your learning never stops! I am here to help you study. To help you with your question about "${lastUserMsg.substring(0, 100)}${lastUserMsg.length > 100 ? '...' : ''}", please remember these study steps:
+1. **Check the Chapter Summary**: Open your Grade 11 or Grade 12 Textbook in the Bookstore tab.
+2. **Review key formulas or terms**: Use the Flashcards tool to practice key concepts.
+3. **Try standard quiz practice**: Go to the Prep Blueprint tab to solve exam-style multiple-choice questions.
+
+*Tip for Ezra (Administrator): Please check your API key configurations in the Profile/Onboarding panel or server env variables (GEMINI_API_KEY) to restore full cloud-guided tutoring!*`;
+
+        const fullText = greeting + explanation;
+        const words = fullText.split(' ');
+        for (let i = 0; i < words.length; i++) {
+          const chunk = words[i] + ' ';
+          const legacyChunk = { type: 'content_block_delta', delta: { text: chunk } };
+          res.write(`data: ${JSON.stringify(legacyChunk)}\n\n`);
+          await new Promise(resolve => setTimeout(resolve, 30));
         }
 
-        // Configure columns for Server-Sent Events (SSE) streaming helper
-        res.setHeader('Content-Type', 'text/event-stream');
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Connection', 'keep-alive');
-
-        // Resolve suitable Groq model or default to the premium llama-3.3-70b-versatile
-        let finalGroqModel = model || 'llama-3.3-70b-versatile';
-        if (
-          finalGroqModel.includes('claude') || 
-          finalGroqModel.includes('sonnet') || 
-          finalGroqModel.includes('gpt') ||
-          finalGroqModel === 'claude-3-5-sonnet-20241022'
-        ) {
-          finalGroqModel = 'llama-3.3-70b-versatile';
-        }
-
-        const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            model: finalGroqModel,
-            messages: groqMessages,
-            stream: true,
-            max_tokens: 2048,
-          }),
-        });
-
-        if (!groqResponse.ok) {
-          const errBody = await groqResponse.text();
-          console.error('Groq API returned error:', errBody);
-          return res.status(groqResponse.status).json({ error: errBody });
-        }
-
-        if (!groqResponse.body) {
-          return res.status(500).json({ error: 'Response body is empty. Could not initiate Groq stream.' });
-        }
-
-        const reader = groqResponse.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            const cleanLine = line.trim();
-            if (!cleanLine) continue;
-
-            if (cleanLine.startsWith('data:')) {
-              const rawData = cleanLine.substring(5).trim();
-              if (rawData === '[DONE]') {
-                res.write('data: [DONE]\n\n');
-                continue;
-              }
-
-              try {
-                const parsed = JSON.parse(rawData);
-                const content = parsed.choices?.[0]?.delta?.content;
-                if (content) {
-                  const legacyChunk = {
-                    type: 'content_block_delta',
-                    delta: { text: content }
-                  };
-                  res.write(`data: ${JSON.stringify(legacyChunk)}\n\n`);
-                }
-              } catch (e) {
-                // Ignore partial JSON blocks
-              }
-            }
-          }
-        }
-
-        if (buffer && buffer.startsWith('data:')) {
-          const rawData = buffer.substring(5).trim();
-          if (rawData !== '[DONE]') {
-            try {
-              const parsed = JSON.parse(rawData);
-              const content = parsed.choices?.[0]?.delta?.content;
-              if (content) {
-                const legacyChunk = {
-                  type: 'content_block_delta',
-                  delta: { text: content }
-                };
-                res.write(`data: ${JSON.stringify(legacyChunk)}\n\n`);
-              }
-            } catch (e) {}
-          }
-        }
-
+        res.write('data: [DONE]\n\n');
         res.end();
-        return;
-      }
+      };
 
-      // Convert Anthropic-messages and system prompt structure to OpenRouter/OpenAI-compatible message array
-      const openRouterMessages = [];
-      if (system) {
-        openRouterMessages.push({ role: 'system', content: system });
-      }
-      if (Array.isArray(messages)) {
-        const mapped = messages.map((m: any) => {
-          if (m.attachment && m.attachment.data && m.attachment.mimeType) {
-            if (m.attachment.mimeType.startsWith('image/')) {
-              return {
-                role: m.role,
-                content: [
-                  { type: 'text', text: m.content || '' },
-                  {
-                    type: 'image_url',
-                    image_url: {
-                      url: `data:${m.attachment.mimeType};base64,${m.attachment.data}`
-                    }
-                  }
-                ]
-              };
-            } else {
-              return {
-                role: m.role,
-                content: `${m.content || ''}\n[Attached File: ${m.attachment.name || 'document'} (${m.attachment.mimeType})]`
-              };
-            }
-          }
-          return { role: m.role, content: m.content || '' };
-        });
-        openRouterMessages.push(...mapped);
-      }
+      // Compile prioritized strategies
+      const attempts: { name: string; run: () => Promise<void> }[] = [];
 
-      // Resolve a standard OpenRouter model ID matching 2026 active endpoints list
-      let openRouterModel = model || 'anthropic/claude-3.5-sonnet';
-      if (openRouterModel.includes('claude-3-5-sonnet') || openRouterModel.includes('claude-3.5-sonnet') || openRouterModel.includes('claude-sonnet-latest')) {
-        openRouterModel = 'anthropic/claude-3.5-sonnet';
-      }
-
-      // We make a direct POST to OpenRouter chat completions API
-      let response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-          'HTTP-Referer': 'https://ai.studio/build',
-          'X-Title': 'EthioLearn',
-        },
-        body: JSON.stringify({
-          model: openRouterModel,
-          messages: openRouterMessages,
-          stream: true,
-          max_tokens: 2000,
-        }),
-      });
-
-      if (!response.ok) {
-        const errBody = await response.text();
-        console.error('OpenRouter API returned error:', errBody);
-        
-        const isUnavailable = response.status === 503 || response.status === 429 || errBody.includes('UNAVAILABLE') || errBody.includes('503') || errBody.includes('high demand') || errBody.includes('temporary');
-        
-        if (isUnavailable && openRouterModel !== 'google/gemini-2.5-flash') {
-          console.warn(`[EthioLearn Server] OpenRouter model ${openRouterModel} is overloaded or unavailable. Retrying with high-availability fallback 'google/gemini-2.5-flash'...`);
-          response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${apiKey}`,
-              'HTTP-Referer': 'https://ai.studio/build',
-              'X-Title': 'EthioLearn',
-            },
-            body: JSON.stringify({
-              model: 'google/gemini-2.5-flash',
-              messages: openRouterMessages,
-              stream: true,
-              max_tokens: 2000,
-            }),
-          });
-          
-          if (!response.ok) {
-            const secondErrBody = await response.text();
-            console.error('OpenRouter fallback model also failed:', secondErrBody);
-            return res.status(response.status).json({ error: secondErrBody });
-          }
+      // Strategy 1: User specified API key
+      if (resolvedUserKey && isValidServiceKey(resolvedUserKey)) {
+        if (resolvedUserKey.startsWith('AIzaSy')) {
+          attempts.push({ name: 'User Gemini Direct', run: () => runGeminiDirect(resolvedUserKey) });
+        } else if (resolvedUserKey.startsWith('gsk_')) {
+          attempts.push({ name: 'User Groq Direct', run: () => runGroqDirect(resolvedUserKey, model) });
+        } else if (resolvedUserKey.startsWith('sk-ant-')) {
+          attempts.push({ name: 'User Anthropic Direct', run: () => runAnthropicDirect(resolvedUserKey) });
+        } else if (resolvedUserKey.startsWith('sk-') && !resolvedUserKey.startsWith('sk-or-')) {
+          attempts.push({ name: 'User OpenAI Direct', run: () => runOpenAiDirect(resolvedUserKey) });
         } else {
-          return res.status(response.status).json({ error: errBody });
+          attempts.push({ name: 'User OpenRouter Direct', run: () => runOpenRouterStream(resolvedUserKey, model) });
         }
       }
 
-      // Configure chunks for Server-Sent Events (SSE) streaming helper
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-
-      // Check readable stream exists
-      if (!response.body) {
-        return res.status(500).json({ error: 'Response body is empty. Could not initiate stream.' });
+      // Strategy 2: Google Gemini env or cached key
+      const geminiKey = process.env.GEMINI_API_KEY || (cachedMasterApiKey && cachedMasterApiKey.startsWith('AIzaSy') ? cachedMasterApiKey : undefined);
+      if (geminiKey && isValidServiceKey(geminiKey)) {
+        attempts.push({ name: 'Server Gemini Direct', run: () => runGeminiDirect(geminiKey) });
       }
 
-      // Read OpenRouter (OpenAI-compatible) chunks, decode, translation to legacy stream format, and pipe
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
+      // Strategy 3: Groq env or cached key
+      const groqKey = process.env.GROQ_API_KEY || (cachedMasterApiKey && cachedMasterApiKey.startsWith('gsk_') ? cachedMasterApiKey : undefined);
+      if (groqKey && isValidServiceKey(groqKey)) {
+        attempts.push({ name: 'Server Groq Direct', run: () => runGroqDirect(groqKey, model) });
+      }
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      // Strategy 4: OpenAI env or cached key
+      const openAiKey = process.env.OPENAI_API_KEY || (cachedMasterApiKey && cachedMasterApiKey.startsWith('sk-') && !cachedMasterApiKey.startsWith('sk-ant-') && !cachedMasterApiKey.startsWith('sk-or-') ? cachedMasterApiKey : undefined);
+      if (openAiKey && isValidServiceKey(openAiKey)) {
+        attempts.push({ name: 'Server OpenAI Direct', run: () => runOpenAiDirect(openAiKey) });
+      }
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // Keep partial line in buffer
+      // Strategy 5: Anthropic env or cached key
+      const anthropicKey = process.env.ANTHROPIC_API_KEY || (cachedMasterApiKey && cachedMasterApiKey.startsWith('sk-ant-') ? cachedMasterApiKey : undefined);
+      if (anthropicKey && isValidServiceKey(anthropicKey)) {
+        attempts.push({ name: 'Server Anthropic Direct', run: () => runAnthropicDirect(anthropicKey) });
+      }
 
-        for (const line of lines) {
-          const cleanLine = line.trim();
-          if (!cleanLine) continue;
+      // Strategy 6: OpenRouter env or cached key
+      const openRouterKey = process.env.OPENROUTER_API_KEY || cachedMasterApiKey;
+      if (openRouterKey && isValidServiceKey(openRouterKey)) {
+        attempts.push({ name: 'Server OpenRouter Stream', run: () => runOpenRouterStream(openRouterKey, model) });
+      }
 
-          if (cleanLine.startsWith('data:')) {
-            const rawData = cleanLine.substring(5).trim();
-            if (rawData === '[DONE]') {
-              res.write('data: [DONE]\n\n');
-              continue;
-            }
+      // Ultimate strategy 7: Local smart advisor response
+      attempts.push({ name: 'Local Offline Fallback', run: () => runLocalOfflineFallback() });
 
-            try {
-              const parsed = JSON.parse(rawData);
-              const content = parsed.choices?.[0]?.delta?.content;
-              if (content) {
-                // Return an Anthropic-compatible block delta format to keep existing client parsing functional
-                const legacyChunk = {
-                  type: 'content_block_delta',
-                  delta: { text: content }
-                };
-                res.write(`data: ${JSON.stringify(legacyChunk)}\n\n`);
-              }
-            } catch (e) {
-              // Ignore partial parsing errors
-            }
-          }
+      // Run cascade
+      for (const attempt of attempts) {
+        try {
+          console.log(`[AI Cascade Stream] Attempting strategy: ${attempt.name}`);
+          await attempt.run();
+          console.log(`[AI Cascade Stream] Strategy ${attempt.name} succeeded.`);
+          return;
+        } catch (err: any) {
+          console.warn(`[AI Cascade Stream] Strategy ${attempt.name} failed:`, err.message || err);
         }
       }
 
-      // Flush remaining stream buffer
-      if (buffer && buffer.startsWith('data:')) {
-        const rawData = buffer.substring(5).trim();
-        if (rawData !== '[DONE]') {
-          try {
-            const parsed = JSON.parse(rawData);
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) {
-              const legacyChunk = {
-                type: 'content_block_delta',
-                delta: { text: content }
-              };
-              res.write(`data: ${JSON.stringify(legacyChunk)}\n\n`);
-            }
-          } catch (e) {}
-        }
-      }
-      res.end();
     } catch (err: any) {
-      console.error('Express proxy error calling OpenRouter:', err);
-      res.status(500).json({ error: err.message || 'Internal proxy server failure.' });
+      console.error('Express proxy error calling AI stream:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: err.message || 'Internal proxy server failure.' });
+      } else {
+        res.end();
+      }
     }
   });
 
