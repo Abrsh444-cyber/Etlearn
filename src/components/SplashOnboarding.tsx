@@ -457,7 +457,19 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
   const [universityError, setUniversityError] = useState<string | null>(null);
   const [confirmPasswordError, setConfirmPasswordError] = useState<string | null>(null);
   const [isPopupBlocked, setIsPopupBlocked] = useState(false);
-
+  
+useEffect(() => {
+  const supa = getSupabase();
+  if (!supa) return;
+  supa.auth.getSession().then(({ data }: any) => {
+    const session = data?.session;
+    if (session?.user && session.user.app_metadata?.provider === 'google') {
+      const userEmail = session.user.email || '';
+      const userName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || 'Scholar';
+      completeGoogleProfileSetup(userEmail, userName);
+    }
+  });
+}, []);
   // Accounts list from local state
   const [registeredAccounts, setRegisteredAccounts] = useState<AccountInfo[]>([]);
 
