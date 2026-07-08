@@ -38,7 +38,6 @@ import { getEthiopianDate } from './utils/ethiopianCalendar';
 import { playClickChime, playSuccessChime, playFailureChime } from './utils/audio';
 import { initAuth, googleSignIn, googleSignInRedirect, logoutGoogle, exportAnalyticsToGoogleSheets } from './utils/workspace';
 import { User as FirebaseUser } from 'firebase/auth';
-import { supabase } from './utils/supabase';
 import { initSupabaseConfig, getSupabase } from './utils/supabaseClient';
 
 // Helper functions for real study streak calculation based on actual calendar days
@@ -452,12 +451,13 @@ export default function App() {
   // Fetch curriculum books list from 'books' table in Supabase
   useEffect(() => {
     async function fetchBooks() {
-      if (!supabase) {
+      const supaClient = getSupabase();
+      if (!supaClient) {
         console.log('New Supabase client is not initialized (missing environment keys).');
         return;
       }
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supaClient
           .from('books')
           .select('*')
           .order('title', { ascending: true });
