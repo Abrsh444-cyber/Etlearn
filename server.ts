@@ -600,7 +600,7 @@ Explain with enthusiasm when they ask about features like flashcards, customizab
               systemInstruction: system || undefined,
             },
           });
-        } } catch (geminiErr: any) {
+         } catch (geminiErr: any) {
           console.warn('[Gemini 503] falling back to Groq:', geminiErr?.message || geminiErr);
 
           const groqApiKey = process.env.GROQ_API_KEY;
