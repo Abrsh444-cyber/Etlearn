@@ -32,99 +32,57 @@ try {
 
 /**
  * Listen for Firebase Auth state changes
- */
-export const initAuth = (
-  onAuthSuccess?: (user: User, token: string) => void,
-  onAuthFailure?: () => void
-) => {
-  // Handle redirect result if coming back from redirect flow
-  getRedirectResult(getAuthInstance())
-    .then((result) => {
-      if (result) {
-        const credential = GoogleAuthProvider.credentialFromResult(result);
-        if (credential?.accessToken) {
-          cachedAccessToken = credential.accessToken;
-          try {
-            sessionStorage.setItem('ethiolearn_google_token', cachedAccessToken);
-          } catch (e) {}
-          if (result.user && onAuthSuccess) {
-            onAuthSuccess(result.user, cachedAccessToken);
-          }
-        }
-      }
-    })
-    .catch((error) => {
-      console.error('Redirect sign-in error:', error);
-    });
+ */import { getSupabase } from './supabaseClient';
 
-  return onAuthStateChanged(getAuthInstance(), async (user: User | null) => {
-    if (user) {
-      if (!cachedAccessToken) {
-        try {
-          cachedAccessToken = sessionStorage.getItem('ethiolearn_google_token');
-        } catch (e) {}
-      }
-      // If we have a user but no access token (e.g. page reload or auth state change), 
-      // still allow them to remain signed in, or use empty token fallback
-      if (cachedAccessToken) {
-        if (onAuthSuccess) onAuthSuccess(user, cachedAccessToken);
-      } else if (!isSigningIn) {
-        // Fallback: stay authenticated but with empty token, don't force log out
-        if (onAuthSuccess) onAuthSuccess(user, '');
-      }
-    } else {
-      cachedAccessToken = null;
-      try {
-        sessionStorage.removeItem('ethiolearn_google_token');
-      } catch (e) {}
-      if (onAuthFailure) onAuthFailure();
+export const initAuth = (
+  onAuthSuccess: (user: any, accessToken: string) => void,
+  onAuthFailure: () => void
+) => {
+  const supabase = getSupabase();
+
+  // Check current session on load
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    if (session?.user) {
+      onAuthSuccess(session.user, session.access_token);
     }
   });
+
+  // Listen for auth state changes (login, logout, token refresh)
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    if (session?.user) {
+      onAuthSuccess(session.user, session.access_token);
+    } else if (event === 'SIGNED_OUT') {
+      onAuthFailure();
+    }
+  });
+
+  return () => subscription.unsubscribe();
 };
 
 /**
- * Trigger Sign-In with Google Auth Popup
+ * Trigger Sign-In with Google (redirect flow)
  */
-export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
-  try {
-    isSigningIn = true;
-    const result = await signInWithPopup(getAuthInstance(), provider);
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    if (!credential?.accessToken) {
-      throw new Error('Failed to get access token from Google.');
-    }
-
-    cachedAccessToken = credential.accessToken;
-    try {
-      sessionStorage.setItem('ethiolearn_google_token', cachedAccessToken);
-    } catch (e) {}
-    return { user: result.user, accessToken: cachedAccessToken };
-  } catch (error: any) {
+export const googleSignIn = async (): Promise<void> => {
+  const supabase = getSupabase();
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: window.location.origin,
+    },
+  });
+  if (error) {
     console.error('Sign in error:', error);
-    // Add additional tag for popup blockers
-    if (error?.code === 'auth/popup-blocked' || error?.message?.includes('popup')) {
-      error.isPopupBlocked = true;
-    }
     throw error;
-  } finally {
-    isSigningIn = false;
   }
+  // Note: this redirects the browser away — user comes back authenticated,
+  // and initAuth's onAuthStateChange listener picks up the session automatically.
 };
 
 /**
- * Trigger Sign-In with Google Redirect (Fallback for blocked popups in iframes)
+ * Kept for compatibility — Supabase OAuth is redirect-based by default,
+ * so this just calls the same flow as googleSignIn.
  */
-export const googleSignInRedirect = async (): Promise<void> => {
-  try {
-    isSigningIn = true;
-    await signInWithRedirect(getAuthInstance(), provider);
-  } catch (error: any) {
-    console.error('Sign in redirect error:', error);
-    throw error;
-  } finally {
-    isSigningIn = false;
-  }
-};
+export const googleSignInRedirect = googleSignIn;
 
 /**
  * Retrieve cached token
