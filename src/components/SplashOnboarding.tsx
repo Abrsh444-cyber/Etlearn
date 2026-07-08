@@ -458,6 +458,19 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
   const [confirmPasswordError, setConfirmPasswordError] = useState<string | null>(null);
   const [isPopupBlocked, setIsPopupBlocked] = useState(false);
 
+  useEffect(() => {
+    const supa = getSupabase();
+    if (!supa) return;
+    supa.auth.getSession().then(({ data }: any) => {
+      const session = data?.session;
+      if (session?.user && session.user.app_metadata?.provider === 'google') {
+        const userEmail = session.user.email || '';
+        const userName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || 'Scholar';
+        completeGoogleProfileSetup(userEmail, userName);
+      }
+    });
+  }, []);
+
   // Accounts list from local state
   const [registeredAccounts, setRegisteredAccounts] = useState<AccountInfo[]>([]);
 
@@ -557,132 +570,46 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
     }
   }, [initialProfile]);
 
-  const handleGoogleAuth = async () => {
+  const completeGoogleProfileSetup = async (userEmail: string, userName: string) => {
     try {
-      setAuthError(null);
-      setIsPopupBlocked(false);
-      playClickChime();
-      const res = await googleSignIn();
-      if (res) {
-        const { user } = res;
-        const userEmail = user.email || '';
-        const userName = user.displayName || 'Scholar';
-        const emailLower = userEmail.toLowerCase();
-        
-        let profile: StudentProfile;
-        
-        // Check if connected to Supabase
-        const supa = getSupabase();
-        if (supa) {
-          try {
-            const { data: supaRecord, error: supaError } = await supa
-              .from('student_profiles')
-              .select('*')
-              .eq('email', emailLower)
-              .maybeSingle();
+      const emailLower = userEmail.toLowerCase();
+      let profile: StudentProfile;
 
-            if (supaRecord && supaRecord.profile_data) {
-              // Found on Supabase! Load and sync
-              const sp = supaRecord.profile_data;
-              profile = {
-                name: sp.name || userName,
-                email: userEmail,
-                university: sp.university || "Addis Ababa University",
-                year: sp.year || "University",
-                subjects: sp.subjects || [],
-                claudeApiKey: sp.claudeApiKey || "",
-                dailyGoalHours: sp.dailyGoalHours || 2,
-                theme: sp.theme || 'dark',
-                language: sp.language || 'both',
-                avatar: sp.avatar || 'champion',
-                isRegistered: true,
-                unregisteredAICredits: sp.unregisteredAICredits || 5
-              };
-              
-              // Push into local study sessions, notes, etc. if provided from cloud
-              if (supaRecord.study_sessions) {
-                localStorage.setItem('ethiolearn_study_sessions', JSON.stringify(supaRecord.study_sessions));
-              }
-              if (supaRecord.notes_data) {
-                localStorage.setItem('ethiolearn_custom_notes', JSON.stringify(supaRecord.notes_data));
-              }
-              if (supaRecord.performance_data) {
-                localStorage.setItem('ethiolearn_quiz_perf', JSON.stringify(supaRecord.performance_data));
-              }
-            } else {
-              // Create brand new profile on both local & Supabase
-              profile = {
-                name: userName,
-                email: userEmail,
-                university: "Addis Ababa University",
-                year: "University",
-                subjects: [
-                  "Emerging Technologies",
-                  "Introduction to Economics",
-                  "General Biology",
-                  "Communicative English",
-                  "Moral and Civic Education",
-                  "Mathematics",
-                  "Inclusive Education",
-                  "Geography",
-                  "Logic and Critical Thinking",
-                  "History",
-                  "Chemistry",
-                  "Aptitude",
-                  "General Physics",
-                  "Entrepreneurship",
-                  "Social Anthropology",
-                  "C++ Programming"
-                ],
-                claudeApiKey: "",
-                dailyGoalHours: 2,
-                theme: 'dark',
-                language: 'both',
-                avatar: 'champion',
-                isRegistered: true,
-                unregisteredAICredits: 5
-              };
+      const supa = getSupabase();
+      if (supa) {
+        try {
+          const { data: supaRecord, error: supaError } = await supa
+            .from('student_profiles')
+            .select('*')
+            .eq('email', emailLower)
+            .maybeSingle();
 
-              const payloadRecord = {
-                email: emailLower,
-                profile_data: {
-                  ...profile,
-                  password: "google_authenticated"
-                },
-                study_sessions: [],
-                notes_data: [],
-                performance_data: {},
-                updated_at: new Date().toISOString()
-              };
-
-              await supa.from('student_profiles').insert(payloadRecord);
-            }
-          } catch (supaEx) {
-            console.warn('[Supabase Google Sync] Handled error, falling back to local:', supaEx);
-            // Fallback profile if Supabase query failed
+          if (supaRecord && supaRecord.profile_data) {
+            const sp = supaRecord.profile_data;
             profile = {
-              name: userName,
+              name: sp.name || userName,
               email: userEmail,
-              university: "Addis Ababa University",
-              year: "University",
-              subjects: [ "Mathematics", "Geography", "History", "Chemistry" ],
-              claudeApiKey: "",
-              dailyGoalHours: 2,
-              theme: 'dark',
-              language: 'both',
-              avatar: 'champion',
+              university: sp.university || "Addis Ababa University",
+              year: sp.year || "University",
+              subjects: sp.subjects || [],
+              claudeApiKey: sp.claudeApiKey || "",
+              dailyGoalHours: sp.dailyGoalHours || 2,
+              theme: sp.theme || 'dark',
+              language: sp.language || 'both',
+              avatar: sp.avatar || 'champion',
               isRegistered: true,
-              unregisteredAICredits: 5
+              unregisteredAICredits: sp.unregisteredAICredits || 5
             };
-          }
-        } else {
-          // If no Supabase connection is established, check if local account exists
-          const found = registeredAccounts.find(
-            acc => acc.email.toLowerCase() === emailLower
-          );
 
-          if (found) {
-            profile = found.profile;
+            if (supaRecord.study_sessions) {
+              localStorage.setItem('ethiolearn_study_sessions', JSON.stringify(supaRecord.study_sessions));
+            }
+            if (supaRecord.notes_data) {
+              localStorage.setItem('ethiolearn_custom_notes', JSON.stringify(supaRecord.notes_data));
+            }
+            if (supaRecord.performance_data) {
+              localStorage.setItem('ethiolearn_quiz_perf', JSON.stringify(supaRecord.performance_data));
+            }
           } else {
             profile = {
               name: userName,
@@ -690,22 +617,11 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
               university: "Addis Ababa University",
               year: "University",
               subjects: [
-                "Emerging Technologies",
-                "Introduction to Economics",
-                "General Biology",
-                "Communicative English",
-                "Moral and Civic Education",
-                "Mathematics",
-                "Inclusive Education",
-                "Geography",
-                "Logic and Critical Thinking",
-                "History",
-                "Chemistry",
-                "Aptitude",
-                "General Physics",
-                "Entrepreneurship",
-                "Social Anthropology",
-                "C++ Programming"
+                "Emerging Technologies", "Introduction to Economics", "General Biology",
+                "Communicative English", "Moral and Civic Education", "Mathematics",
+                "Inclusive Education", "Geography", "Logic and Critical Thinking",
+                "History", "Chemistry", "Aptitude", "General Physics",
+                "Entrepreneurship", "Social Anthropology", "C++ Programming"
               ],
               claudeApiKey: "",
               dailyGoalHours: 2,
@@ -715,33 +631,94 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
               isRegistered: true,
               unregisteredAICredits: 5
             };
-          }
-        }
 
-        // Save session locally as active profile
-        const newAccount: AccountInfo = {
-          email: userEmail,
-          passwordEncrypted: "google_authenticated",
-          rememberMe: true,
-          profile
-        };
-        
-        const filteredAccounts = registeredAccounts.filter(acc => acc.email.toLowerCase() !== emailLower);
-        const updated = [...filteredAccounts, newAccount];
-        localStorage.setItem('ethiolearn_accounts', JSON.stringify(updated));
-        localStorage.setItem('ethiolearn_active_email', userEmail);
-        
-        playSuccessChime();
-        onComplete(profile);
+            const payloadRecord = {
+              email: emailLower,
+              profile_data: { ...profile, password: "google_authenticated" },
+              study_sessions: [],
+              notes_data: [],
+              performance_data: {},
+              updated_at: new Date().toISOString()
+            };
+            await supa.from('student_profiles').insert(payloadRecord);
+          }
+        } catch (supaEx) {
+          console.warn('[Supabase Google Sync] Handled error, falling back to local:', supaEx);
+          profile = {
+            name: userName,
+            email: userEmail,
+            university: "Addis Ababa University",
+            year: "University",
+            subjects: ["Mathematics", "Geography", "History", "Chemistry"],
+            claudeApiKey: "",
+            dailyGoalHours: 2,
+            theme: 'dark',
+            language: 'both',
+            avatar: 'champion',
+            isRegistered: true,
+            unregisteredAICredits: 5
+          };
+        }
+      } else {
+        const found = registeredAccounts.find(
+          acc => acc.email.toLowerCase() === emailLower
+        );
+        if (found) {
+          profile = found.profile;
+        } else {
+          profile = {
+            name: userName,
+            email: userEmail,
+            university: "Addis Ababa University",
+            year: "University",
+            subjects: [
+              "Emerging Technologies", "Introduction to Economics", "General Biology",
+              "Communicative English", "Moral and Civic Education", "Mathematics",
+              "Inclusive Education", "Geography", "Logic and Critical Thinking",
+              "History", "Chemistry", "Aptitude", "General Physics",
+              "Entrepreneurship", "Social Anthropology", "C++ Programming"
+            ],
+            claudeApiKey: "",
+            dailyGoalHours: 2,
+            theme: 'dark',
+            language: 'both',
+            avatar: 'champion',
+            isRegistered: true,
+            unregisteredAICredits: 5
+          };
+        }
       }
+
+      const newAccount: AccountInfo = {
+        email: userEmail,
+        passwordEncrypted: "google_authenticated",
+        rememberMe: true,
+        profile
+      };
+      const filteredAccounts = registeredAccounts.filter(acc => acc.email.toLowerCase() !== emailLower);
+      const updated = [...filteredAccounts, newAccount];
+      localStorage.setItem('ethiolearn_accounts', JSON.stringify(updated));
+      localStorage.setItem('ethiolearn_active_email', userEmail);
+
+      playSuccessChime();
+      onComplete(profile);
     } catch (err: any) {
       console.error('Google onboarding auth failed:', err);
       playFailureChime();
-      if (err?.isPopupBlocked || err?.code === 'auth/popup-blocked' || err?.message?.includes('popup')) {
-        setIsPopupBlocked(true);
-      } else {
-        setAuthError(err.message || 'Google Sign-In was canceled or encountered an issue. Please try again.');
-      }
+      setAuthError(err.message || 'Google Sign-In was canceled or encountered an issue. Please try again.');
+    }
+  };
+
+  const handleGoogleAuth = async () => {
+    try {
+      setAuthError(null);
+      setIsPopupBlocked(false);
+      playClickChime();
+      await googleSignIn();
+    } catch (err: any) {
+      console.error('Google sign-in failed:', err);
+      playFailureChime();
+      setAuthError('Google Sign-In could not start. Please try again.');
     }
   };
 
