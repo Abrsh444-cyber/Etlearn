@@ -600,12 +600,77 @@ Explain with enthusiasm when they ask about features like flashcards, customizab
               systemInstruction: system || undefined,
             },
           });
-        } catch (geminiErr) {
-          console.warn('[EthioLearn Server] Gemini unavailable, showing friendly message');
-          res.write(`data: ${JSON.stringify({ type: 'content_block_delta', delta: { text: 'Your AI tutor is briefly busy — please try again shortly.' } })}\n\n`);
-          res.write('data: [DONE]\n\n');
-          res.end();
-          return;
+        } } catch (geminiErr: any) {
+          console.warn('[Gemini 503] falling back to Groq:', geminiErr?.message || geminiErr);
+
+          const groqApiKey = process.env.GROQ_API_KEY;
+          if (!groqApiKey) {
+            res.write(`data: ${JSON.stringify({ type: 'content_block_delta', delta: { text: 'Your AI tutor is briefly busy - please try again shortly.' } })}\n\n`);
+            res.write('data: [DONE]\n\n');
+            res.end();
+            return;
+          }
+
+          const groqMessages: any[] = [];
+          if (system) groqMessages.push({ role: 'system', content: system });
+          groqMessages.push(...messages.map((m: any) => ({ role: m.role, content: m.content || '' })));
+
+          try {
+            const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${groqApiKey}`
+              },
+              body: JSON.stringify({
+                model: 'llama-3.3-70b-versatile',
+                messages: groqMessages,
+                stream: true,
+                max_tokens: 2000,
+              })
+            });
+
+            if (!groqResponse.ok || !groqResponse.body) {
+              res.write(`data: ${JSON.stringify({ type: 'content_block_delta', delta: { text: 'Your AI tutor is briefly busy - please try again shortly.' } })}\n\n`);
+              res.write('data: [DONE]\n\n');
+              res.end();
+              return;
+            }
+
+            const groqReader = groqResponse.body.getReader();
+            const groqDecoder = new TextDecoder();
+            let groqBuffer = '';
+            while (true) {
+              const { done, value } = await groqReader.read();
+              if (done) break;
+              groqBuffer += groqDecoder.decode(value, { stream: true });
+              const groqLines = groqBuffer.split('\n');
+              groqBuffer = groqLines.pop() || '';
+              for (const line of groqLines) {
+                const trimmed = line.trim();
+                if (!trimmed.startsWith('data:')) continue;
+                const payload = trimmed.replace(/^data:\s*/, '');
+                if (payload === '[DONE]') continue;
+                try {
+                  const parsed = JSON.parse(payload);
+                  const text = parsed.choices?.[0]?.delta?.content;
+                  if (text) {
+                    res.write(`data: ${JSON.stringify({ type: 'content_block_delta', delta: { text } })}\n\n`);
+                  }
+                } catch {}
+              }
+            }
+            res.write('data: [DONE]\n\n');
+            res.end();
+            return;
+          } catch (groqErr) {
+            console.warn('[EthioLearn Server] Groq fallback also failed:', groqErr);
+            res.write(`data: ${JSON.stringify({ type: 'content_block_delta', delta: { text: 'Your AI tutor is briefly busy - please try again shortly.' } })}\n\n`);
+            res.write('data: [DONE]\n\n');
+            res.end();
+            return;
+          }
+        }
         }
 
         for await (const chunk of stream) {
