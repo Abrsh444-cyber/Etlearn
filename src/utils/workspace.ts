@@ -39,16 +39,15 @@ export const initAuth = (
   onAuthFailure: () => void
 ) => {
   const supabase = getSupabase();
+  if (!supabase) return () => {};
 
-  // Check current session on load
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    if (session?.user) {
-      onAuthSuccess(session.user, session.access_token);
+  supabase.auth.getSession().then(({ data }: any) => {
+    if (data?.session?.user) {
+      onAuthSuccess(data.session.user, data.session.access_token);
     }
   });
 
-  // Listen for auth state changes (login, logout, token refresh)
-  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: any) => {
     if (session?.user) {
       onAuthSuccess(session.user, session.access_token);
     } else if (event === 'SIGNED_OUT') {
@@ -60,69 +59,25 @@ export const initAuth = (
 };
 
 /**
- * Trigger Sign-In with Google (redirect flow)
+ * Trigger Sign-In with Google (Supabase redirect flow)
  */
 export const googleSignIn = async (): Promise<void> => {
   const supabase = getSupabase();
+  if (!supabase) throw new Error('Supabase not connected.');
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: {
-      redirectTo: window.location.origin,
-    },
+    options: { redirectTo: window.location.origin },
   });
   if (error) {
     console.error('Sign in error:', error);
     throw error;
   }
-  // Note: this redirects the browser away — user comes back authenticated,
-  // and initAuth's onAuthStateChange listener picks up the session automatically.
 };
 
 /**
- * Kept for compatibility — Supabase OAuth is redirect-based by default,
- * so this just calls the same flow as googleSignIn.
+ * Kept for compatibility — same redirect flow.
  */
 export const googleSignInRedirect = googleSignIn;
-
-/**
- * Retrieve cached token
- */
-export const getAccessToken = async (): Promise<string | null> => {
-  return cachedAccessToken;
-};
-
-/**
- * Google Log Out
- */
-export const logoutGoogle = async () => {
-  await signOut(getAuthInstance());
-  cachedAccessToken = null;
-  try {
-    sessionStorage.removeItem('ethiolearn_google_token');
-  } catch (e) {}
-};
-
-/**
- * Extract plain text from HTML content
- */
-function cleanHtml(html: string): string {
-  let doc = html;
-  // Basic Regex replacements to format raw HTML cleanly into text paragraphs
-  doc = doc.replace(/<\/h[1-6]>/g, '\n\n');
-  doc = doc.replace(/<\/p>/g, '\n\n');
-  doc = doc.replace(/<br\s*\/?>/g, '\n');
-  doc = doc.replace(/<li>/g, '\n• ');
-  doc = doc.replace(/<\/li>/g, '');
-  doc = doc.replace(/<\/pre>/g, '\n\n');
-  doc = doc.replace(/<[^>]*>/g, '');
-  
-  // Clean double-spaces/newlines
-  return doc.trim().replace(/\n{3,}/g, '\n\n');
-}
-
-/**
- * Export a Study Note to a beautiful Google Doc
- */
 export async function exportNoteToGoogleDoc(
   title: string, 
   subject: string, 
