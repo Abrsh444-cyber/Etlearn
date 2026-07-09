@@ -484,7 +484,8 @@ export default function App() {
  
  // Bidirectional Firestore cloud sync (disabled — migrated to Supabase)
   useEffect(() => {
-    if (false && googleUser) {
+    // Disabled: Firestore sync no longer used after Supabase migration
+  }, []);
 
   // Load server-side configured Supabase secrets automatically at startup
   useEffect(() => {
