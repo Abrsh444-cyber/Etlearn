@@ -3,23 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { 
-  signInWithPopup, 
-  signInWithRedirect,
-  getRedirectResult,
-  GoogleAuthProvider, 
-  onAuthStateChanged, 
-  User,
-  signOut
-} from 'firebase/auth';
-import { getAuthInstance } from './firebaseStore';
 import { CustomNote } from '../types';
 import { getSupabase } from './supabaseClient';
-
-// Configure Google OAuth Provider with Sheets and Docs permissions
-const provider = new GoogleAuthProvider();
-provider.addScope('https://www.googleapis.com/auth/spreadsheets');
-provider.addScope('https://www.googleapis.com/auth/docs');
 
 let isSigningIn = false;
 let cachedAccessToken: string | null = null;
@@ -43,14 +28,28 @@ export const initAuth = (
 
   supabase.auth.getSession().then(({ data }: any) => {
     if (data?.session?.user) {
-      onAuthSuccess(data.session.user, data.session.access_token);
+      const token = data.session.provider_token || data.session.access_token || '';
+      cachedAccessToken = token;
+      try {
+        sessionStorage.setItem('ethiolearn_google_token', token);
+      } catch (e) {}
+      onAuthSuccess(data.session.user, token);
     }
   });
 
   const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: any) => {
     if (session?.user) {
-      onAuthSuccess(session.user, session.access_token);
+      const token = session.provider_token || session.access_token || '';
+      cachedAccessToken = token;
+      try {
+        sessionStorage.setItem('ethiolearn_google_token', token);
+      } catch (e) {}
+      onAuthSuccess(session.user, token);
     } else if (event === 'SIGNED_OUT') {
+      cachedAccessToken = null;
+      try {
+        sessionStorage.removeItem('ethiolearn_google_token');
+      } catch (e) {}
       onAuthFailure();
     }
   });
@@ -61,26 +60,40 @@ export const initAuth = (
 /**
  * Trigger Sign-In with Google Auth Popup
  */
-export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
+export const googleSignIn = async (): Promise<{ user: any; accessToken: string } | null> => {
+  const supabase = getSupabase();
+  if (!supabase) {
+    throw new Error('Supabase is not configured yet. Please configure it first!');
+  }
   try {
     isSigningIn = true;
-    const result = await signInWithPopup(getAuthInstance(), provider);
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    if (!credential?.accessToken) {
-      throw new Error('Failed to get access token from Google.');
+    
+    // Check if we already have an active session
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (sessionData?.session?.user) {
+      const token = sessionData.session.provider_token || sessionData.session.access_token || '';
+      cachedAccessToken = token;
+      return { user: sessionData.session.user, accessToken: token };
     }
 
-    cachedAccessToken = credential.accessToken;
-    try {
-      sessionStorage.setItem('ethiolearn_google_token', cachedAccessToken);
-    } catch (e) {}
-    return { user: result.user, accessToken: cachedAccessToken };
-  } catch (error: any) {
-    console.error('Sign in error:', error);
-    // Add additional tag for popup blockers
-    if (error?.code === 'auth/popup-blocked' || error?.message?.includes('popup')) {
-      error.isPopupBlocked = true;
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+        scopes: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/docs'
+      }
+    });
+
+    if (error) {
+      throw error;
     }
+
+    if (data?.url) {
+      window.location.href = data.url;
+    }
+    return null;
+  } catch (error: any) {
+    console.error('Google Sign-In error:', error);
     throw error;
   } finally {
     isSigningIn = false;
@@ -91,15 +104,7 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
  * Trigger Sign-In with Google Redirect (Fallback for blocked popups in iframes)
  */
 export const googleSignInRedirect = async (): Promise<void> => {
-  try {
-    isSigningIn = true;
-    await signInWithRedirect(getAuthInstance(), provider);
-  } catch (error: any) {
-    console.error('Sign in redirect error:', error);
-    throw error;
-  } finally {
-    isSigningIn = false;
-  }
+  await googleSignIn();
 };
 
 /**
@@ -113,7 +118,10 @@ export const getAccessToken = async (): Promise<string | null> => {
  * Google Log Out
  */
 export const logoutGoogle = async () => {
-  await signOut(getAuthInstance());
+  const supabase = getSupabase();
+  if (supabase) {
+    await supabase.auth.signOut();
+  }
   cachedAccessToken = null;
   try {
     sessionStorage.removeItem('ethiolearn_google_token');
