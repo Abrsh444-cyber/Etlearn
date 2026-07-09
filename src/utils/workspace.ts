@@ -85,22 +85,29 @@ export const initAuth = (
 /**
  * Trigger Sign-In with Google Auth Popup
  */
-export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
-  try {
-    isSigningIn = true;
-    const result = await signInWithPopup(getAuthInstance(), provider);
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    if (!credential?.accessToken) {
-      throw new Error('Failed to get access token from Google.');
-    }
+export const initAuth = (
+  onAuthSuccess: (user: any, accessToken: string) => void,
+  onAuthFailure: () => void
+) => {
+  const supabase = getSupabase();
+  if (!supabase) return () => {};
 
-    cachedAccessToken = credential.accessToken;
-    try {
-      sessionStorage.setItem('ethiolearn_google_token', cachedAccessToken);
-    } catch (e) {}
-    return { user: result.user, accessToken: cachedAccessToken };
-  } catch (error: any) {
-    console.error('Sign in error:', error);
+  supabase.auth.getSession().then(({ data }: any) => {
+    if (data?.session?.user) {
+      onAuthSuccess(data.session.user, data.session.access_token);
+    }
+  });
+
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: any) => {
+    if (session?.user) {
+      onAuthSuccess(session.user, session.access_token);
+    } else if (event === 'SIGNED_OUT') {
+      onAuthFailure();
+    }
+  });
+
+  return () => subscription.unsubscribe();
+};
     // Add additional tag for popup blockers
     if (error?.code === 'auth/popup-blocked' || error?.message?.includes('popup')) {
       error.isPopupBlocked = true;
