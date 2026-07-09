@@ -485,37 +485,6 @@ export default function App() {
  // Bidirectional Firestore cloud sync (disabled — migrated to Supabase)
   useEffect(() => {
     if (false && googleUser) {
-          // 1. Sync student profile
-          const cloudProfile = await fetchProfileFromFirestore(googleUser.uid);
-          if (cloudProfile) {
-            console.log('[Firestore Sync] Cloud profile pulled. Applying to local study desk.');
-            setProfile(cloudProfile);
-            localStorage.setItem('ethiolearn_current_profile', JSON.stringify(cloudProfile));
-          } else if (profile) {
-            console.log('[Firestore Sync] Creating cloud profile backup.');
-            await syncProfileToFirestore(googleUser.uid, profile);
-          }
-
-          // 2. Sync custom notes
-          const cloudNotes = await fetchNotesFromFirestore(googleUser.uid);
-          if (cloudNotes && cloudNotes.length > 0) {
-            console.log('[Firestore Sync] Cloud notes pulled. Updating local portfolio.');
-            setCustomNotes(cloudNotes);
-            localStorage.setItem('ethiolearn_custom_notes', JSON.stringify(cloudNotes));
-          } else if (customNotes.length > 0) {
-            console.log('[Firestore Sync] Archiving existing local notes onto cloud database.');
-            for (const note of customNotes) {
-              await saveNoteToFirestore(googleUser.uid, note);
-            }
-          }
-        } catch (err) {
-          console.error('[Firestore Sync Failure]:', err);
-        }
-      };
-
-      syncCloudState();
-    }
-  }, [googleUser]);
 
   // Load server-side configured Supabase secrets automatically at startup
   useEffect(() => {
