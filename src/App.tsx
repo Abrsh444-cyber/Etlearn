@@ -482,9 +482,10 @@ export default function App() {
     }
   }, [supaUser, profile]);
  
- // Bidirectional Firestore cloud sync (disabled — migrated to Supabase)
+// Bidirectional Firestore cloud sync (disabled — migrated to Supabase)
   useEffect(() => {
-    if (false && googleUser) {
+    // Disabled: Firestore sync no longer used after Supabase migration
+  }, []);
           // 1. Sync student profile
           const cloudProfile = await fetchProfileFromFirestore(googleUser.uid);
           if (cloudProfile) {
