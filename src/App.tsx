@@ -377,10 +377,10 @@ export default function App() {
     );
     return () => unsubscribe();
   }, []);
-
-  // Firestore connection liveness test
+ 
+  // Firestore connection liveness test (disabled — migrated to Supabase)
   useEffect(() => {
-    testFirestoreConnection();
+    // testFirestoreConnection(); // disabled: legacy Firebase, no longer used
   }, []);
 
   // Supabase auth state listener & bidirectional data sync
@@ -481,14 +481,10 @@ export default function App() {
       syncSupabaseState();
     }
   }, [supaUser, profile]);
-
-  // Bidirectional Firestore cloud sync
+ 
+ // Bidirectional Firestore cloud sync (disabled — migrated to Supabase)
   useEffect(() => {
-    if (googleUser) {
-      const syncCloudState = async () => {
-        try {
-          console.log('[Firestore Sync] Initiating bidirection cloud desk sync for UID:', googleUser.uid);
-          
+    if (false && googleUser) {
           // 1. Sync student profile
           const cloudProfile = await fetchProfileFromFirestore(googleUser.uid);
           if (cloudProfile) {
