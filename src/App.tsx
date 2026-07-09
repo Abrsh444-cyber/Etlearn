@@ -377,10 +377,10 @@ export default function App() {
     );
     return () => unsubscribe();
   }, []);
- 
-  // Firestore connection liveness test (disabled — migrated to Supabase)
+
+  // Firestore connection liveness test
   useEffect(() => {
-    // testFirestoreConnection(); // disabled: legacy Firebase, no longer used
+    testFirestoreConnection();
   }, []);
 
   // Supabase auth state listener & bidirectional data sync
@@ -481,11 +481,45 @@ export default function App() {
       syncSupabaseState();
     }
   }, [supaUser, profile]);
- 
- // Bidirectional Firestore cloud sync (disabled — migrated to Supabase)
+
+  // Bidirectional Firestore cloud sync
   useEffect(() => {
-    // Disabled: Firestore sync no longer used after Supabase migration
-  }, []);
+    if (googleUser) {
+      const syncCloudState = async () => {
+        try {
+          console.log('[Firestore Sync] Initiating bidirection cloud desk sync for UID:', googleUser.uid);
+          
+          // 1. Sync student profile
+          const cloudProfile = await fetchProfileFromFirestore(googleUser.uid);
+          if (cloudProfile) {
+            console.log('[Firestore Sync] Cloud profile pulled. Applying to local study desk.');
+            setProfile(cloudProfile);
+            localStorage.setItem('ethiolearn_current_profile', JSON.stringify(cloudProfile));
+          } else if (profile) {
+            console.log('[Firestore Sync] Creating cloud profile backup.');
+            await syncProfileToFirestore(googleUser.uid, profile);
+          }
+
+          // 2. Sync custom notes
+          const cloudNotes = await fetchNotesFromFirestore(googleUser.uid);
+          if (cloudNotes && cloudNotes.length > 0) {
+            console.log('[Firestore Sync] Cloud notes pulled. Updating local portfolio.');
+            setCustomNotes(cloudNotes);
+            localStorage.setItem('ethiolearn_custom_notes', JSON.stringify(cloudNotes));
+          } else if (customNotes.length > 0) {
+            console.log('[Firestore Sync] Archiving existing local notes onto cloud database.');
+            for (const note of customNotes) {
+              await saveNoteToFirestore(googleUser.uid, note);
+            }
+          }
+        } catch (err) {
+          console.error('[Firestore Sync Failure]:', err);
+        }
+      };
+
+      syncCloudState();
+    }
+  }, [googleUser]);
 
   // Load server-side configured Supabase secrets automatically at startup
   useEffect(() => {

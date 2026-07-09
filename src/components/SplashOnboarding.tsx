@@ -736,17 +736,17 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
   };
 
   const handleGoogleAuth = async () => {
-  try {
-    setAuthError(null);
-    setIsPopupBlocked(false);
-    playClickChime();
-    await googleSignIn();
-  } catch (err: any) {
-    console.error('Google sign-in failed:', err);
-    playFailureChime();
-    setAuthError(`DEBUG: ${err?.message || JSON.stringify(err)}`);
-  }
-};
+    try {
+      setAuthError(null);
+      setIsPopupBlocked(false);
+      playClickChime();
+      await googleSignIn();
+    } catch (err: any) {
+      console.error('Google sign-in failed:', err);
+      playFailureChime();
+      setAuthError('Google Sign-In could not start. Please try again.');
+    }
+  };
 
   const handleGoogleRedirect = async () => {
     try {

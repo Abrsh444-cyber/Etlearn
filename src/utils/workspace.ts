@@ -14,6 +14,7 @@ import {
 } from 'firebase/auth';
 import { getAuthInstance } from './firebaseStore';
 import { CustomNote } from '../types';
+import { getSupabase } from './supabaseClient';
 
 // Configure Google OAuth Provider with Sheets and Docs permissions
 const provider = new GoogleAuthProvider();
@@ -32,58 +33,6 @@ try {
 
 /**
  * Listen for Firebase Auth state changes
- */
-export const initAuth = (
-  onAuthSuccess?: (user: User, token: string) => void,
-  onAuthFailure?: () => void
-) => {
-  // Handle redirect result if coming back from redirect flow
-  getRedirectResult(getAuthInstance())
-    .then((result) => {
-      if (result) {
-        const credential = GoogleAuthProvider.credentialFromResult(result);
-        if (credential?.accessToken) {
-          cachedAccessToken = credential.accessToken;
-          try {
-            sessionStorage.setItem('ethiolearn_google_token', cachedAccessToken);
-          } catch (e) {}
-          if (result.user && onAuthSuccess) {
-            onAuthSuccess(result.user, cachedAccessToken);
-          }
-        }
-      }
-    })
-    .catch((error) => {
-      console.error('Redirect sign-in error:', error);
-    });
-
-  return onAuthStateChanged(getAuthInstance(), async (user: User | null) => {
-    if (user) {
-      if (!cachedAccessToken) {
-        try {
-          cachedAccessToken = sessionStorage.getItem('ethiolearn_google_token');
-        } catch (e) {}
-      }
-      // If we have a user but no access token (e.g. page reload or auth state change), 
-      // still allow them to remain signed in, or use empty token fallback
-      if (cachedAccessToken) {
-        if (onAuthSuccess) onAuthSuccess(user, cachedAccessToken);
-      } else if (!isSigningIn) {
-        // Fallback: stay authenticated but with empty token, don't force log out
-        if (onAuthSuccess) onAuthSuccess(user, '');
-      }
-    } else {
-      cachedAccessToken = null;
-      try {
-        sessionStorage.removeItem('ethiolearn_google_token');
-      } catch (e) {}
-      if (onAuthFailure) onAuthFailure();
-    }
-  });
-};
-
-/**
- * Trigger Sign-In with Google Auth Popup
  */
 export const initAuth = (
   onAuthSuccess: (user: any, accessToken: string) => void,
@@ -108,6 +57,26 @@ export const initAuth = (
 
   return () => subscription.unsubscribe();
 };
+
+/**
+ * Trigger Sign-In with Google Auth Popup
+ */
+export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
+  try {
+    isSigningIn = true;
+    const result = await signInWithPopup(getAuthInstance(), provider);
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    if (!credential?.accessToken) {
+      throw new Error('Failed to get access token from Google.');
+    }
+
+    cachedAccessToken = credential.accessToken;
+    try {
+      sessionStorage.setItem('ethiolearn_google_token', cachedAccessToken);
+    } catch (e) {}
+    return { user: result.user, accessToken: cachedAccessToken };
+  } catch (error: any) {
+    console.error('Sign in error:', error);
     // Add additional tag for popup blockers
     if (error?.code === 'auth/popup-blocked' || error?.message?.includes('popup')) {
       error.isPopupBlocked = true;
