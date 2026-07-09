@@ -407,6 +407,65 @@ export default function BookStoreView({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGrade, setSelectedGrade] = useState<string>('All');
   
+  const [recentlyViewedId, setRecentlyViewedId] = useState<string | null>(() => {
+    return localStorage.getItem('ethiolearn_recently_viewed');
+  });
+
+  const [collapsedSubjects, setCollapsedSubjects] = useState<Record<string, boolean>>({});
+
+  const renderBookCover = (mod: ModuleResource) => {
+    const subject = mod.subject.toLowerCase();
+    let bgGradient = "from-indigo-500 to-purple-600";
+    let icon = "📚";
+    if (subject.includes("math") || subject.includes("calculus")) {
+      bgGradient = "from-blue-600 to-indigo-700";
+      icon = "📐";
+    } else if (subject.includes("physics")) {
+      bgGradient = "from-violet-600 to-blue-700";
+      icon = "⚡";
+    } else if (subject.includes("chemistry")) {
+      bgGradient = "from-emerald-500 to-teal-600";
+      icon = "🧪";
+    } else if (subject.includes("biology")) {
+      bgGradient = "from-green-500 to-emerald-600";
+      icon = "🧬";
+    } else if (subject.includes("english")) {
+      bgGradient = "from-cyan-500 to-blue-600";
+      icon = "💬";
+    } else if (subject.includes("aptitude")) {
+      bgGradient = "from-purple-600 to-pink-600";
+      icon = "🧩";
+    } else if (subject.includes("logic")) {
+      bgGradient = "from-amber-500 to-orange-600";
+      icon = "🧠";
+    } else if (subject.includes("history") || subject.includes("civics")) {
+      bgGradient = "from-red-600 to-amber-700";
+      icon = "🏛️";
+    } else if (subject.includes("geography")) {
+      bgGradient = "from-teal-600 to-green-700";
+      icon = "🌍";
+    } else if (subject.includes("programming") || subject.includes("tech")) {
+      bgGradient = "from-slate-700 to-slate-900";
+      icon = "💻";
+    }
+    
+    return (
+      <div className={`w-12 h-16 rounded-lg bg-gradient-to-br ${bgGradient} flex flex-col justify-between p-1 text-white shadow-md relative shrink-0 overflow-hidden select-none border border-white/10`}>
+        <div className="absolute -right-2 -bottom-2 w-7 h-7 rounded-full bg-white/10" />
+        <div className="absolute -left-1 -top-1 w-5 h-5 rounded-full bg-white/5" />
+        <div className="text-[7.5px] font-black tracking-tighter opacity-85 uppercase leading-none truncate">
+          {mod.grade}
+        </div>
+        <div className="text-sm self-center my-0.5 filter drop-shadow">
+          {icon}
+        </div>
+        <div className="text-[7px] font-bold tracking-tight line-clamp-1 leading-tight text-center bg-black/25 rounded px-0.5 py-0.2">
+          {mod.subject}
+        </div>
+      </div>
+    );
+  };
+  
   // All active modules state
   const [allModules, setAllModules] = useState<ModuleResource[]>(() => {
     const baseList: ModuleResource[] = [...PREBUILT_MODULES];
@@ -663,6 +722,9 @@ export default function BookStoreView({
     playClickChime();
     setActiveModule(mod);
     setSelectedChapter(mod.chapters[0]);
+    // Save to recently viewed
+    localStorage.setItem('ethiolearn_recently_viewed', mod.id);
+    setRecentlyViewedId(mod.id);
     // Reset AI states
     setAiMode('none');
     setAiResponse('');
@@ -1041,73 +1103,162 @@ Ensure the layout utilizes clear headers, a detailed markdown text explanation, 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* Module selection left list (5 columns) */}
-        <div className="lg:col-span-5 space-y-4">
-          <div className="grid grid-cols-1 gap-4">
-            {filtered.map(mod => {
-              const isActive = activeModule?.id === mod.id;
-              const hasPremiumBadge = mod.proRequired;
-              
-              return (
-                <div
-                  key={mod.id}
-                  onClick={() => handleSelectModule(mod)}
-                  className={`p-5 rounded-2xl border-2 transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between hover:translate-y-[-2px] ${
-                    isActive
-                      ? 'border-[#078930] bg-[#078930]/5 dark:border-emerald-600/65 shadow-md'
-                      : 'border-slate-200 dark:border-zinc-800 bg-white dark:bg-[#0c0d12] hover:border-emerald-500 hover:shadow-sm'
-                  }`}
+        <div className="lg:col-span-5 space-y-5">
+          {/* Recently viewed / Continue reading section */}
+          {(() => {
+            const recentlyViewedModule = allModules.find(m => m.id === recentlyViewedId);
+            if (!recentlyViewedModule) return null;
+            return (
+              <div className="bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-blue-500/10 dark:from-indigo-500/20 dark:via-purple-500/20 dark:to-blue-500/20 border border-indigo-200 dark:border-indigo-500/30 p-4 rounded-2xl shadow-sm space-y-3 relative overflow-hidden">
+                <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-indigo-400/10 blur-xl animate-pulse" />
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
+                    <span>📖</span> {language === 'en' ? 'Continue Reading' : 'ንባብ ይቀጥሉ'}
+                  </h4>
+                  <span className="text-[9px] text-indigo-600 dark:text-indigo-400 font-mono font-extrabold bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-md">
+                    {language === 'en' ? 'Recently Viewed' : 'በቅርብ የታዩ'}
+                  </span>
+                </div>
+                <div 
+                  onClick={() => handleSelectModule(recentlyViewedModule)}
+                  className="flex items-center gap-3 bg-white/95 dark:bg-[#121a2e]/95 p-3 rounded-xl hover:shadow-md cursor-pointer border border-slate-100 dark:border-zinc-800 transition-all hover:scale-[1.01]"
                 >
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-1.5">
-                      <span className="text-[10px] uppercase tracking-widest font-extrabold px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400">
-                        {mod.grade}
-                      </span>
-                      
-                      <div className="flex items-center gap-1.5 font-sans">
-                        {mod.isSupabase && (
-                          <span className="text-[9px] font-extrabold uppercase tracking-widest px-1.5 py-0.5 bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20 rounded flex items-center gap-0.5 animate-pulse">
-                            <Database className="w-2.5 h-2.5 text-yellow-500" /> Supabase
-                          </span>
-                        )}
-                        {hasPremiumBadge && (
-                          <span className={`text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 border rounded ${
-                            isEligible 
-                              ? 'text-emerald-600 bg-emerald-50 border-emerald-250 dark:text-emerald-400 dark:bg-emerald-950/20' 
-                              : 'text-amber-600 bg-amber-50 border-amber-200'
-                          }`}>
-                            {isEligible ? 'Pro Access' : 'PRO Limit'}
-                          </span>
-                        )}
-                        <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">
-                          {mod.pages} Pages
-                        </span>
-                      </div>
-                    </div>
-
-                    <h3 className="font-serif font-black text-sm text-slate-800 dark:text-zinc-100 leading-tight">
-                      {mod.title}
-                    </h3>
-
-                    <p className="text-xs text-slate-500 dark:text-zinc-400 line-clamp-2">
-                      {mod.description}
+                  {renderBookCover(recentlyViewedModule)}
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[9px] uppercase font-bold text-slate-400 dark:text-zinc-500">
+                      {recentlyViewedModule.grade} • {recentlyViewedModule.subject}
+                    </span>
+                    <h5 className="font-serif font-black text-xs text-slate-800 dark:text-zinc-100 truncate mt-0.5">
+                      {recentlyViewedModule.title}
+                    </h5>
+                    <p className="text-[10px] text-slate-500 dark:text-zinc-400 line-clamp-1 mt-0.5">
+                      {recentlyViewedModule.description}
                     </p>
                   </div>
-
-                  <div className="mt-4 pt-3 border-t border-slate-100 dark:border-zinc-800/80 flex items-center justify-between text-[11px] font-mono text-slate-400 dark:text-zinc-500">
-                    <span>📚 {mod.subject}</span>
-                    <span className="text-[#078930] hover:underline font-bold flex items-center gap-1 cursor-pointer">
-                      Open Module &rarr;
-                    </span>
+                  <div className="shrink-0 text-indigo-500 text-sm font-bold">
+                    &rarr;
                   </div>
                 </div>
-              );
-            })}
-
-            {filtered.length === 0 && (
-              <div className="text-center py-10 bg-white dark:bg-[#0c0d12] border border-slate-200 dark:border-zinc-800 rounded-2xl">
-                <p className="text-sm text-slate-400 dark:text-zinc-500">No textbook modules match your active filters.</p>
               </div>
-            )}
+            );
+          })()}
+
+          {/* Collapsible lists grouped by subject */}
+          <div className="space-y-4">
+            {(() => {
+              const groupedBySubject = filtered.reduce((acc, m) => {
+                const subj = m.subject;
+                if (!acc[subj]) acc[subj] = [];
+                acc[subj].push(m);
+                return acc;
+              }, {} as Record<string, ModuleResource[]>);
+
+              const subjectKeys = Object.keys(groupedBySubject);
+              if (subjectKeys.length === 0) {
+                return (
+                  <div className="text-center py-10 bg-white dark:bg-[#121A2E] border border-slate-200 dark:border-zinc-800 rounded-2xl">
+                    <p className="text-sm text-slate-400 dark:text-zinc-500">
+                      {language === 'en' ? 'No textbook modules match your filters.' : 'ከምርጫዎ ጋር የሚዛመድ ሞጁል አልተገኘም።'}
+                    </p>
+                  </div>
+                );
+              }
+
+              return subjectKeys.map(subj => {
+                const isCollapsed = !!collapsedSubjects[subj];
+                const subjectModules = groupedBySubject[subj];
+                return (
+                  <div key={subj} className="border border-slate-200 dark:border-zinc-800/60 p-3 rounded-2xl bg-white dark:bg-[#0f1423] shadow-sm space-y-2">
+                    {/* Collapsible Subject Header */}
+                    <div 
+                      onClick={() => {
+                        playClickChime();
+                        setCollapsedSubjects(prev => ({ ...prev, [subj]: !prev[subj] }));
+                      }}
+                      className="flex items-center justify-between px-2 py-2 cursor-pointer select-none hover:bg-slate-50 dark:hover:bg-zinc-800/40 rounded-xl transition-all"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">📚</span>
+                        <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-700 dark:text-zinc-300">
+                          {subj} <span className="text-[10px] text-slate-400 font-mono font-normal">({subjectModules.length})</span>
+                        </h4>
+                      </div>
+                      <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isCollapsed ? '-rotate-90' : 'rotate-0'}`} />
+                    </div>
+                    
+                    {/* Subject book cards list */}
+                    {!isCollapsed && (
+                      <div className="grid grid-cols-1 gap-2.5 pt-1">
+                        {subjectModules.map(mod => {
+                          const isActive = activeModule?.id === mod.id;
+                          const hasPremiumBadge = mod.proRequired;
+                          return (
+                            <div
+                              key={mod.id}
+                              onClick={() => handleSelectModule(mod)}
+                              className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer relative overflow-hidden flex items-center gap-3 hover:translate-y-[-1px] ${
+                                isActive
+                                  ? 'border-[#4F46E5] bg-indigo-500/5 dark:border-indigo-500/60 shadow-md'
+                                  : 'border-slate-200/80 dark:border-zinc-800 bg-white dark:bg-[#121A2E] hover:border-indigo-400 dark:hover:border-indigo-500/40 hover:shadow-sm'
+                              }`}
+                            >
+                              {/* Dynamic book cover */}
+                              {renderBookCover(mod)}
+                              
+                              {/* Book info content */}
+                              <div className="flex-1 min-w-0 space-y-1">
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="text-[8.5px] uppercase tracking-wider font-extrabold px-1.5 py-0.2 rounded bg-slate-100 dark:bg-zinc-900 text-slate-500 dark:text-zinc-400">
+                                    {mod.grade}
+                                  </span>
+                                  
+                                  <div className="flex items-center gap-1.5 font-sans">
+                                    {mod.isSupabase && (
+                                      <span className="text-[8px] font-bold uppercase tracking-widest px-1 bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/10 rounded flex items-center gap-0.5">
+                                        <Database className="w-2 h-2 text-yellow-500" /> Supabase
+                                      </span>
+                                    )}
+                                    {hasPremiumBadge && (
+                                      isEligible ? (
+                                        <span className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded-md">
+                                          ⭐ PRO Access
+                                        </span>
+                                      ) : (
+                                        <span className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/20 rounded-md animate-pulse">
+                                          🔒 PRO Limit
+                                        </span>
+                                      )
+                                    )}
+                                    <span className="text-[9px] text-zinc-400 dark:text-zinc-500 font-mono">
+                                      {mod.pages} p.
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <h3 className="font-serif font-black text-xs text-slate-800 dark:text-zinc-100 leading-tight truncate">
+                                  {mod.title}
+                                </h3>
+
+                                <p className="text-[10px] text-slate-500 dark:text-zinc-400 line-clamp-1 leading-normal">
+                                  {mod.description}
+                                </p>
+                                
+                                <div className="flex items-center justify-between text-[9px] font-mono text-slate-400 pt-0.5">
+                                  <span>📚 {mod.subject}</span>
+                                  <span className="text-indigo-600 dark:text-indigo-400 font-bold flex items-center gap-0.5">
+                                    Open &rarr;
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              });
+            })()}
           </div>
         </div>
 

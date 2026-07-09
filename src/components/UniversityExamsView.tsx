@@ -95,6 +95,16 @@ interface ExamPaperSheet {
   }[];
 }
 
+interface CalendarEvent {
+  id: string;
+  month: string;
+  day: string;
+  title: string;
+  description: string;
+  daysLeft: number;
+  color: string;
+}
+
 const UNIVERSITY_SHEETS: ExamPaperSheet[] = [
   // --- UNIVERSITY SUBJECTS ---
   {
@@ -549,6 +559,148 @@ export default function UniversityExamsView({
   const [selectedSheet, setSelectedSheet] = useState<ExamPaperSheet | null>(null);
   const [selectedQuestionIdx, setSelectedQuestionIdx] = useState<number>(-1);
   const [userSelectedChoice, setUserSelectedChoice] = useState<number | null>(null);
+
+  // Customizable Calendar states
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>(() => {
+    try {
+      const saved = localStorage.getItem('ethiolearn_university_calendar');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return [
+      {
+        id: '1',
+        month: 'Hamle',
+        day: '20',
+        title: 'EUEE Grade 12 National University Entrance Exam',
+        description: 'General and Social sciences matric papers starting across regional halls.',
+        daysLeft: 15,
+        color: 'indigo'
+      },
+      {
+        id: '2',
+        month: 'Nehas',
+        day: '12',
+        title: 'Freshman First Semester Midterm Worksheets',
+        description: 'Mathematics, Physics, Communicative English, and Inclusiveness.',
+        daysLeft: 37,
+        color: 'purple'
+      }
+    ];
+  });
+
+  const [isAddingEvent, setIsAddingEvent] = useState<boolean>(false);
+  const [isEditingEventId, setIsEditingEventId] = useState<string | null>(null);
+  const [eventForm, setEventForm] = useState<{
+    month: string;
+    day: string;
+    title: string;
+    description: string;
+    daysLeft: number;
+    color: string;
+  }>({
+    month: 'Hamle',
+    day: '15',
+    title: '',
+    description: '',
+    daysLeft: 10,
+    color: 'indigo'
+  });
+
+  const handleSaveEvent = () => {
+    if (!eventForm.title.trim()) return;
+    let updated: CalendarEvent[];
+    if (isEditingEventId) {
+      updated = calendarEvents.map(ev => 
+        ev.id === isEditingEventId ? { ...ev, ...eventForm } : ev
+      );
+    } else {
+      const newEvent: CalendarEvent = {
+        id: Date.now().toString(),
+        ...eventForm
+      };
+      updated = [...calendarEvents, newEvent];
+    }
+    setCalendarEvents(updated);
+    localStorage.setItem('ethiolearn_university_calendar', JSON.stringify(updated));
+    setIsAddingEvent(false);
+    setIsEditingEventId(null);
+    setEventForm({
+      month: 'Hamle',
+      day: '15',
+      title: '',
+      description: '',
+      daysLeft: 10,
+      color: 'indigo'
+    });
+    playSuccessChime();
+  };
+
+  const handleDeleteEvent = (id: string) => {
+    const updated = calendarEvents.filter(ev => ev.id !== id);
+    setCalendarEvents(updated);
+    localStorage.setItem('ethiolearn_university_calendar', JSON.stringify(updated));
+    playFailureChime();
+  };
+
+  const handleStartEditEvent = (ev: CalendarEvent) => {
+    setIsEditingEventId(ev.id);
+    setEventForm({
+      month: ev.month,
+      day: ev.day,
+      title: ev.title,
+      description: ev.description,
+      daysLeft: ev.daysLeft,
+      color: ev.color
+    });
+    setIsAddingEvent(true);
+  };
+
+  // Timed Simulation & Completed Papers state
+  const [prepMode, setPrepMode] = useState<'practice' | 'simulation'>('practice');
+  const [isSimulationActive, setIsSimulationActive] = useState<boolean>(false);
+  const [simulationTimeLeft, setSimulationTimeLeft] = useState<number>(0);
+  const [simulationAnswers, setSimulationAnswers] = useState<Record<number, number>>({});
+  const [simulationScore, setSimulationScore] = useState<{correct: number, total: number} | null>(null);
+  const [completedPapers, setCompletedPapers] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('ethiolearn_completed_papers');
+      return saved ? JSON.parse(saved) : ['uni_math_sheet'];
+    } catch (e) {
+      return ['uni_math_sheet'];
+    }
+  });
+
+  // Automatically handle countdown timer in simulation
+  React.useEffect(() => {
+    let timer: any;
+    if (isSimulationActive && simulationTimeLeft > 0) {
+      timer = setInterval(() => {
+        setSimulationTimeLeft(prev => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            setIsSimulationActive(false);
+            // Compute simulation results on timer expire
+            if (selectedSheet) {
+              const correctCount = selectedSheet.questions.reduce((acc, q, idx) => {
+                return acc + (simulationAnswers[idx] === q.correctIndex ? 1 : 0);
+              }, 0);
+              setSimulationScore({ correct: correctCount, total: selectedSheet.questions.length });
+              playSuccessChime();
+              
+              const updated = Array.from(new Set([...completedPapers, selectedSheet.id]));
+              setCompletedPapers(updated);
+              localStorage.setItem('ethiolearn_completed_papers', JSON.stringify(updated));
+            }
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [isSimulationActive, simulationTimeLeft, selectedSheet, simulationAnswers, completedPapers]);
   
   // AI solver active states
   const [aiLoading, setAiLoading] = useState(false);
@@ -1054,7 +1206,276 @@ Guide me on how to approach this. Give me the primary formula but let me do the 
         )}
       </div>
 
-      {/* Tab Navigation for Practice Sheets, AI Custom & Surprise Prep, and External National EUEE Hub */}
+      {/* EXAMS IDENTITY BOARD: CALENDAR & PROGRESS TRACKER */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-5 select-none">
+        {/* Timeline Calendar */}
+        <div className="md:col-span-7 bg-gradient-to-r from-indigo-500/5 to-purple-500/5 border border-indigo-150 dark:border-indigo-500/20 p-4 rounded-2xl shadow-sm space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-[11px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
+              <span>📅</span> {language === 'en' ? 'Ethiopian National Exams & University Calendar' : 'የኢትዮጵያ ብሔራዊ ፈተናዎች እና የዩኒቨርሲቲ ካላንደር'}
+            </h4>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  playClickChime();
+                  setIsEditingEventId(null);
+                  setEventForm({
+                    month: 'Hamle',
+                    day: '15',
+                    title: '',
+                    description: '',
+                    daysLeft: 10,
+                    color: 'indigo'
+                  });
+                  setIsAddingEvent(!isAddingEvent);
+                }}
+                className="text-[9px] font-black uppercase bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1 rounded transition-colors cursor-pointer"
+              >
+                {isAddingEvent ? (language === 'en' ? 'Close' : 'ዝጋ') : `+ ${language === 'en' ? 'Custom' : 'ብጁ'}`}
+              </button>
+            </div>
+          </div>
+
+          {isAddingEvent && (
+            <div className="bg-white/95 dark:bg-[#0c0d12]/95 border border-indigo-100 dark:border-zinc-850 p-3.5 rounded-xl space-y-3 font-sans text-xs">
+              <h5 className="font-bold text-slate-800 dark:text-zinc-100 flex items-center gap-1">
+                <span>⚡</span> {isEditingEventId ? (language === 'en' ? 'Edit Calendar Event' : 'ካላንደር ቀይር') : (language === 'en' ? 'Add Custom Calendar Event' : 'አዲስ የካላንደር መርሃግብር ጨምር')}
+              </h5>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Month (ወር)</label>
+                  <input
+                    type="text"
+                    value={eventForm.month}
+                    onChange={(e) => setEventForm({ ...eventForm, month: e.target.value })}
+                    className="w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded px-2.5 py-1.5 text-slate-800 dark:text-zinc-100 font-bold"
+                    placeholder="e.g. Hamle"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Day (ቀን)</label>
+                  <input
+                    type="text"
+                    value={eventForm.day}
+                    onChange={(e) => setEventForm({ ...eventForm, day: e.target.value })}
+                    className="w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded px-2.5 py-1.5 text-slate-800 dark:text-zinc-100 font-bold"
+                    placeholder="e.g. 20"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Event Title (ርዕስ)</label>
+                <input
+                  type="text"
+                  value={eventForm.title}
+                  onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
+                  className="w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded px-2.5 py-1.5 text-slate-800 dark:text-zinc-100 font-semibold"
+                  placeholder="e.g. Social sciences entrance exam"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Description (ዝርዝር ማብራሪያ)</label>
+                <textarea
+                  value={eventForm.description}
+                  onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })}
+                  className="w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded px-2.5 py-1.5 text-slate-800 dark:text-zinc-100"
+                  placeholder="e.g. Grade 12 matric final examinations across centers"
+                  rows={2}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Days Left (የቀሩት ቀናት)</label>
+                  <input
+                    type="number"
+                    value={eventForm.daysLeft}
+                    onChange={(e) => setEventForm({ ...eventForm, daysLeft: parseInt(e.target.value) || 0 })}
+                    className="w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded px-2.5 py-1.5 text-slate-800 dark:text-zinc-100 font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Badge Color (ቀለም)</label>
+                  <select
+                    value={eventForm.color}
+                    onChange={(e) => setEventForm({ ...eventForm, color: e.target.value })}
+                    className="w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded px-2.5 py-1.5 text-slate-800 dark:text-zinc-100 font-bold"
+                  >
+                    <option value="indigo">Indigo (ሰማያዊ)</option>
+                    <option value="purple">Purple (ሐምራዊ)</option>
+                    <option value="rose">Rose (ቀይ)</option>
+                    <option value="emerald">Emerald (አረንጓዴ)</option>
+                    <option value="amber">Amber (ቢጫ)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex gap-2 justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={() => { playClickChime(); setIsAddingEvent(false); }}
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:text-zinc-400 dark:bg-zinc-900 dark:hover:bg-zinc-800 rounded-lg text-xs font-bold"
+                >
+                  {language === 'en' ? 'Cancel' : 'ሰርዝ'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveEvent}
+                  className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-black uppercase"
+                >
+                  {language === 'en' ? 'Save Event' : 'አስቀምጥ'}
+                </button>
+              </div>
+            </div>
+          )}
+          
+          <div className="space-y-2 max-h-[290px] overflow-y-auto pr-1">
+            {calendarEvents.length === 0 ? (
+              <div className="text-center py-6 text-slate-400 dark:text-zinc-500 text-xs">
+                {language === 'en' ? 'No items in calendar. Add a custom entry above!' : 'በካላንደር ውስጥ ምንም መርሃግብር የለም። ከላይ ይጨምሩ!'}
+              </div>
+            ) : (
+              calendarEvents.map((ev) => {
+                const badgeColorMap: Record<string, string> = {
+                  indigo: 'bg-indigo-500',
+                  purple: 'bg-purple-500',
+                  rose: 'bg-rose-500',
+                  emerald: 'bg-emerald-500',
+                  amber: 'bg-amber-500'
+                };
+                
+                const textColorMap: Record<string, string> = {
+                  indigo: 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40',
+                  purple: 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40',
+                  rose: 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40',
+                  emerald: 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40',
+                  amber: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40'
+                };
+
+                const currentBadgeColor = badgeColorMap[ev.color] || 'bg-indigo-500';
+                const currentTextColor = textColorMap[ev.color] || 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40';
+
+                return (
+                  <div key={ev.id} className="flex items-start gap-3 bg-white/70 dark:bg-[#121a2e]/70 p-2.5 rounded-xl border border-slate-100 dark:border-zinc-800 hover:border-slate-200 dark:hover:border-zinc-700 transition-colors group">
+                    <div className={`w-10 h-10 rounded-lg ${currentBadgeColor} text-white flex flex-col items-center justify-center font-bold text-xs shrink-0 shadow-sm`}>
+                      <span className="text-[8px] uppercase font-semibold">{ev.month}</span>
+                      <span className="leading-none text-xs font-black">{ev.day}</span>
+                    </div>
+                    <div className="flex-1 min-w-0 text-left">
+                      <div className="flex items-center gap-2">
+                        <h5 className="font-bold text-[11px] text-slate-800 dark:text-zinc-100 truncate flex-1">
+                          {ev.title}
+                        </h5>
+                      </div>
+                      <p className="text-[9.5px] text-slate-500 dark:text-zinc-400 mt-0.5 line-clamp-1">
+                        {ev.description}
+                      </p>
+                    </div>
+                    
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${currentTextColor}`}>
+                        {ev.daysLeft} {language === 'en' ? 'Days Left' : 'ቀን ይቀራል'}
+                      </span>
+                      
+                      {/* Edit/Delete controls */}
+                      <div className="flex items-center gap-1 opacity-60 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          onClick={() => { playClickChime(); handleStartEditEvent(ev); }}
+                          className="p-1 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded transition-all cursor-pointer"
+                          title="Edit"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { playClickChime(); handleDeleteEvent(ev.id); }}
+                          className="p-1 hover:bg-red-50 dark:hover:bg-red-950/20 rounded text-red-500 hover:text-red-700 transition-all cursor-pointer"
+                          title="Delete"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Progress Board */}
+        <div className="md:col-span-5 bg-white dark:bg-[#0c0d12] border border-slate-200 dark:border-zinc-800 p-4 rounded-2xl shadow-sm space-y-3 flex flex-col justify-between">
+          <div>
+            <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+              <span>📊</span> {language === 'en' ? 'Matric Prep Subject Progress' : 'የፈተና ዝግጅት የትምህርት እድገት'}
+            </h4>
+            <p className="text-[9.5px] text-slate-400 dark:text-zinc-500 mt-0.5">
+              Completed papers: <span className="font-bold font-mono text-indigo-500">{completedPapers.length} completed</span>
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-1.5">
+            {/* Subject 1: Mathematics */}
+            <div className="space-y-1">
+              <div className="flex justify-between items-center text-[9px] font-bold">
+                <span className="text-slate-700 dark:text-zinc-300">📐 Mathematics</span>
+                <span className="text-indigo-600 dark:text-indigo-400 font-mono">
+                  {completedPapers.includes('uni_math_sheet') ? '100%' : '50%'}
+                </span>
+              </div>
+              <div className="w-full bg-slate-100 dark:bg-zinc-800 h-1.5 rounded-full overflow-hidden">
+                <div className="bg-indigo-500 h-full rounded-full" style={{ width: completedPapers.includes('uni_math_sheet') ? '100%' : '50%' }} />
+              </div>
+            </div>
+
+            {/* Subject 2: Physics */}
+            <div className="space-y-1">
+              <div className="flex justify-between items-center text-[9px] font-bold">
+                <span className="text-slate-700 dark:text-zinc-300">⚡ Physics</span>
+                <span className="text-purple-600 dark:text-purple-400 font-mono">
+                  {completedPapers.includes('uni_physics_sheet') ? '100%' : '50%'}
+                </span>
+              </div>
+              <div className="w-full bg-slate-100 dark:bg-zinc-800 h-1.5 rounded-full overflow-hidden">
+                <div className="bg-purple-500 h-full rounded-full" style={{ width: completedPapers.includes('uni_physics_sheet') ? '100%' : '50%' }} />
+              </div>
+            </div>
+
+            {/* Subject 3: Chemistry */}
+            <div className="space-y-1">
+              <div className="flex justify-between items-center text-[9px] font-bold">
+                <span className="text-slate-700 dark:text-zinc-300">🧪 Chemistry</span>
+                <span className="text-teal-600 dark:text-teal-400 font-mono">
+                  {completedPapers.includes('uni_chemistry_sheet') ? '100%' : '25%'}
+                </span>
+              </div>
+              <div className="w-full bg-slate-100 dark:bg-zinc-800 h-1.5 rounded-full overflow-hidden">
+                <div className="bg-teal-500 h-full rounded-full" style={{ width: completedPapers.includes('uni_chemistry_sheet') ? '100%' : '25%' }} />
+              </div>
+            </div>
+
+            {/* Subject 4: English */}
+            <div className="space-y-1">
+              <div className="flex justify-between items-center text-[9px] font-bold">
+                <span className="text-slate-700 dark:text-zinc-300">💬 English</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-mono">
+                  {completedPapers.includes('uni_english_sheet') ? '100%' : '40%'}
+                </span>
+              </div>
+              <div className="w-full bg-slate-100 dark:bg-zinc-800 h-1.5 rounded-full overflow-hidden">
+                <div className="bg-emerald-500 h-full rounded-full" style={{ width: completedPapers.includes('uni_english_sheet') ? '100%' : '40%' }} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tab Navigation for Practice Sheets, Curriculum Exam Compiler, and External National EUEE Hub */}
       <div className="flex flex-wrap bg-slate-100 dark:bg-zinc-900/95 border border-slate-200 dark:border-zinc-800 p-1 rounded-2xl max-w-2xl select-none font-sans gap-1">
         <button
           onClick={() => { playClickChime(); setActiveTab('practice'); }}
@@ -1074,8 +1495,8 @@ Guide me on how to approach this. Give me the primary formula but let me do the 
               : 'text-slate-500 dark:text-zinc-400 hover:text-slate-850 dark:hover:text-zinc-200'
           }`}
         >
-          <Sparkles className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-          <span>{language === 'en' ? 'AI Custom & Surprise' : 'አይ ብጁ እና ሰርፕራይዝ'}</span>
+          <BookMarked className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+          <span>{language === 'en' ? 'Board Exam Compiler' : 'የብሔራዊ ፈተና ማጠናከሪያ'}</span>
         </button>
         <button
           onClick={() => { playClickChime(); setActiveTab('external'); }}
@@ -1182,37 +1603,213 @@ Guide me on how to approach this. Give me the primary formula but let me do the 
             <div className="bg-white dark:bg-[#0c0d12] border border-slate-200 dark:border-zinc-805 p-6 rounded-2xl shadow-sm space-y-5">
               
               {/* Sheet header */}
-              <div className="border-b border-slate-100 dark:border-zinc-800 pb-4">
-                <span className="text-[10.5px] uppercase tracking-wider font-extrabold text-[#078930] bg-emerald-50 dark:bg-emerald-950/20 px-2 py-0.5 rounded">
-                  {selectedSheet.university}
-                </span>
-                <h3 className="text-base font-serif font-black text-slate-805 dark:text-zinc-100 mt-1.5 leading-tight">
-                  {selectedSheet.title}
-                </h3>
+              <div className="border-b border-slate-100 dark:border-zinc-800 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <span className="text-[10.5px] uppercase tracking-wider font-extrabold text-[#078930] bg-emerald-50 dark:bg-emerald-950/20 px-2 py-0.5 rounded">
+                    {selectedSheet.university}
+                  </span>
+                  <h3 className="text-base font-serif font-black text-slate-805 dark:text-zinc-100 mt-1.5 leading-tight">
+                    {selectedSheet.title}
+                  </h3>
+                </div>
+
+                {/* Completed status indicator badge */}
+                {completedPapers.includes(selectedSheet.id) && (
+                  <span className="text-[9px] font-bold text-indigo-700 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 px-2 py-0.5 rounded-md shrink-0 flex items-center gap-1">
+                    <CheckCircle className="w-3 h-3 text-indigo-650" /> Completed
+                  </span>
+                )}
               </div>
 
-              {/* Step: Questions list selector inside sheet */}
-              <div className="space-y-2">
-                <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">Questions in this paper:</p>
-                <div className="flex flex-wrap gap-2">
-                  {selectedSheet.questions.map((q, idx) => {
-                    const isQActive = selectedQuestionIdx === idx;
-                    return (
-                      <button
-                        key={q.id}
-                        onClick={() => handleSelectQuestion(idx)}
-                        className={`w-10 h-10 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                          isQActive
-                            ? 'bg-indigo-650 border-indigo-650 text-white shadow-md'
-                            : 'bg-slate-50 border-slate-100 hover:border-slate-350 text-slate-650'
-                        }`}
-                      >
-                        Q{idx + 1}
-                      </button>
-                    );
-                  })}
+              {/* Mode Selection Banner */}
+              <div className="flex flex-col sm:flex-row justify-between items-center bg-slate-50 dark:bg-zinc-900/60 p-3.5 rounded-2xl border border-slate-150 dark:border-zinc-800 gap-3 select-none">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🛠️</span>
+                  <div>
+                    <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-zinc-200">
+                      {language === 'en' ? 'Select Preparation Mode:' : 'የዝግጅት ሁነታን ይምረጡ፡'}
+                    </h4>
+                    <p className="text-[9.5px] text-slate-400">
+                      {prepMode === 'practice' 
+                        ? (language === 'en' ? 'Study mode with immediate feedback & AI Solver.' : 'ወዲያውኑ መልስ እና አይ ረዳት የሚገኝበት የጥናት ሁነታ።')
+                        : (language === 'en' ? 'Exam room mode with 1-min countdown clock per question.' : 'በእያንዳንዱ ጥያቄ 1 ደቂቃ የጊዜ ገደብ ያለው የፈተና ክፍል ሁነታ።')
+                      }
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex gap-1.5 shrink-0 bg-slate-200/60 dark:bg-zinc-800/80 p-0.5 rounded-xl border border-slate-300/40">
+                  <button
+                    onClick={() => {
+                      playClickChime();
+                      setPrepMode('practice');
+                      setIsSimulationActive(false);
+                      setSimulationScore(null);
+                      setSimulationAnswers({});
+                      setUserSelectedChoice(null);
+                    }}
+                    disabled={isSimulationActive}
+                    className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                      prepMode === 'practice'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800 dark:text-zinc-400 dark:hover:text-zinc-200 disabled:opacity-40'
+                    }`}
+                  >
+                    🔍 {language === 'en' ? 'Practice' : 'መለማመጃ'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      playClickChime();
+                      setPrepMode('simulation');
+                      setUserSelectedChoice(null);
+                    }}
+                    disabled={isSimulationActive}
+                    className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                      prepMode === 'simulation'
+                        ? 'bg-[#B22222] text-white shadow-sm'
+                        : 'text-slate-500 hover:text-slate-850 dark:text-zinc-400 dark:hover:text-zinc-200 disabled:opacity-40'
+                    }`}
+                  >
+                    ⏱️ {language === 'en' ? 'Simulation' : 'ሲሙሌሽን'}
+                  </button>
                 </div>
               </div>
+
+              {/* 1. TIMED SIMULATION NOT ACTIVE VIEW */}
+              {prepMode === 'simulation' && !isSimulationActive && !simulationScore && (
+                <div className="p-6 bg-rose-500/5 dark:bg-rose-950/10 border-2 border-dashed border-rose-400/40 rounded-2xl text-center space-y-4">
+                  <div className="w-12 h-12 rounded-full bg-rose-500/10 text-rose-500 flex items-center justify-center mx-auto text-xl">
+                    ⏱️
+                  </div>
+                  <div>
+                    <h4 className="font-serif font-black text-sm text-slate-800 dark:text-zinc-100">
+                      {language === 'en' ? 'Ready for Exam Hall Simulation?' : 'ለሲሙሌሽን ፈተና ዝግጁ ነዎት?'}
+                    </h4>
+                    <p className="text-[10px] text-slate-400 max-w-sm mx-auto mt-1 leading-relaxed">
+                      {language === 'en' 
+                        ? 'You will have 1 minute per question. Immediate feedback is disabled, and your report card will be calculated on submit or timeout.'
+                        : 'በእያንዳንዱ ጥያቄ 1 ደቂቃ ያገኛሉ። ፈጣን መልሶች አይታዩም፣ ሲጨርሱ ወይም ሰዓቱ ሲያልቅ ውጤትዎ ይሰላል።'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      playClickChime();
+                      setIsSimulationActive(true);
+                      setSimulationTimeLeft(selectedSheet.questions.length * 60);
+                      setSimulationAnswers({});
+                      setSimulationScore(null);
+                      setSelectedQuestionIdx(0);
+                    }}
+                    className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl uppercase tracking-wider transition-colors shadow-sm cursor-pointer"
+                  >
+                    {language === 'en' ? 'Start Simulation' : 'ሲሙሌሽን ጀምር'}
+                  </button>
+                </div>
+              )}
+
+              {/* 2. TIMED SIMULATION SCORE CARD VIEW */}
+              {prepMode === 'simulation' && simulationScore && (
+                <div className="p-6 bg-indigo-500/5 border border-indigo-250 dark:border-indigo-500/30 rounded-2xl text-center space-y-4 relative overflow-hidden">
+                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-red-500 via-yellow-500 to-green-500" />
+                  <div className="w-14 h-14 bg-indigo-500/10 rounded-full flex items-center justify-center mx-auto text-2xl">
+                    🎓
+                  </div>
+                  <div>
+                    <h4 className="font-serif font-black text-sm text-indigo-700 dark:text-indigo-400">
+                      {language === 'en' ? 'Simulation Completed!' : 'ሲሙሌሽን ተጠናቋል!'}
+                    </h4>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      {selectedSheet.title}
+                    </p>
+                  </div>
+                  
+                  <div className="inline-block p-4 bg-white dark:bg-zinc-900 border rounded-2xl shadow-sm">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-widest">Your Score:</span>
+                    <span className="text-3xl font-black font-serif text-slate-800 dark:text-zinc-100">
+                      {simulationScore.correct} <span className="text-sm font-normal text-slate-400">/ {simulationScore.total}</span>
+                    </span>
+                    <span className="text-xs font-bold text-[#078930] block mt-1">
+                      {Math.round((simulationScore.correct / simulationScore.total) * 100)}% Accuracy
+                    </span>
+                  </div>
+
+                  <p className="text-[10px] text-slate-500 dark:text-zinc-400 max-w-xs mx-auto leading-relaxed">
+                    {simulationScore.correct === simulationScore.total 
+                      ? "🏆 Flawless performance! You're ready to teach this course!"
+                      : "📖 Good effort. Click the button below to retry or switch to Practice mode to review the detailed AI formulas."
+                    }
+                  </p>
+
+                  <div className="flex justify-center gap-2.5 pt-1.5">
+                    <button
+                      onClick={() => {
+                        playClickChime();
+                        setSimulationScore(null);
+                        setPrepMode('practice');
+                      }}
+                      className="px-4 py-1.5 bg-slate-100 dark:bg-zinc-800 text-slate-650 dark:text-zinc-200 font-bold text-[10px] uppercase rounded-lg hover:bg-slate-200 transition-colors"
+                    >
+                      🔍 {language === 'en' ? 'Review Questions' : 'ጥያቄዎችን ገምግም'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        playClickChime();
+                        setSimulationScore(null);
+                        setIsSimulationActive(true);
+                        setSimulationTimeLeft(selectedSheet.questions.length * 60);
+                        setSimulationAnswers({});
+                        setSelectedQuestionIdx(0);
+                      }}
+                      className="px-4 py-1.5 bg-indigo-650 hover:bg-indigo-700 text-white font-bold text-[10px] uppercase rounded-lg transition-colors cursor-pointer"
+                    >
+                      🔄 {language === 'en' ? 'Retry Exam' : 'እንደገና ሞክር'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 3. ACTIVE STUDY OR LIVE SIMULATION FLOW */}
+              {((prepMode === 'practice') || (prepMode === 'simulation' && isSimulationActive)) && (
+                <>
+                  {/* Countdown timer banner inside active simulation */}
+                  {prepMode === 'simulation' && isSimulationActive && (
+                    <div className="flex items-center justify-between bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-300/40 p-3 rounded-xl select-none animate-pulse">
+                      <span className="text-xs font-extrabold uppercase tracking-wider flex items-center gap-1.5">
+                        <Clock className="w-4 h-4 shrink-0 animate-spin" />
+                        {language === 'en' ? 'SIMULATION TIMER RUNNING' : 'የሲሙሌሽን ሰዓት በመቁጠር ላይ'}
+                      </span>
+                      <span className="font-mono font-black text-sm">
+                        {Math.floor(simulationTimeLeft / 60)}:{(simulationTimeLeft % 60).toString().padStart(2, '0')}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Step: Questions list selector inside sheet */}
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">Questions in this paper:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedSheet.questions.map((q, idx) => {
+                        const isQActive = selectedQuestionIdx === idx;
+                        const isAnsweredInSim = prepMode === 'simulation' && simulationAnswers[idx] !== undefined;
+                        
+                        return (
+                          <button
+                            key={q.id}
+                            onClick={() => handleSelectQuestion(idx)}
+                            className={`w-10 h-10 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                              isQActive
+                                ? 'bg-indigo-650 border-indigo-650 text-white shadow-md'
+                                : isAnsweredInSim
+                                ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-950/20'
+                                : 'bg-slate-50 border-slate-100 hover:border-slate-350 text-slate-650 dark:bg-zinc-900/40 dark:border-zinc-800'
+                            }`}
+                          >
+                            Q{idx + 1}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
 
               {/* Selected question detail layout */}
               {selectedQuestionIdx !== -1 && (
@@ -1222,32 +1819,53 @@ Guide me on how to approach this. Give me the primary formula but let me do the 
                     <span>Entrance / Freshman Coursework</span>
                   </div>
 
-                  <div className="font-serif font-black text-sm text-slate-800 dark:text-zinc-100 leading-snug p-4 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-slate-105">
+                  <div className="font-serif font-black text-sm text-slate-800 dark:text-zinc-100 leading-snug p-4 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-slate-150">
                     {selectedSheet.questions[selectedQuestionIdx].qText}
                   </div>
 
                   {/* Options */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     {selectedSheet.questions[selectedQuestionIdx].choices.map((choice, i) => {
-                      const isSelected = userSelectedChoice === i;
-                      const isCorrect = i === selectedSheet.questions[selectedQuestionIdx].correctIndex;
+                      let isSelected = false;
+                      let isCorrect = false;
 
-                      let cStyle = 'border-slate-100 dark:border-zinc-805 bg-white dark:bg-zinc-900 text-slate-750 hover:bg-slate-50';
-                      if (userSelectedChoice !== null) {
-                        if (isCorrect) {
-                          cStyle = 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-805 font-bold';
-                        } else if (isSelected) {
-                          cStyle = 'border-rose-500 bg-rose-50 dark:bg-rose-950/20 text-rose-805';
-                        } else {
-                          cStyle = 'opacity-50 border-slate-100 dark:border-zinc-805';
+                      if (prepMode === 'simulation') {
+                        isSelected = simulationAnswers[selectedQuestionIdx] === i;
+                      } else {
+                        isSelected = userSelectedChoice === i;
+                        isCorrect = i === selectedSheet.questions[selectedQuestionIdx].correctIndex;
+                      }
+
+                      let cStyle = 'border-slate-150 dark:border-zinc-805 bg-white dark:bg-zinc-900 text-slate-750 hover:bg-slate-50';
+                      
+                      if (prepMode === 'simulation') {
+                        if (isSelected) {
+                          cStyle = 'border-indigo-650 bg-indigo-50 dark:bg-indigo-950/25 text-indigo-800 dark:text-indigo-400 font-bold';
+                        }
+                      } else {
+                        if (userSelectedChoice !== null) {
+                          if (isCorrect) {
+                            cStyle = 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-805 font-bold';
+                          } else if (isSelected) {
+                            cStyle = 'border-rose-500 bg-rose-50 dark:bg-rose-950/20 text-rose-805';
+                          } else {
+                            cStyle = 'opacity-50 border-slate-100 dark:border-zinc-805';
+                          }
                         }
                       }
 
                       return (
                         <button
                           key={i}
-                          disabled={userSelectedChoice !== null}
-                          onClick={() => { playClickChime(); setUserSelectedChoice(i); }}
+                          disabled={prepMode === 'practice' && userSelectedChoice !== null}
+                          onClick={() => { 
+                            playClickChime(); 
+                            if (prepMode === 'simulation') {
+                              setSimulationAnswers(prev => ({ ...prev, [selectedQuestionIdx]: i }));
+                            } else {
+                              setUserSelectedChoice(i); 
+                            }
+                          }}
                           className={`px-4 py-3 rounded-xl border text-left text-xs transition-colors cursor-pointer ${cStyle}`}
                         >
                           {choice}
@@ -1256,7 +1874,8 @@ Guide me on how to approach this. Give me the primary formula but let me do the 
                     })}
                   </div>
 
-                  {userSelectedChoice !== null && (
+                  {/* Immediate feedback (Only in Practice Mode) */}
+                  {prepMode === 'practice' && userSelectedChoice !== null && (
                     <div className="p-3 bg-slate-50 dark:bg-zinc-900 rounded-xl text-xs flex justify-between items-center select-none border">
                       <span className="text-slate-500 dark:text-zinc-400">
                         {userSelectedChoice === selectedSheet.questions[selectedQuestionIdx].correctIndex 
@@ -1265,66 +1884,117 @@ Guide me on how to approach this. Give me the primary formula but let me do the 
                       </span>
                       <button 
                         onClick={() => { playClickChime(); setUserSelectedChoice(null); }}
-                        className="text-[10px] text-[#078930] font-black uppercase hover:underline"
+                        className="text-[10px] text-[#078930] font-black uppercase hover:underline cursor-pointer"
                       >
                         Reset Choice
                       </button>
                     </div>
                   )}
 
-                  {/* AI Copilot solvers block */}
-                  <div className="pt-3 border-t border-slate-100 dark:border-zinc-800 space-y-4">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">&rarr; Active past paper AI integrations:</p>
-                    
-                    <div className="flex flex-wrap gap-2.5">
-                      <button
-                        onClick={() => handleAISolve('clue')}
-                        disabled={aiLoading}
-                        className="px-4.5 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400 rounded-xl text-xs font-bold uppercase transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <HelpCircle className="w-4 h-4 shrink-0" />
-                        <span>Get Analytical Hint</span>
-                      </button>
-                      <button
-                        onClick={() => handleAISolve('solution')}
-                        disabled={aiLoading}
-                        className="px-4.5 py-2.5 bg-[#078930] hover:bg-emerald-700 text-white rounded-xl text-xs font-bold uppercase cursor-pointer transition disabled:opacity-50 flex items-center gap-1.5 shadow-md"
-                      >
-                        <Bot className="w-4 h-4 shrink-0" />
-                        <span>Step-by-Step AI Solver</span>
-                      </button>
+                  {/* Navigation controls (Only in Simulation Mode) */}
+                  {prepMode === 'simulation' && (
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-150 dark:border-zinc-800">
+                      <span className="text-[10.5px] text-slate-400 font-mono">
+                        Question {selectedQuestionIdx + 1} of {selectedSheet.questions.length}
+                      </span>
+                      <div className="flex gap-2">
+                        {selectedQuestionIdx > 0 && (
+                          <button
+                            onClick={() => { playClickChime(); setSelectedQuestionIdx(prev => prev - 1); }}
+                            className="px-3 py-1.5 bg-slate-100 dark:bg-zinc-800 text-[10px] font-bold uppercase rounded-lg text-slate-600 dark:text-zinc-300 cursor-pointer"
+                          >
+                            &larr; Prev
+                          </button>
+                        )}
+                        {selectedQuestionIdx < selectedSheet.questions.length - 1 ? (
+                          <button
+                            onClick={() => { playClickChime(); setSelectedQuestionIdx(prev => prev + 1); }}
+                            className="px-3 py-1.5 bg-indigo-650 hover:bg-indigo-700 text-white text-[10px] font-bold uppercase rounded-lg cursor-pointer"
+                          >
+                            Next &rarr;
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              playClickChime();
+                              setIsSimulationActive(false);
+                              // Calculate score
+                              const correctCount = selectedSheet.questions.reduce((acc, q, idx) => {
+                                return acc + (simulationAnswers[idx] === q.correctIndex ? 1 : 0);
+                              }, 0);
+                              setSimulationScore({ correct: correctCount, total: selectedSheet.questions.length });
+                              playSuccessChime();
+                              
+                              const updated = Array.from(new Set([...completedPapers, selectedSheet.id]));
+                              setCompletedPapers(updated);
+                              localStorage.setItem('ethiolearn_completed_papers', JSON.stringify(updated));
+                            }}
+                            className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-extrabold uppercase tracking-wider rounded-lg shadow-md cursor-pointer animate-pulse"
+                          >
+                            Finish Exam 🏁
+                          </button>
+                        )}
+                      </div>
                     </div>
+                  )}
 
-                    {/* AI explanation readout container */}
-                    <AnimatePresence mode="wait">
-                      {aiLoading && (
-                        <div className="flex flex-col items-center justify-center py-8 space-y-2">
-                          <div className="w-8 h-8 rounded-full border-2 border-indigo-650 border-t-transparent animate-spin" />
-                          <p className="text-[11px] text-slate-400 font-mono animate-pulse">Computing symbolic integrations, mapping concord rules...</p>
-                        </div>
-                      )}
-
-                      {!aiLoading && aiResult && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="space-y-3"
+                  {/* AI Copilot solvers block (Only in Practice Mode) */}
+                  {prepMode === 'practice' && (
+                    <div className="pt-3 border-t border-slate-100 dark:border-zinc-800 space-y-4">
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">&rarr; Active past paper AI integrations:</p>
+                      
+                      <div className="flex flex-wrap gap-2.5">
+                        <button
+                          onClick={() => handleAISolve('clue')}
+                          disabled={aiLoading}
+                          className="px-4.5 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400 rounded-xl text-xs font-bold uppercase transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
                         >
-                          <div className="flex justify-between items-center bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-150 px-3 py-2 rounded-xl text-indigo-705 dark:text-indigo-405 text-xs font-bold font-mono">
-                            <span>👨‍💻 {aiMode === 'solution' ? 'Step-by-Step AI Formula Solver' : 'Concept Guide Clues'}</span>
-                            <button onClick={() => setAiResult('')} className="hover:underline text-[10px]">Close Readout</button>
-                          </div>
+                          <HelpCircle className="w-4 h-4 shrink-0" />
+                          <span>Get Analytical Hint</span>
+                        </button>
+                        <button
+                          onClick={() => handleAISolve('solution')}
+                          disabled={aiLoading}
+                          className="px-4.5 py-2.5 bg-[#078930] hover:bg-emerald-700 text-white rounded-xl text-xs font-bold uppercase cursor-pointer transition disabled:opacity-50 flex items-center gap-1.5 shadow-md"
+                        >
+                          <Bot className="w-4 h-4 shrink-0" />
+                          <span>Step-by-Step AI Solver</span>
+                        </button>
+                      </div>
 
-                          <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#07080c] border border-slate-200 dark:border-zinc-850 text-xs leading-relaxed whitespace-pre-wrap font-sans overflow-x-auto max-h-[300px]">
-                            {aiResult}
+                      {/* AI explanation readout container */}
+                      <AnimatePresence mode="wait">
+                        {aiLoading && (
+                          <div className="flex flex-col items-center justify-center py-8 space-y-2">
+                            <div className="w-8 h-8 rounded-full border-2 border-indigo-650 border-t-transparent animate-spin" />
+                            <p className="text-[11px] text-slate-400 font-mono animate-pulse">Computing symbolic integrations, mapping concord rules...</p>
                           </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
+                        )}
+
+                        {!aiLoading && aiResult && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="space-y-3"
+                          >
+                            <div className="flex justify-between items-center bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-150 px-3 py-2 rounded-xl text-indigo-705 dark:text-indigo-405 text-xs font-bold font-mono">
+                              <span>👨‍💻 {aiMode === 'solution' ? 'Step-by-Step AI Formula Solver' : 'Concept Guide Clues'}</span>
+                              <button onClick={() => setAiResult('')} className="hover:underline text-[10px]">Close Readout</button>
+                            </div>
+
+                            <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#07080c] border border-slate-200 dark:border-zinc-850 text-xs leading-relaxed whitespace-pre-wrap font-sans overflow-x-auto max-h-[300px]">
+                              {aiResult}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  )}
 
                 </div>
               )}
+            </>
+          )}
 
             </div>
           ) : (
@@ -1376,11 +2046,11 @@ Guide me on how to approach this. Give me the primary formula but let me do the 
               </div>
               <div className="space-y-1">
                 <h4 className="font-bold text-sm flex items-center gap-1.5">
-                  <span>Custom Exam Blueprint Creator</span>
+                  <span>Standard Chapter Exam Compiler</span>
                   {!isSurpriseMode && <span className="w-2 h-2 rounded-full bg-emerald-500" />}
                 </h4>
                 <p className="text-xs text-slate-500 dark:text-zinc-400 leading-normal">
-                  Configure specific subjects, units/chapters, level, and exam focuses (matric repeated traps, SI physical units) to draft targeted mock papers.
+                  Select your class, subject, and chapter unit to compile custom exam papers directly from our curriculum pool of over 400+ questions per chapter.
                 </p>
               </div>
             </div>
@@ -1411,11 +2081,11 @@ Guide me on how to approach this. Give me the primary formula but let me do the 
               </div>
               <div className="space-y-1">
                 <h4 className="font-bold text-sm flex items-center gap-1.5">
-                  <span>Surprise Me! Endless Practice</span>
+                  <span>Curriculum Speed Drill Mode</span>
                   {isSurpriseMode && <span className="w-2 h-2 rounded-full bg-emerald-500" />}
                 </h4>
                 <p className="text-xs text-slate-500 dark:text-zinc-400 leading-normal">
-                  Endless quick-fire single questions picked randomly across the full high-school & college freshman curriculum with physics SI units and real matric formats.
+                  Endless quick-fire practice questions selected randomly from across the 11th, 12th grade matric, and college freshman syllabi to test your overall preparedness.
                 </p>
               </div>
             </div>
@@ -1530,14 +2200,14 @@ Guide me on how to approach this. Give me the primary formula but let me do the 
                     </div>
                   </div>
 
-                  {/* Question Count slider */}
+                  {/* Question Count Selector */}
                   <div className="space-y-1.5">
                     <div className="flex justify-between text-xs">
                       <label className="text-slate-500 dark:text-zinc-400">5. Question Count</label>
                       <span className="font-bold font-mono text-indigo-650 dark:text-indigo-400">{customQCount} MCQ Questions</span>
                     </div>
                     <div className="flex gap-2">
-                      {[1, 3, 5, 10].map(cnt => (
+                      {[5, 10, 15, 20].map(cnt => (
                         <button
                           key={cnt}
                           type="button"
@@ -1563,12 +2233,12 @@ Guide me on how to approach this. Give me the primary formula but let me do the 
                   {isGeneratingCustom ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>Drafting Exam blueprint...</span>
+                      <span>Retrieving board questions...</span>
                     </>
                   ) : (
                     <>
-                      <Sparkles className="w-4 h-4 text-amber-300 fill-amber-300 animate-pulse" />
-                      <span>Generate custom questions</span>
+                      <BookOpen className="w-4 h-4 text-amber-300 fill-amber-300 animate-pulse" />
+                      <span>Compile Curriculum Exam</span>
                     </>
                   )}
                 </button>
@@ -1580,9 +2250,9 @@ Guide me on how to approach this. Give me the primary formula but let me do the 
                   <div className="bg-white dark:bg-[#0c0d12] border border-slate-200 dark:border-zinc-805 rounded-2xl p-12 text-center shadow-sm space-y-4">
                     <div className="w-12 h-12 rounded-full border-4 border-indigo-650 border-t-transparent animate-spin mx-auto" />
                     <div className="space-y-1">
-                      <h4 className="font-serif font-black text-slate-800 dark:text-white">Gemini AI Academic Exam Compiler</h4>
+                      <h4 className="font-serif font-black text-slate-800 dark:text-white">Curriculum Board Exam Compiler</h4>
                       <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                        Synthesizing typical repeated matric distractions, assembling specific chapter metrics, and compiling high-fidelity SI formulas for {customSubject}...
+                        Loading Ministry syllabus standards, assembling specific chapter metrics, and configuring high-fidelity formula representations for {customSubject}...
                       </p>
                     </div>
                   </div>
@@ -1618,7 +2288,7 @@ Guide me on how to approach this. Give me the primary formula but let me do the 
                             {customScore >= 70 ? 'Congratulations! Passed! 🎉' : 'Keep Studying! Needs Work 📚'}
                           </h3>
                           <p className="text-xs text-slate-500 dark:text-zinc-400 max-w-sm mx-auto">
-                            You scored <span className="font-black text-indigo-600 dark:text-indigo-405">{customScore}%</span> in this generated custom exam on {customSubject}. Check step-by-step AI solutions below to address wrong answers.
+                            You scored <span className="font-black text-indigo-600 dark:text-indigo-405">{customScore}%</span> in this board-standard practice exam on {customSubject}. Check step-by-step solutions below to address wrong answers.
                           </p>
                         </div>
                         <div className="inline-flex gap-4 pt-1 text-xs font-bold font-mono">
@@ -1807,7 +2477,7 @@ Guide me on how to approach this. Give me the primary formula but let me do the 
                                 className="p-4 bg-slate-50 dark:bg-[#07080c] border border-slate-200 dark:border-zinc-850 rounded-xl space-y-3"
                               >
                                 <div className="flex justify-between items-center text-[10.5px] font-bold font-mono text-indigo-650 dark:text-indigo-400">
-                                  <span>👨‍🏫 Step-by-Step AI Explanation</span>
+                                  <span>👨‍🏫 Board Solution & Explanations</span>
                                   <span className="bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded text-[9.5px]">Correct answer: {aiCustomQuestions[currentCustomQIdx].correctAnswer}</span>
                                 </div>
                                 <p className="text-xs text-slate-650 dark:text-zinc-350 leading-relaxed font-sans whitespace-pre-line">
@@ -1827,26 +2497,26 @@ Guide me on how to approach this. Give me the primary formula but let me do the 
                   <div className="bg-white dark:bg-[#0c0d12] border border-slate-200 dark:border-zinc-805 p-8 rounded-2xl shadow-sm text-center space-y-5">
                     <BookMarked className="w-12 h-12 text-indigo-600 mx-auto animate-pulse" />
                     <div className="space-y-1.5">
-                      <h3 className="font-serif font-black text-base text-slate-850 dark:text-white">Compile Your AI Exam Blueprint</h3>
+                      <h3 className="font-serif font-black text-base text-slate-850 dark:text-white">Curriculum Board Exam Portal (400+ Questions)</h3>
                       <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                        Configure specific curriculum focus on the left (such as Physics Thermodynamics, or Math calculus limits with standard metric repeat traps) and generate dynamic practice sheets.
+                        Select a class, subject, and unit/chapter on the left to draw from our official pool of 400+ board questions and compile an authentic, standardized practice examination.
                       </p>
                     </div>
                     <div className="p-4 rounded-xl border border-dashed border-slate-200 dark:border-zinc-800 max-w-md mx-auto grid grid-cols-3 gap-3">
                       <div className="space-y-1">
                         <span className="text-base">📐</span>
                         <h5 className="text-[10px] font-black text-slate-700 dark:text-zinc-300 uppercase">SI Units</h5>
-                        <p className="text-[9px] text-slate-400">Dimensional equations</p>
+                        <p className="text-[9px] text-slate-400">SI & Physical formulas</p>
                       </div>
                       <div className="space-y-1">
                         <span className="text-base">⚡</span>
                         <h5 className="text-[10px] font-black text-slate-700 dark:text-zinc-300 uppercase">Matric</h5>
-                        <p className="text-[9px] text-slate-400">Past ten years trends</p>
+                        <p className="text-[9px] text-slate-400">Board exam standards</p>
                       </div>
                       <div className="space-y-1">
-                        <span className="text-base">🌱</span>
-                        <h5 className="text-[10px] font-black text-slate-700 dark:text-zinc-300 uppercase">Scenario</h5>
-                        <p className="text-[9px] text-slate-400">Ethiopian analogies</p>
+                        <span className="text-base">📚</span>
+                        <h5 className="text-[10px] font-black text-slate-700 dark:text-zinc-300 uppercase">Chapter Pools</h5>
+                        <p className="text-[9px] text-slate-400">400+ MCQs per unit</p>
                       </div>
                     </div>
                   </div>
@@ -1905,7 +2575,7 @@ Guide me on how to approach this. Give me the primary formula but let me do the 
                         📍 Practice focus: {surpriseQuestion.subjectTopic}
                       </span>
                     </div>
-                    <span className="text-[10px] font-mono text-slate-400">100% AI Generated</span>
+                    <span className="text-[10px] font-mono font-bold text-emerald-650 dark:text-emerald-400">Curriculum Standardized</span>
                   </div>
 
                   {/* Question */}
@@ -2011,7 +2681,7 @@ Guide me on how to approach this. Give me the primary formula but let me do the 
                       animate={{ opacity: 1, height: 'auto' }}
                       className="p-4.5 bg-slate-50 dark:bg-[#07080b]/50 border border-slate-150 dark:border-zinc-850 rounded-xl space-y-2.5"
                     >
-                      <h5 className="text-[10.5px] font-bold font-mono text-indigo-600 dark:text-indigo-400">👨‍🏫 Step-by-Step AI Explanation & Formulas</h5>
+                      <h5 className="text-[10.5px] font-bold font-mono text-indigo-600 dark:text-indigo-400">👨‍🏫 Board Solution & Formulas Key</h5>
                       <p className="text-xs text-slate-650 dark:text-zinc-350 leading-relaxed whitespace-pre-line font-sans">
                         {surpriseQuestion.explanation}
                       </p>

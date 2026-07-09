@@ -10,7 +10,7 @@ interface InAppViewerModalProps {
 }
 
 export default function InAppViewerModal({ url, title, onClose }: InAppViewerModalProps) {
-  const isPdf = url.toLowerCase().includes('.pdf') || url.includes('/books/') || url.includes('drive.google.com/file');
+  const isPdf = url.toLowerCase().includes('.pdf') || url.includes('drive.google.com/file');
   
   // Decide default viewer mode: for PDF use Google Docs GView preview, otherwise use direct url iframe
   const [viewerMode, setViewerMode] = useState<'embed' | 'direct'>(isPdf ? 'embed' : 'direct');
@@ -116,10 +116,22 @@ export default function InAppViewerModal({ url, title, onClose }: InAppViewerMod
         <div className="bg-amber-500/10 dark:bg-amber-950/15 border-b border-slate-150 dark:border-zinc-900 px-5 py-2 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-800 dark:text-amber-300">
           <div className="flex items-center gap-1.5 font-medium">
             <ShieldCheck className="w-4 h-4 text-[#078930] dark:text-emerald-400 shrink-0" />
-            <span>You are reading completely inside **EthioLearn Pro** safely. No advertisements or external tracking active.</span>
+            <span>You are reading inside **EthioLearn Pro** safely. If the page/exam doesn't load or is blank, click the button to load it directly.</span>
           </div>
-          <div className="text-[11px] font-mono font-bold text-slate-500 dark:text-zinc-400">
-            Curriculum Link Certified
+          <div className="flex items-center gap-2">
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => playSuccessChime()}
+              className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase rounded text-[10px] flex items-center gap-1 transition-all cursor-pointer shadow-sm"
+            >
+              <ExternalLink className="w-3 h-3 text-white" />
+              <span>Open Original Link (ቀጥታ ክፈት)</span>
+            </a>
+            <div className="text-[11px] font-mono font-bold text-slate-500 dark:text-zinc-400">
+              Curriculum Link Certified
+            </div>
           </div>
         </div>
 

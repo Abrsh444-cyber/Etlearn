@@ -26,23 +26,23 @@
 }
 
 :root {
-  --bg-main: #F4F1EA; /* Soft warm greyish-sand (paper/kindle-like) reduces screen glare */
-  --bg-surface: #FAF8F5; /* Beautiful soft warm ivory/white for cards and inputs */
-  --border-subtle: #E3DFD5; /* Warm natural border line */
-  --text-title: #2D2A26; /* Warm deep charcoal (no high contrast black) */
-  --text-explain: #5C5852; /* Comfortable medium warm grey for long study sessions */
-  --accent-interactive: #C8962E; /* Warm Ethiopian gold accent */
-  --shadow-ambient: 0 4px 20px rgba(200, 150, 46, 0.04);
+  --bg-main: #F1F5F9; /* Clean, modern slate blue-grey page background */
+  --bg-surface: #FFFFFF; /* Crisp white card surface */
+  --border-subtle: #E2E8F0; /* Clean light slate border */
+  --text-title: #0F172A; /* High contrast deep navy/slate */
+  --text-explain: #334155; /* Highly readable dark slate for long reading sessions */
+  --accent-interactive: #4F46E5; /* Vibrant indigo brand color */
+  --shadow-ambient: 0 4px 18px rgba(79, 70, 229, 0.04);
 }
 
 .dark {
-  --bg-main: #0E1116; /* Warm deep dark slate for maximum eye comfort */
-  --bg-surface: #151922; /* Premium dark card surface with subtle warmth */
-  --border-subtle: #242A38; /* Soft subtle slate border */
-  --text-title: #F1F5F9; /* High readability soft light grey/white */
-  --text-explain: #94A3B8; /* Muted slate lavender */
-  --accent-interactive: #C8962E; /* Rich golden accent */
-  --shadow-ambient: 0 10px 30px -10px rgba(200, 150, 46, 0.12);
+  --bg-main: #0B0F19; /* Eye-safe deep space midnight blue page background */
+  --bg-surface: #121A2E; /* Distinct elevated deep blue-slate card background */
+  --border-subtle: #1E293B; /* Subtle slate blue border */
+  --text-title: #F8FAFC; /* Crisp light white-slate */
+  --text-explain: #94A3B8; /* Highly readable soft lavender-slate */
+  --accent-interactive: #6366F1; /* Vibrant indigo brand color for dark mode */
+  --shadow-ambient: 0 8px 30px rgba(99, 102, 241, 0.12);
 }
 
 /* Dynamic High-Readability Safety Net for Dark Mode */

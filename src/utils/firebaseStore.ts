@@ -121,10 +121,8 @@ export async function testFirestoreConnection() {
   try {
     await getDocFromServer(doc(getDb(), 'test', 'connection'));
     console.log('[Firestore Service] Initial boot liveness check succeeded.');
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.warn("[Firestore Service] Please check your Firebase configuration or network status.");
-    }
+  } catch (error: any) {
+    console.warn("[Firestore Service] Offline or unable to contact Firestore server. Operating in cached/local mode.", error?.message || error);
   }
 }
 

@@ -11,6 +11,8 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
       },
       dedupe: [
+        'react',
+        'react-dom',
         'firebase',
         'firebase/app',
         'firebase/auth',

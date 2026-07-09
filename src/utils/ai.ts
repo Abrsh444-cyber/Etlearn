@@ -187,29 +187,38 @@ export async function generateQuizAI(
 ): Promise<any[]> {
   const count = qCount || 5;
   const diffStr = difficulty || 'medium';
-  let promptMessage = `Generate a high-quality academic practice quiz on the topic: "${topic}" under the subject "${subject}".
-The target difficulty level is: ${diffStr}.
-Please generate exactly ${count} multiple-choice questions.`;
+  
+  let promptMessage = `Compile a high-fidelity academic practice quiz of exactly ${count} multiple-choice questions on the topic/chapter: "${topic}" under the subject "${subject}".
+The difficulty tier must be: ${diffStr}.
+
+This quiz is being extracted from our curriculum-linked repository of over 400+ past exam questions per chapter.
+Ensure that:
+1. Every question is highly realistic, styled exactly like official Ethiopian National Entrance Exams (EUEE) or university freshman midterms/finals.
+2. If the subject is Physics, Math, or Chemistry, write clear formulas, equations, correct scientific notation, and SI units (e.g. rad/s², Joules, Farads, Pascals, mol/L).
+3. Do NOT include any meta-references to "AI", "AI-generated", "Gemini", "Large Language Model", "machine learning", or "Claude".
+4. The choices must be well-formed and structured with options labeled A), B), C), D).
+5. The correct answer must be unambiguous and present in the options list.
+6. The explanations must read like a published university textbook's official solution key—precise, mathematical, informative, and authoritative.`;
 
   if (customNeeds && customNeeds.trim()) {
-    promptMessage += `\n\nCRITICAL CUSTOMER NEED/CUSTOMIZATION REQUEST:
+    promptMessage += `\n\nEXAM REQUIREMENTS & CHAPTER FOCUS:
 "${customNeeds}"
-Please customize the questions, the level of depth, the context, language style, and/or focus area strictly according to the request above. For instance, if they ask for more equations, Amharic-mixed explanations, specific exam focal points, or real-life Ethiopian examples, satisfy that need completely.`;
+Please customize the questions, depth of content, curriculum guidelines, and language focus strictly in accordance with these parameters. Every question must feel like a genuine, high-quality board exam booklet paper.`;
   }
 
-  promptMessage += `\n\nFormat the response strictly as a JSON array of ${count} MCQ objects. Do NOT wrapper it inside any markdown ticks, do NOT write any introductory or concluding text. Return raw JSON array only.
+  promptMessage += `\n\nFormat the response strictly as a JSON array of ${count} MCQ objects. Do NOT wrap inside any markdown tags or write introductory/concluding text. Return raw JSON array only.
 
 Each object in the array must contain:
-1. "question": String (the exam question, written with highest clarity, matching the requested customization)
-2. "options": Array of 4 strings (unique options, with local context analogies)
+1. "question": String (the precise exam question, written with highest clarity)
+2. "options": Array of 4 strings (e.g. "A) ...", "B) ...", "C) ...", "D) ...")
 3. "correctAnswer": String (must exactly match one of the elements in the "options" array)
-4. "explanation": String (detailed educational explanation in an encouraging tone with traditional analogies if possible, explicitly satisfying any custom needs/questions the user had)`;
+4. "explanation": String (detailed step-by-step textbook-style solution showing calculations, equations, and rules)`;
 
   const messages: ChatMessage[] = [
     { role: 'user', content: promptMessage }
   ];
 
-  const system = "You are an automated high-fidelity exam processor for EthioLearn Pro. You reply exclusively in raw, valid, unformatted JSON arrays containing academic question objects.";
+  const system = "You are an official Senior Board Examiner for the National Educational Assessment and Examinations Agency (NEAEA) and university academic registrars. You compile authentic, high-quality exam papers. You reply exclusively in raw, valid, unformatted JSON arrays containing professional question objects.";
 
   return new Promise((resolve, reject) => {
     let fullText = '';
