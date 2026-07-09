@@ -744,7 +744,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
     } catch (err: any) {
       console.error('Google sign-in failed:', err);
       playFailureChime();
-      setAuthError('Google Sign-In could not start. Please try again.');
+      setAuthError(err.message || 'Google Sign-In could not start. Please try again.');
     }
   };
 
