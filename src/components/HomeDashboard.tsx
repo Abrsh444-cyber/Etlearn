@@ -1,7 +1,6 @@
 import React from 'react';
-import { motion } from 'motion/react';
 import { 
-  Bot, Award, Calendar, BookOpen, Clock, Play, GraduationCap, ChevronRight, HelpCircle, FileText, Sparkles
+  Bot, Award, BookOpen, Play, GraduationCap, ChevronRight, FileText, Sparkles
 } from 'lucide-react';
 import { StudentProfile } from '../types';
 import { playClickChime } from '../utils/audio';
@@ -9,7 +8,7 @@ import { playClickChime } from '../utils/audio';
 interface HomeDashboardProps {
   profile: StudentProfile;
   language: 'en' | 'am';
-  onNavigate: (page: 'home' | 'tutor' | 'quiz' | 'profile' | 'notes' | 'examprep') => void;
+  onNavigate: (page: 'home' | 'tutor' | 'quiz' | 'profile' | 'notes' | 'examprep' | 'bookstore' | 'university') => void;
   onUpdateGrade: (grade: string) => void;
   streakCount: number;
   studyHoursCount: number;
@@ -38,7 +37,7 @@ export default function HomeDashboard({
       {/* Welcome Greeting Card with Habesha Netela style trim */}
       <div 
         id="dashboard-header-card"
-        className="relative overflow-hidden rounded-2xl bg-white dark:bg-[#0c0d12] border border-slate-200 dark:border-zinc-800 shadow-sm p-6"
+        className="relative overflow-hidden rounded-2xl bg-white dark:bg-[#0c0d12] border border-slate-200 dark:border-zinc-850 shadow-sm p-6"
       >
         {/* National Pattern Trim of Green, Gold, Red */}
         <div className="absolute top-0 inset-x-0 h-1.5 flex select-none">
@@ -150,6 +149,8 @@ export default function HomeDashboard({
           <ChevronRight className="w-5 h-5 text-amber-950 transform group-hover:translate-x-1 transition-transform" />
         </button>
       </div>
+
+
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column (2 sections) */}

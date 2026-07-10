@@ -1,185 +1,185 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React from 'react';
 
 interface EthioLearnLogoProps {
   className?: string;
   size?: number | string;
   showCardBackground?: boolean;
+  iconOnly?: boolean;
 }
 
 export default function EthioLearnLogo({ 
   className = '', 
   size = 40, 
-  showCardBackground = false 
+  showCardBackground = false,
+  iconOnly = false 
 }: EthioLearnLogoProps) {
+  const pixelSize = typeof size === 'number' ? `${size}px` : size;
+  
   return (
-    <svg
-      className={`select-none shrink-0 ${className}`}
-      width={size}
-      height={size}
-      viewBox="0 0 200 200"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
+    <div 
+      className={`relative select-none shrink-0 flex flex-col items-center justify-center transition-all duration-300 ${
+        showCardBackground 
+          ? 'bg-white rounded-2xl border border-slate-200/80 dark:border-zinc-800/80 shadow-md p-1.5' 
+          : 'bg-transparent'
+      } ${className}`}
+      style={{ width: pixelSize, height: pixelSize }}
     >
-      <defs>
-        {/* Rich Metallic Gold Gradients */}
-        <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#FFECA7" />
-          <stop offset="35%" stopColor="#D4AF37" />
-          <stop offset="70%" stopColor="#AA7C11" />
-          <stop offset="100%" stopColor="#F3E5AB" />
-        </linearGradient>
+      <svg 
+        viewBox="0 0 500 500" 
+        className="w-full h-full"
+        fill="none" 
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <defs>
+          {/* Main blue gradient for the F shape and pages */}
+          <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#0a4c9e" />
+            <stop offset="100%" stopColor="#00a2e8" />
+          </linearGradient>
+          
+          {/* Darker blue gradient for the cap and shadows */}
+          <linearGradient id="darkBlueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#082c59" />
+            <stop offset="100%" stopColor="#0d4187" />
+          </linearGradient>
 
-        <linearGradient id="goldOutline" x1="0%" y1="100%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#8A6614" />
-          <stop offset="50%" stopColor="#D4AF37" />
-          <stop offset="100%" stopColor="#FFECA7" />
-        </linearGradient>
+          {/* Teal gradient for the play button */}
+          <linearGradient id="tealGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#00a896" />
+            <stop offset="100%" stopColor="#02c39a" />
+          </linearGradient>
 
-        {/* Deep Crimson/Maroon Page Gradient */}
-        <linearGradient id="crimsonPage" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#A81C2E" />
-          <stop offset="50%" stopColor="#7E101F" />
-          <stop offset="100%" stopColor="#4A050E" />
-        </linearGradient>
+          {/* Emerald/greenish gradient for the bottom-most book wing */}
+          <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#007f5f" />
+            <stop offset="100%" stopColor="#028090" />
+          </linearGradient>
+        </defs>
 
-        {/* Vibrant Emerald/Green Page Gradient */}
-        <linearGradient id="emeraldPage" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#1B6F42" />
-          <stop offset="50%" stopColor="#114C2B" />
-          <stop offset="100%" stopColor="#082A16" />
-        </linearGradient>
-
-        {/* Shadow filter to make it look 3D */}
-        <filter id="logoShadow" x="-10%" y="-10%" width="120%" height="120%">
-          <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor="#000" floodOpacity="0.5" />
-        </filter>
-      </defs>
-
-      {/* Styled Card Background (simulating app logo box from image) */}
-      {showCardBackground && (
-        <rect
-          x="4"
-          y="4"
-          width="192"
-          height="192"
-          rx="52"
-          fill="#FFFFFF"
-          stroke="url(#goldGrad)"
-          strokeWidth="6"
-        />
-      )}
-
-      <g filter="url(#logoShadow)">
-        {/* ========================================================
-            1. INNER PAGE LAYERS (Gives 3D multi-page book thickness)
-            ======================================================== */}
-        {/* Outer Crimson border representation */}
-        <path
-          d="M 94 80 C 65 72 41 84 37 137 C 54 148 76 151 94 148 Z"
-          fill="#4A050E"
-          stroke="url(#goldGrad)"
+        {/* 1. GRADUATION CAP (Navy & Deep Blue) */}
+        {/* Cap Diamond */}
+        <path 
+          d="M 250 50 L 375 105 L 250 160 L 125 105 Z" 
+          fill="url(#darkBlueGrad)" 
+          stroke="#062247" 
           strokeWidth="2"
         />
-        {/* Outer Emerald border representation */}
-        <path
-          d="M 106 80 C 135 72 159 84 163 137 C 146 148 124 151 106 148 Z"
-          fill="#082A16"
-          stroke="url(#goldGrad)"
-          strokeWidth="2"
+        {/* Cap Underneath Shadow/Skull */}
+        <path 
+          d="M 185 125 L 185 145 C 185 180, 315 180, 315 145 L 315 125 C 280 142, 220 142, 185 125 Z" 
+          fill="#062247"
+        />
+        {/* Tassel (Left Side) */}
+        {/* Tassel String */}
+        <path 
+          d="M 148 115 L 148 140" 
+          stroke="#041630" 
+          strokeWidth="3.5" 
+          strokeLinecap="round"
+        />
+        {/* Tassel Bead */}
+        <circle cx="148" cy="142" r="5" fill="#C8962E" />
+        {/* Tassel Hanging Fringe */}
+        <path 
+          d="M 142 147 L 154 147 L 151 185 L 145 185 Z" 
+          fill="#041630"
         />
 
-        {/* ========================================================
-            2. PRIMARY WINGS (Crimson and Emerald Pages)
-            ======================================================== */}
-        {/* Crimson Page Left (curving upward, outward and down) */}
-        <path
-          d="M 94 84 C 67 76 45 88 41 133 C 58 143 78 146 94 143 Z"
-          fill="url(#crimsonPage)"
-          stroke="url(#goldGrad)"
-          strokeWidth="2.5"
-          strokeLinejoin="round"
+        {/* 2. THE STYLIZED "F" BODY */}
+        <path 
+          d="M 200 160 C 230 152, 280 148, 315 152 C 325 153, 330 160, 325 168 C 315 180, 290 195, 245 195 C 242 195, 240 198, 240 201 L 240 220 C 240 220, 275 220, 290 220 C 298 220, 302 225, 298 232 C 292 242, 275 252, 240 252 C 237 252, 235 255, 235 258 L 235 290 C 235 295, 242 300, 250 310 C 230 290, 212 250, 212 210 C 212 180, 190 165, 200 160 Z" 
+          fill="url(#blueGrad)"
         />
 
-        {/* Emerald Page Right (symmetric layout) */}
-        <path
-          d="M 106 84 C 133 76 155 88 159 133 C 142 143 122 146 106 143 Z"
-          fill="url(#emeraldPage)"
-          stroke="url(#goldGrad)"
-          strokeWidth="2.5"
-          strokeLinejoin="round"
+        {/* 3. TEAL PLAY BUTTON TRIANGLE */}
+        <path 
+          d="M 252 240 L 252 278 L 285 259 Z" 
+          fill="url(#tealGrad)"
         />
 
-        {/* Inner white sheet edge lines representing book margins */}
-        <path
-          d="M 91 88 C 72 82 52 92 48 128"
-          stroke="url(#goldGrad)"
-          strokeWidth="1.5"
-          strokeDasharray="1 3"
-          fill="none"
+        {/* 4. OPEN BOOK PAGES (Symmetrical left & right wings) */}
+        {/* Left Page Wing (Layer 3 - Bottom Cover - Green/Teal) */}
+        <path 
+          d="M 250 310 C 200 295, 140 290, 100 325 C 150 345, 210 330, 250 310 Z" 
+          fill="url(#greenGrad)"
         />
-        <path
-          d="M 109 88 C 128 82 148 92 152 128"
-          stroke="url(#goldGrad)"
-          strokeWidth="1.5"
-          strokeDasharray="1 3"
-          fill="none"
+        {/* Right Page Wing (Layer 3 - Bottom Cover - Green/Teal) */}
+        <path 
+          d="M 250 310 C 300 295, 360 290, 400 325 C 350 345, 290 330, 250 310 Z" 
+          fill="url(#greenGrad)"
         />
 
-        {/* ========================================================
-            3. AXUM OBELISK (Ancient Pillar of Knowledge & Architecture)
-            ======================================================== */}
-        {/* Tapered obelisk column base and shaft */}
-        <path
-          d="M 92 78 L 108 78 L 114 158 L 86 158 Z"
-          fill="url(#goldGrad)"
-          stroke="url(#goldOutline)"
-          strokeWidth="1.5"
-          strokeLinejoin="round"
+        {/* Left Page Wing (Layer 2 - Middle - Bright Blue) */}
+        <path 
+          d="M 250 310 C 205 285, 150 280, 115 312 C 160 328, 215 318, 250 310 Z" 
+          fill="#00a2e8"
+        />
+        {/* Right Page Wing (Layer 2 - Middle - Bright Blue) */}
+        <path 
+          d="M 250 310 C 295 285, 350 280, 385 312 C 340 328, 285 318, 250 310 Z" 
+          fill="#00a2e8"
         />
 
-        {/* Architectural Tier Lines (Axum Obelisk carvings and accents) */}
-        <line x1="91" y1="92" x2="109" y2="92" stroke="#4B3907" strokeWidth="2" />
-        <line x1="90" y1="108" x2="110" y2="108" stroke="#4B3907" strokeWidth="2" />
-        <line x1="88" y1="126" x2="112" y2="126" stroke="#4B3907" strokeWidth="2" />
-        <line x1="87" y1="142" x2="113" y2="142" stroke="#4B3907" strokeWidth="2" />
-
-        {/* Window accents (Representing traditional obelisk structure) */}
-        <rect x="96" y="96" width="8" height="6" rx="1" fill="#4B3907" />
-        <rect x="96" y="112" width="8" height="8" rx="1" fill="#4B3907" />
-        <rect x="95" y="130" width="10" height="8" rx="1" fill="#4B3907" />
-
-        {/* Center alignment highlight ridge */}
-        <path
-          d="M 100 78 L 100 158"
-          stroke="#FFECA7"
-          strokeWidth="1.5"
-          opacity="0.8"
+        {/* Left Page Wing (Layer 1 - Top - Deep Blue) */}
+        <path 
+          d="M 250 310 C 210 275, 160 270, 130 298 C 170 312, 220 305, 250 310 Z" 
+          fill="#0a4c9e"
+        />
+        {/* Right Page Wing (Layer 1 - Top - Deep Blue) */}
+        <path 
+          d="M 250 310 C 290 275, 340 270, 370 298 C 330 312, 280 305, 250 310 Z" 
+          fill="#0a4c9e"
         />
 
-        {/* ========================================================
-            4. GOLDEN STAR (Aspiration and Brilliant Intellect)
-            ======================================================== */}
-        <polygon
-          points="100,28 107,43 123,43 110,53 115,69 100,59 85,69 90,53 77,43 93,43"
-          fill="url(#goldGrad)"
-          stroke="url(#goldOutline)"
-          strokeWidth="1.5"
-          strokeLinejoin="round"
+        {/* Center Spine Line of the book */}
+        <path 
+          d="M 250 310 L 250 340" 
+          stroke="#007f5f" 
+          strokeWidth="3.5" 
+          strokeLinecap="round"
         />
-        
-        {/* Star highlights to create the facets */}
-        <polygon points="100,28 100,59 107,43" fill="#FFECA7" opacity="0.4" />
-        <polygon points="100,28 100,59 93,43" fill="#8A6614" opacity="0.15" />
-        <polygon points="100,59 115,69 110,53" fill="#FFECA7" opacity="0.3" />
-        <polygon points="100,59 85,69 90,53" fill="#8A6614" opacity="0.2" />
-        <polygon points="123,43 100,59 110,53" fill="#FFECA7" opacity="0.4" strokeLinejoin="round" />
-        <polygon points="77,43 100,59 90,53" fill="#8A6614" opacity="0.2" strokeLinejoin="round" />
-      </g>
-    </svg>
+
+        {/* 5. TEXT LABELS (Optionally shown below the emblem logo) */}
+        {!iconOnly && (
+          <g>
+            {/* ET LEARN Text */}
+            <text 
+              x="250" 
+              y="405" 
+              textAnchor="middle" 
+              fill="#0a4c9e" 
+              fontSize="48" 
+              fontWeight="900" 
+              letterSpacing="3" 
+              fontFamily="system-ui, -apple-system, sans-serif"
+            >
+              ET LEARN
+            </text>
+
+            {/* Separator lines and Dot */}
+            {/* Left Line */}
+            <line x1="100" y1="432" x2="200" y2="432" stroke="#007f5f" strokeWidth="2.5" />
+            {/* Dot */}
+            <circle cx="250" cy="432" r="4" fill="#00a896" />
+            {/* Right Line */}
+            <line x1="300" y1="432" x2="400" y2="432" stroke="#007f5f" strokeWidth="2.5" />
+
+            {/* Tagline LEARN • GROW • ACHIEVE */}
+            <text 
+              x="250" 
+              y="460" 
+              textAnchor="middle" 
+              fill="#2c3e50" 
+              fontSize="16" 
+              fontWeight="800" 
+              letterSpacing="4" 
+              fontFamily="system-ui, -apple-system, sans-serif"
+            >
+              LEARN • GROW • ACHIEVE
+            </text>
+          </g>
+        )}
+      </svg>
+    </div>
   );
 }
