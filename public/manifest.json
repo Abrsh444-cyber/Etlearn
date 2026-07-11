@@ -13,28 +13,37 @@
   ],
   "start_url": "/?source=pwa",
   "scope": "/",
-  "theme_color": "#0D0D0D",
-  "background_color": "#0D0D0D",
+  "theme_color": "#0a1128",
+  "background_color": "#0a1128",
   "display": "standalone",
   "display_override": [
-    "standalone",
-    "window-controls-overlay",
-    "minimal-ui",
-    "browser"
+    "standalone"
   ],
-  "orientation": "any",
+  "orientation": "portrait",
   "icons": [
-    {
-      "src": "/ethiolearn_icon.jpg",
-      "sizes": "512x512",
-      "type": "image/jpeg",
-      "purpose": "maskable"
-    },
     {
       "src": "/ethiolearn_icon.jpg",
       "sizes": "192x192",
       "type": "image/jpeg",
       "purpose": "any"
+    },
+    {
+      "src": "/ethiolearn_icon.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/ethiolearn_icon.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any"
+    },
+    {
+      "src": "/ethiolearn_icon.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "maskable"
     }
   ],
   "screenshots": [

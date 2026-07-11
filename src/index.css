@@ -325,4 +325,36 @@
   box-shadow: var(--shadow-ambient) !important;
 }
 
+/* Native App PWA Styling Enhancements */
+html, body {
+  overscroll-behavior: none;
+}
+
+body {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Disable default long-press text selection on UI interactive components */
+button, 
+a, 
+nav, 
+input[type="button"], 
+input[type="submit"], 
+.select-none {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Ensure smooth tap highlights on iOS and Android devices */
+button,
+a,
+input,
+select,
+textarea,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+
 
