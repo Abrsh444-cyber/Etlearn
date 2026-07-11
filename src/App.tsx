@@ -781,7 +781,7 @@ export default function App() {
           
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <EthioLearnLogo size={42} showCardBackground={true} className="hover:rotate-6 duration-300 transition-all shrink-0" />
+              <EthioLearnLogo size={42} showCardBackground={true} iconOnly={true} className="hover:rotate-6 duration-300 transition-all shrink-0" />
               <div className="leading-none text-left">
                 <div className="flex items-center">
                   <span className="font-serif font-black text-slate-900 dark:text-white text-lg tracking-tight">EthioLearn</span>

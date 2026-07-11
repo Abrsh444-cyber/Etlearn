@@ -11,7 +11,7 @@ export default function EthioLearnLogo({
   className = '', 
   size = 40, 
   showCardBackground = false,
-  iconOnly = false 
+  iconOnly = true 
 }: EthioLearnLogoProps) {
   const pixelSize = typeof size === 'number' ? `${size}px` : size;
   
@@ -25,7 +25,7 @@ export default function EthioLearnLogo({
       style={{ width: pixelSize, height: pixelSize }}
     >
       <svg 
-        viewBox="0 0 500 500" 
+        viewBox={iconOnly ? "75 20 350 350" : "0 0 500 500"} 
         className="w-full h-full"
         fill="none" 
         xmlns="http://www.w3.org/2000/svg"
