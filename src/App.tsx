@@ -6,7 +6,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Home as HomeIcon, Bot, Trophy, Award, Sparkles, Calendar, Sun, Moon, User as UserIcon, BookOpen, CheckCircle
+  Home as HomeIcon, Bot, Trophy, Award, Sparkles, Calendar, Sun, Moon, User as UserIcon, BookOpen, CheckCircle,
+  Share, X
 } from 'lucide-react';
 
 import { StudentProfile, CustomNote, Flashcard } from './types';
@@ -219,6 +220,7 @@ export default function App() {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [isInstallable, setIsInstallable] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showIOSPrompt, setShowIOSPrompt] = useState(false);
 
   // In-App Viewer States
   const [inAppViewerUrl, setInAppViewerUrl] = useState<string | null>(null);
@@ -547,6 +549,27 @@ export default function App() {
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
+
+  // iOS Safari PWA installation prompt trigger
+  useEffect(() => {
+    const ua = navigator.userAgent.toLowerCase();
+    const isIOSDevice = /ipad|iphone|ipod/.test(ua);
+    const isStandalonePWA = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
+    const isDismissed = localStorage.getItem('ethiolearn_ios_pwa_dismissed') === 'true';
+
+    if (isIOSDevice && !isStandalonePWA && !isDismissed) {
+      const timer = setTimeout(() => {
+        setShowIOSPrompt(true);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  const handleDismissIOSPrompt = () => {
+    setShowIOSPrompt(false);
+    localStorage.setItem('ethiolearn_ios_pwa_dismissed', 'true');
+    playClickChime();
+  };
 
   // Fetch curriculum books list from 'books' table in Supabase
   useEffect(() => {
@@ -1122,6 +1145,53 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* iOS Standalone App Setup Banner */}
+      <AnimatePresence>
+        {showIOSPrompt && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 30, scale: 0.95 }}
+            transition={{ duration: 0.35, ease: 'easeOut' }}
+            className="fixed bottom-[76px] left-4 right-4 md:left-auto md:right-4 z-50 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-md border border-slate-200/90 dark:border-zinc-800/90 shadow-[0_10px_35px_rgba(0,0,0,0.15)] dark:shadow-[0_10px_35px_rgba(0,0,0,0.5)] p-4 rounded-2xl max-w-sm flex items-start gap-3.5 select-none"
+          >
+            {/* Left Column: Full Branded light Icon */}
+            <img 
+              src="/ethiolearn_icon.jpg" 
+              alt="EthioLearn Pro App Icon" 
+              className="w-11 h-11 rounded-xl shadow-md border border-slate-200/50 dark:border-zinc-800/50 shrink-0 object-cover"
+            />
+            
+            {/* Mid Column: Instructions */}
+            <div className="flex-grow space-y-1 text-left">
+              <h4 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1 font-serif tracking-tight">
+                📱 Install on your iPhone
+              </h4>
+              <p className="text-[11px] text-slate-600 dark:text-zinc-400 leading-normal font-sans">
+                {language === 'en' ? (
+                  <>
+                    Tap Safari's <span className="inline-flex items-center align-middle px-1 py-0.5 bg-slate-100 dark:bg-zinc-900 rounded text-slate-800 dark:text-zinc-200 border border-slate-200 dark:border-zinc-800 font-mono text-[9px]"><Share className="w-2.5 h-2.5 inline mr-0.5" />share</span> then select <strong className="text-slate-800 dark:text-white">Add to Home Screen</strong>.
+                  </>
+                ) : (
+                  <>
+                    በእጅ ስልክዎ ለመጫን የሳፋሪን <span className="inline-flex items-center align-middle px-1 py-0.5 bg-slate-100 dark:bg-zinc-900 rounded text-slate-800 dark:text-zinc-200 border border-slate-200 dark:border-zinc-800 font-mono text-[9px]"><Share className="w-2.5 h-2.5 inline mr-0.5" />ማጋሪያ (Share)</span> ቁልፍ በመንካት <strong className="text-slate-800 dark:text-white">ወده መነሻ ገጽ አክል</strong> ይምረጡ።
+                  </>
+                )}
+              </p>
+            </div>
+
+            {/* Close Column */}
+            <button
+              onClick={handleDismissIOSPrompt}
+              className="p-1.5 text-slate-400 hover:text-slate-700 dark:text-zinc-500 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-900 rounded-lg transition-colors cursor-pointer shrink-0"
+              title="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Floating Status Toast notification */}
       {toastMessage && (
