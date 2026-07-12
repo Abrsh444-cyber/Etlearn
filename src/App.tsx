@@ -799,7 +799,10 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 dark:bg-[#050508] text-slate-800 dark:text-zinc-100 flex flex-col font-sans transition-colors duration-200">
       
       {/* HEADER BAR FOR TITLE AND ETHIOPIAN CALENDAR */}
-      <header className="sticky top-0 z-50 bg-white/95 dark:bg-[#0c0d12]/95 backdrop-blur-md border-b border-slate-200 dark:border-zinc-800/85 shadow-sm select-none">
+      <header 
+        className="sticky top-0 z-50 bg-white/95 dark:bg-[#0c0d12]/95 backdrop-blur-md border-b border-slate-200 dark:border-zinc-800/85 shadow-sm select-none"
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+      >
         <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center gap-4">
           
           <div className="flex items-center gap-3">
@@ -1010,7 +1013,10 @@ export default function App() {
       </main>
 
       {/* PERSISTENT BOTTOM NAVIGATION TAB BAR (Requirement) */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#0c0d12]/95 border-t border-slate-200 dark:border-zinc-800/80 shadow-lg">
+      <nav 
+        className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#0c0d12]/95 border-t border-slate-200 dark:border-zinc-800/80 shadow-lg"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      >
         {/* Shifting active color bar indicator */}
         <div className="grid grid-cols-6 max-w-2xl mx-auto h-[3px]">
           <div className={currentPage === 'home' ? "bg-[#078930]" : "bg-transparent"} />

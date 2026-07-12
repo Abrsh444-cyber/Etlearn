@@ -65,9 +65,21 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Handle SPA navigation requests - fall back to index.html if offline or resource not found
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).catch(() => {
+        // Retrieve cached index page (supports offline virtual routes)
+        return caches.match('/index.html', { ignoreSearch: true }) || caches.match('/', { ignoreSearch: true });
+      })
+    );
+    return;
+  }
+
   // Use Cache-First with Network Fallback for static assets
+  // Use ignoreSearch: true to ensure query-string variants (like cache-busting or sources) don't miss the cache
   event.respondWith(
-    caches.match(request).then((cachedResponse) => {
+    caches.match(request, { ignoreSearch: true }).then((cachedResponse) => {
       if (cachedResponse) {
         // Trigger a background fetch to keep cache up to date (Stale-While-Revalidate)
         fetch(request)
