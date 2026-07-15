@@ -6,11 +6,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
   User, Mail, GraduationCap, Award, Flame, BookOpen, Lock, 
-  Edit3, Save, X, Clock, AlertCircle, Database, Check, ShieldAlert, KeyRound
+  Edit3, Save, X, Clock, AlertCircle, Database, Check, ShieldAlert, KeyRound,
+  Copy, RefreshCw, CloudLightning, ChevronDown, ChevronUp, CheckCircle
 } from 'lucide-react';
 import { StudentProfile } from '../types';
 import { playClickChime, playSuccessChime, playFailureChime } from '../utils/audio';
-import { getSupabase } from '../utils/supabaseClient';
+import { getSupabase, saveSupabaseCredentials, clearSupabaseCredentials } from '../utils/supabaseClient';
 import StudentAvatar from './StudentAvatar';
 import StudentAvatarSelector from './StudentAvatarSelector';
 import PWADownloadAssistant from './PWADownloadAssistant';
@@ -67,6 +68,14 @@ export default function StudentProfileView({
   const [resetLoading, setResetLoading] = useState(false);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
+
+  // Supabase Integration Settings States
+  const [supabaseUrl, setSupabaseUrl] = useState(() => localStorage.getItem('ethiolearn_supabase_url') || '');
+  const [supabaseKey, setSupabaseKey] = useState(() => localStorage.getItem('ethiolearn_supabase_key') || '');
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [syncSuccessMsg, setSyncSuccessMsg] = useState<string | null>(null);
+  const [syncErrorMsg, setSyncErrorMsg] = useState<string | null>(null);
+  const [showSqlGuide, setShowSqlGuide] = useState(false);
 
   // Focus module subject pool
   const subjectsList = [
@@ -236,16 +245,25 @@ export default function StudentProfileView({
       if (supa) {
         const email = (profile.email || '').toLowerCase().trim();
 
-        // Check if there is an existing password in database to preserve login compatibility
+        // Check if there is existing record to preserve other tables/columns
         const { data: existing } = await supa
           .from('student_profiles')
-          .select('profile_data')
+          .select('*')
           .eq('email', email)
           .maybeSingle();
 
         let password = '';
-        if (existing && existing.profile_data) {
-          password = existing.profile_data.password || '';
+        let existingNotes = [];
+        let existingSessions = [];
+        let existingPerformance = {};
+
+        if (existing) {
+          if (existing.profile_data) {
+            password = existing.profile_data.password || '';
+          }
+          existingNotes = existing.notes_data || [];
+          existingSessions = existing.study_sessions || [];
+          existingPerformance = existing.performance_data || {};
         }
 
         const payloadRecord = {
@@ -254,6 +272,9 @@ export default function StudentProfileView({
             ...updatedProfile,
             password
           },
+          notes_data: existingNotes,
+          study_sessions: existingSessions,
+          performance_data: existingPerformance,
           updated_at: new Date().toISOString()
         };
 
@@ -283,6 +304,179 @@ export default function StudentProfileView({
       setSaveError(err.message || 'Unable to persist changes in the cloud database.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Save Supabase credentials directly from the settings panel
+  const handleSaveKeys = () => {
+    if (!supabaseUrl.trim() || !supabaseKey.trim()) {
+      setSyncErrorMsg(language === 'en' ? "Please fill in both URL and Key." : "እባክዎን የ URL እና የቁልፍ መረጃዎችን ያስገቡ።");
+      playFailureChime();
+      return;
+    }
+    saveSupabaseCredentials(supabaseUrl, supabaseKey);
+    playSuccessChime();
+    setSyncSuccessMsg(language === 'en' ? "Supabase keys saved! Connected successfully." : "የሱፓቤስ መረጃዎች ተቀምጠዋል! በተሳካ ሁኔታ ተገናኝቷል።");
+    // Refresh student profile from new keys
+    fetchProfileFromSupabase();
+  };
+
+  // Clear Supabase credentials
+  const handleClearKeys = () => {
+    clearSupabaseCredentials();
+    setSupabaseUrl('');
+    setSupabaseKey('');
+    playClickChime();
+    setSyncSuccessMsg(language === 'en' ? "Credentials cleared. Operating in local-only mode." : "የዳታቤዝ መረጃዎች ተሰርዘዋል።");
+    setDbProfile(profile);
+  };
+
+  // Manual Portfolio Backup to Supabase
+  const handleBackupToSupabase = async () => {
+    playClickChime();
+    setSyncLoading(true);
+    setSyncSuccessMsg(null);
+    setSyncErrorMsg(null);
+
+    const supa = getSupabase();
+    if (!supa) {
+      setSyncErrorMsg(language === 'en' 
+        ? "Supabase client is not connected. Save your URL and Anon Key first." 
+        : "ሱፓቤስ አልተገናኘም። መጀመሪያ የ URL እና Anon Key ያስቀምጡ።"
+      );
+      playFailureChime();
+      setSyncLoading(false);
+      return;
+    }
+
+    const email = (profile.email || '').toLowerCase().trim();
+    if (!email) {
+      setSyncErrorMsg(language === 'en' ? "Please register with an email address first." : "እባክዎን መጀመሪያ በኢሜይል ይመዝገቡ።");
+      playFailureChime();
+      setSyncLoading(false);
+      return;
+    }
+
+    try {
+      // Collect local data
+      const localProfile = profile;
+      const notesRaw = localStorage.getItem('ethiolearn_custom_notes');
+      const notesData = notesRaw ? JSON.parse(notesRaw) : [];
+
+      const studySessionsRaw = localStorage.getItem('ethiolearn_study_sessions');
+      const studySessions = studySessionsRaw ? JSON.parse(studySessionsRaw) : [];
+
+      const quizRaw = localStorage.getItem('ethiolearn_quiz_perf');
+      const performanceData = quizRaw ? JSON.parse(quizRaw) : {};
+
+      const payload = {
+        email,
+        profile_data: localProfile,
+        notes_data: notesData,
+        study_sessions: studySessions,
+        performance_data: performanceData,
+        updated_at: new Date().toISOString()
+      };
+
+      const { error } = await supa
+        .from('student_profiles')
+        .upsert(payload, { onConflict: 'email' });
+
+      if (error) throw error;
+
+      playSuccessChime();
+      setSyncSuccessMsg(language === 'en'
+        ? "All local notes, profile specifications, and study statistics have been backed up successfully!"
+        : "ማስታወሻዎችዎ፣ መገለጫዎ እና የጥናት መረጃዎችዎ በተሳካ ሁኔታ ወደ ሱፓቤስ ተቀምጠዋል!"
+      );
+    } catch (err: any) {
+      console.error('[Supabase Manual Backup Error]:', err);
+      playFailureChime();
+      setSyncErrorMsg(err.message || "Could not complete backup to Supabase.");
+    } finally {
+      setSyncLoading(false);
+    }
+  };
+
+  // Manual Portfolio Restore from Supabase
+  const handleRestoreFromSupabase = async () => {
+    playClickChime();
+    
+    const confirmRestore = window.confirm(language === 'en'
+      ? "Warning: This will overwrite your current local study sessions, custom notes, and profile settings with the data saved in Supabase. Do you wish to proceed?"
+      : "ማስጠንቀቂያ፦ ይህ የአሁኑን የጥናት መረጃዎች፣ ማስታወሻዎች እና መገለጫዎን በሱፓቤስ ላይ ባለው መረጃ ይተካዋል። መቀጠል ይፈልጋሉ?"
+    );
+    if (!confirmRestore) return;
+
+    setSyncLoading(true);
+    setSyncSuccessMsg(null);
+    setSyncErrorMsg(null);
+
+    const supa = getSupabase();
+    if (!supa) {
+      setSyncErrorMsg(language === 'en' 
+        ? "Supabase client is not connected. Save your URL and Anon Key first." 
+        : "ሱፓቤስ አልተገናኘም። መጀመሪያ የ URL እና Anon Key ያስቀምጡ።"
+      );
+      playFailureChime();
+      setSyncLoading(false);
+      return;
+    }
+
+    const email = (profile.email || '').toLowerCase().trim();
+    if (!email) {
+      setSyncErrorMsg(language === 'en' ? "Please register with an email address first." : "እባክዎን መጀመሪያ በኢሜይል ይመዝገቡ።");
+      playFailureChime();
+      setSyncLoading(false);
+      return;
+    }
+
+    try {
+      const { data, error } = await supa
+        .from('student_profiles')
+        .select('*')
+        .eq('email', email)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!data) {
+        setSyncErrorMsg(language === 'en'
+          ? "No backup record found in your Supabase database for this email."
+          : "በዚህ ኢሜይል በሱፓቤስ ላይ ምንም የተቀመጠ መረጃ አልተገኘም።"
+        );
+        playFailureChime();
+        setSyncLoading(false);
+        return;
+      }
+
+      // Restore data to state and local storage
+      if (data.profile_data) {
+        onUpdateProfile(data.profile_data);
+        setDbProfile(data.profile_data);
+        localStorage.setItem('ethiolearn_current_profile', JSON.stringify(data.profile_data));
+      }
+      if (data.notes_data) {
+        localStorage.setItem('ethiolearn_custom_notes', JSON.stringify(data.notes_data));
+      }
+      if (data.study_sessions) {
+        localStorage.setItem('ethiolearn_study_sessions', JSON.stringify(data.study_sessions));
+      }
+      if (data.performance_data) {
+        localStorage.setItem('ethiolearn_quiz_perf', JSON.stringify(data.performance_data));
+      }
+
+      playSuccessChime();
+      setSyncSuccessMsg(language === 'en'
+        ? "Portfolio successfully restored from Supabase! Please refresh the application to view all updated notes and metrics."
+        : "የጥናት መረጃዎ ከሱፓቤስ በተሳካ ሁኔታ ተመልሷል! ሁሉንም አዳዲስ ማስታወሻዎች ለማየት እባክዎን ገጹን ሪፍሬሽ ያድርጉ።"
+      );
+    } catch (err: any) {
+      console.error('[Supabase Manual Restore Error]:', err);
+      playFailureChime();
+      setSyncErrorMsg(err.message || "Failed to restore backup from Supabase.");
+    } finally {
+      setSyncLoading(false);
     }
   };
 
@@ -503,6 +697,204 @@ export default function StudentProfileView({
               )}
               <span>{language === 'en' ? "Request Password Reset" : "የይለፍ ቃል መቀየርያ ሊንክ ላክ"}</span>
             </button>
+          </div>
+
+          {/* Supabase Cloud Sync / Database Settings Card */}
+          <div className="bg-[#111111]/90 rounded-2xl border border-zinc-900 p-5 space-y-4">
+            <h4 className="text-xs font-bold font-mono text-zinc-400 uppercase tracking-widest flex items-center justify-between border-b border-zinc-900 pb-2">
+              <span className="flex items-center gap-2">
+                <CloudLightning className="w-4 h-4 text-[#C8962E]" />
+                <span>{language === 'en' ? "Supabase Cloud Sync" : "የሱፓቤስ ዳታቤዝ"}</span>
+              </span>
+              {getSupabase() ? (
+                <span className="px-2 py-0.5 rounded-full bg-emerald-950/40 border border-emerald-500/30 text-emerald-400 text-[8px] font-mono tracking-wider uppercase animate-pulse">
+                  Connected
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-500 text-[8px] font-mono tracking-wider uppercase">
+                  Offline
+                </span>
+              )}
+            </h4>
+
+            {syncSuccessMsg && (
+              <p className="p-2.5 bg-emerald-950/30 border border-emerald-500/20 text-emerald-400 rounded-xl text-[11px] leading-normal font-sans">
+                {syncSuccessMsg}
+              </p>
+            )}
+
+            {syncErrorMsg && (
+              <p className="p-2.5 bg-red-950/20 border border-red-500/20 text-red-400 rounded-xl text-[11px] leading-normal font-sans">
+                {syncErrorMsg}
+              </p>
+            )}
+
+            <div className="space-y-3">
+              <p className="text-[11px] text-zinc-500 leading-relaxed font-sans">
+                {language === 'en'
+                  ? "Integrate your student portfolio directly with Supabase to save custom study notes, active courses, study hours, and exam metrics across devices."
+                  : "በመሳሪያዎችዎ ላይ ማስታወሻዎችን ፣ ኮርሶችን እና የፈተና መረጃዎችን ለማስቀመጥ ተማሪ መገለጫዎን በቀጥታ ከሱፓቤስ ጋር ያገናኙ።"}
+              </p>
+
+              {/* URL/Key Inputs */}
+              <div className="space-y-2 pt-1">
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-zinc-500 mb-1 font-mono">SUPABASE URL</label>
+                  <input
+                    type="text"
+                    value={supabaseUrl}
+                    onChange={(e) => setSupabaseUrl(e.target.value)}
+                    placeholder="https://abcdefghijklmnopqrst.supabase.co"
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-900 text-xs text-zinc-100 outline-none focus:border-[#C8962E] transition-all font-sans"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-bold uppercase text-zinc-500 mb-1 font-mono">SUPABASE ANON KEY</label>
+                  <input
+                    type="password"
+                    value={supabaseKey}
+                    onChange={(e) => setSupabaseKey(e.target.value)}
+                    placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-900 text-xs text-zinc-100 outline-none focus:border-[#C8962E] transition-all font-mono"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-1">
+                  {localStorage.getItem('ethiolearn_supabase_url') && (
+                    <button
+                      onClick={handleClearKeys}
+                      className="flex-1 py-2 bg-rose-950/20 border border-rose-900/30 text-rose-400 hover:bg-rose-950/45 text-[10px] font-bold rounded-xl transition-all cursor-pointer font-serif uppercase tracking-wider"
+                    >
+                      Clear Saved
+                    </button>
+                  )}
+                  <button
+                    onClick={handleSaveKeys}
+                    className="flex-1 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-200 hover:text-white text-[10px] font-bold rounded-xl transition-all cursor-pointer font-serif uppercase tracking-wider"
+                  >
+                    Save & Test
+                  </button>
+                </div>
+              </div>
+
+              {/* Sync Actions (Only if connected) */}
+              {getSupabase() && (
+                <div className="border-t border-zinc-900 pt-3 space-y-2">
+                  <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest block">
+                    Portfolio Actions
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={handleBackupToSupabase}
+                      disabled={syncLoading}
+                      className="py-2.5 bg-[#C8962E] hover:bg-[#b08123] text-black font-serif font-black text-[10px] uppercase tracking-wider rounded-xl cursor-pointer transition-all active:scale-98 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    >
+                      {syncLoading ? (
+                        <div className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <CloudLightning className="w-3.5 h-3.5 shrink-0" />
+                      )}
+                      <span>Backup</span>
+                    </button>
+
+                    <button
+                      onClick={handleRestoreFromSupabase}
+                      disabled={syncLoading}
+                      className="py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white font-serif font-bold text-[10px] uppercase tracking-wider rounded-xl cursor-pointer transition-all active:scale-98 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    >
+                      {syncLoading ? (
+                        <div className="w-3.5 h-3.5 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-3.5 h-3.5 shrink-0" />
+                      )}
+                      <span>Restore</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* SQL Migration Script Collapsible */}
+              <div className="border-t border-zinc-900 pt-3">
+                <button
+                  onClick={() => { playClickChime(); setShowSqlGuide(!showSqlGuide); }}
+                  className="w-full flex items-center justify-between text-[10px] font-bold font-mono text-zinc-400 uppercase tracking-wider hover:text-zinc-200 transition-colors cursor-pointer"
+                >
+                  <span>SQL Setup Guidelines</span>
+                  {showSqlGuide ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
+
+                {showSqlGuide && (
+                  <div className="mt-3.5 space-y-2 animate-fade-in text-[10px] text-zinc-400 leading-relaxed font-sans">
+                    <p>
+                      Copy and run this SQL script in your Supabase **SQL Editor** to create the necessary schema columns for robust user-data backups:
+                    </p>
+                    <div className="relative">
+                      <textarea
+                        readOnly
+                        className="w-full p-2 text-[9px] font-mono leading-relaxed bg-black text-emerald-400 border border-zinc-900 rounded-xl h-40 focus:outline-none select-all"
+                        value={`-- 1. Create student_profiles table
+CREATE TABLE student_profiles (
+  email TEXT PRIMARY KEY,
+  profile_data JSONB NOT NULL,
+  study_sessions JSONB DEFAULT '[]'::jsonb,
+  notes_data JSONB DEFAULT '[]'::jsonb,
+  performance_data JSONB DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 2. Create curriculum books table
+CREATE TABLE books (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  grade TEXT NOT NULL,
+  chapters JSONB NOT NULL,
+  pages INT DEFAULT 150,
+  description TEXT,
+  language_support TEXT DEFAULT 'Bilingual',
+  pro_required BOOLEAN DEFAULT false,
+  pdf_url TEXT,
+  content_json TEXT
+);`}
+                      />
+                      <button
+                        onClick={() => {
+                          const sqlText = `CREATE TABLE student_profiles (
+  email TEXT PRIMARY KEY,
+  profile_data JSONB NOT NULL,
+  study_sessions JSONB DEFAULT '[]'::jsonb,
+  notes_data JSONB DEFAULT '[]'::jsonb,
+  performance_data JSONB DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE books (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  grade TEXT NOT NULL,
+  chapters JSONB NOT NULL,
+  pages INT DEFAULT 150,
+  description TEXT,
+  language_support TEXT DEFAULT 'Bilingual',
+  pro_required BOOLEAN DEFAULT false,
+  pdf_url TEXT,
+  content_json TEXT
+);`;
+                          navigator.clipboard.writeText(sqlText);
+                          playSuccessChime();
+                          alert("SQL schema copied to clipboard!");
+                        }}
+                        className="absolute right-2.5 top-2.5 p-1 bg-zinc-900 hover:bg-zinc-800 text-[#C8962E] rounded border border-zinc-800 transition-all cursor-pointer hover:scale-105"
+                        title="Copy Script"
+                      >
+                        <Copy className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
