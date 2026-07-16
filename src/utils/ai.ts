@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 
 // Helper to stream/parse Anthropic SSE responses forwarded from Express proxy
 export interface ChatAttachment {
@@ -28,7 +28,8 @@ export async function submitClaudeChat(
   messages: ChatMessage[],
   systemPrompt: string,
   apiKey: string,
-  callbacks: StreamCallbacks
+  callbacks: StreamCallbacks,
+  highThinking?: boolean
 ) {
   try {
     let response: Response | null = null;
@@ -44,7 +45,8 @@ export async function submitClaudeChat(
           messages,
           system: systemPrompt,
           userApiKey: apiKey,
-          model: 'claude-3-5-sonnet-20241022'
+          model: 'claude-3-5-sonnet-20241022',
+          highThinking
         })
       });
 
@@ -92,10 +94,11 @@ export async function submitClaudeChat(
       });
 
       const stream = await ai.models.generateContentStream({
-        model: 'gemini-3.5-flash',
+        model: highThinking ? 'gemini-3.1-pro-preview' : 'gemini-3.5-flash',
         contents: geminiContents,
         config: {
           systemInstruction: systemPrompt || undefined,
+          thinkingConfig: highThinking ? { thinkingLevel: ThinkingLevel.HIGH } : undefined
         },
       });
 

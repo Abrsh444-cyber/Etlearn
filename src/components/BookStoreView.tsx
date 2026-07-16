@@ -1076,27 +1076,6 @@ Ensure the layout utilizes clear headers, a detailed markdown text explanation, 
               </button>
             ))}
           </div>
-
-          <button
-            onClick={() => syncSupabase(true)}
-            disabled={isSupabaseLoading}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] uppercase tracking-wider font-bold border transition-all cursor-pointer ${
-              supabaseSyncStatus === 'success'
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/25 dark:text-emerald-450 dark:border-emerald-900/60'
-                : supabaseSyncStatus === 'err'
-                ? 'bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-400'
-                : 'bg-slate-50 hover:bg-slate-100 dark:bg-zinc-900 dark:hover:bg-zinc-850 dark:border-zinc-800 text-slate-700 dark:text-zinc-350 dark:border-zinc-800'
-            }`}
-          >
-            <Database className={`w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 ${isSupabaseLoading ? 'animate-spin' : ''}`} />
-            {isSupabaseLoading ? (
-              <span>Syncing...</span>
-            ) : supabaseSyncStatus === 'success' ? (
-              <span className="flex items-center gap-1">🟢 Supabase Live <RefreshCw className="w-2.5 h-2.5 animate-pulse" /></span>
-            ) : (
-              <span>🔌 Connect Supabase</span>
-            )}
-          </button>
         </div>
       </div>
 
@@ -1985,7 +1964,7 @@ Ensure the layout utilizes clear headers, a detailed markdown text explanation, 
       {/* 🔌 SUPABASE WIZARD SETUP GUIDE MODAL                      */}
       {/* ========================================================= */}
       <AnimatePresence>
-        {showSupabaseGuide && (
+        {false && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

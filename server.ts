@@ -6,7 +6,7 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import { createClient } from '@supabase/supabase-js';
@@ -562,7 +562,7 @@ Explain with enthusiasm when they ask about features like flashcards, customizab
   // API Route for Claude proxy redirected to OpenRouter or natively served via Google Gemini
   app.post(['/api/claude/chat', '/api/claude/chat/'], async (req, res) => {
     try {
-      const { messages, system, userApiKey, model } = req.body;
+      const { messages, system, userApiKey, model, highThinking } = req.body;
       
       // Clean up string placeholder keys from frontend
       let resolvedUserKey = userApiKey;
@@ -585,7 +585,7 @@ Explain with enthusiasm when they ask about features like flashcards, customizab
           }
         }
       }
-
+ 
       // Strategies we can stream
       const runGeminiDirect = async (key: string) => {
         const ai = new GoogleGenAI({
@@ -609,11 +609,14 @@ Explain with enthusiasm when they ask about features like flashcards, customizab
             parts
           };
         });
-
+ 
         const stream = await ai.models.generateContentStream({
-          model: 'gemini-3.5-flash',
+          model: highThinking ? 'gemini-3.1-pro-preview' : 'gemini-3.5-flash',
           contents: geminiContents,
-          config: { systemInstruction: system || undefined },
+          config: { 
+            systemInstruction: system || undefined,
+            thinkingConfig: highThinking ? { thinkingLevel: ThinkingLevel.HIGH } : undefined
+          },
         });
 
         if (!res.headersSent) {

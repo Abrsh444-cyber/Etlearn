@@ -7,7 +7,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   User, Mail, GraduationCap, Award, Flame, BookOpen, Lock, 
   Edit3, Save, X, Clock, AlertCircle, Database, Check, ShieldAlert, KeyRound,
-  Copy, RefreshCw, CloudLightning, ChevronDown, ChevronUp, CheckCircle
+  Copy, RefreshCw, CloudLightning, ChevronDown, ChevronUp, CheckCircle,
+  FileText, HelpCircle, ShieldCheck
 } from 'lucide-react';
 import { StudentProfile } from '../types';
 import { playClickChime, playSuccessChime, playFailureChime } from '../utils/audio';
@@ -27,6 +28,7 @@ interface StudentProfileViewProps {
   onGoogleSignOut?: () => Promise<void>;
   isInstallable?: boolean;
   triggerPWAInstall?: () => Promise<void>;
+  onSignOut?: () => void;
 }
 
 export default function StudentProfileView({
@@ -39,7 +41,8 @@ export default function StudentProfileView({
   onGoogleSignIn,
   onGoogleSignOut,
   isInstallable,
-  triggerPWAInstall
+  triggerPWAInstall,
+  onSignOut
 }: StudentProfileViewProps) {
   
   // Database State
@@ -76,6 +79,10 @@ export default function StudentProfileView({
   const [syncSuccessMsg, setSyncSuccessMsg] = useState<string | null>(null);
   const [syncErrorMsg, setSyncErrorMsg] = useState<string | null>(null);
   const [showSqlGuide, setShowSqlGuide] = useState(false);
+
+  // Support, Terms & FQA States
+  const [supportTab, setSupportTab] = useState<'terms' | 'fqa'>('terms');
+  const [expandedFqa, setExpandedFqa] = useState<number | null>(null);
 
   // Focus module subject pool
   const subjectsList = [
@@ -657,6 +664,30 @@ export default function StudentProfileView({
                   EL-{activeProfileData.email ? Math.abs(activeProfileData.email.split('').reduce((acc, char) => char.charCodeAt(0) + acc, 0)).toString().substring(0, 5) : '8327'}
                 </span>
               </div>
+
+              {/* General App Sign Out Button */}
+              {onSignOut && (
+                <div className="pt-3 border-t border-zinc-900/60 mt-1">
+                  <button
+                    onClick={() => {
+                      const confirmSignOut = window.confirm(
+                        language === 'en'
+                          ? 'Are you sure you want to sign out? Your offline local state will be preserved, but you will need to sign in again to access cloud features.'
+                          : 'እርግጠኛ ነዎት መውጣት ይፈልጋሉ? የእርስዎ የአሁኑ መረጃ ይቀመጣል፡ ነገር ግን የደመና ባህሪያትን ለመጠቀም እንደገና መግባት ይኖርብዎታል።'
+                      );
+                      if (confirmSignOut) {
+                        onSignOut();
+                      }
+                    }}
+                    className="w-full py-2 bg-red-950/25 hover:bg-red-950/45 border border-red-900/30 text-red-400 hover:text-red-350 font-mono text-[10px] uppercase tracking-wider font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    <span>{language === 'en' ? "Sign Out Account" : "ከአካውንት ውጣ"}</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 

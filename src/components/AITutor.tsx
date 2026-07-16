@@ -258,6 +258,8 @@ export default function AITutor({
     return (saved === 'am' || saved === 'en') ? saved : 'en';
   });
 
+  const [highThinking, setHighThinking] = useState(false);
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -523,7 +525,8 @@ Always end your explanations with 2 conversational, helpful revision questions f
           playFailureChime();
           setMessages(prev => prev.slice(0, -1));
         }
-      }
+      },
+      highThinking
     );
   };
 
@@ -691,6 +694,27 @@ Always end your explanations with 2 conversational, helpful revision questions f
             </button>
           </div>
 
+          {/* Brain High Thinking Toggle */}
+          <button
+            onClick={() => { setHighThinking(!highThinking); playClickChime(); }}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+              highThinking
+                ? 'bg-amber-500/10 text-amber-600 border-amber-500/30 dark:bg-amber-500/5 dark:text-amber-400 dark:border-amber-500/20'
+                : 'bg-slate-50 border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 text-slate-500 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-850'
+            }`}
+            title={language === 'en' ? "Activate high reasoning mode (Gemini 3.1 Pro)" : "ከፍተኛ የማሰብ ችሎታን አግብር (Gemini 3.1 Pro)"}
+          >
+            <Bot className={`w-4 h-4 ${highThinking ? 'animate-pulse text-amber-500' : ''}`} />
+            <span className="hidden sm:inline">
+              {language === 'en' 
+                ? (highThinking ? "🧠 High Thinking: ON" : "🧠 Thinking Mode") 
+                : (highThinking ? "🧠 ማሰብ፡ በርቷል" : "🧠 የማሰብ ሁኔታ")}
+            </span>
+            <span className="sm:hidden">
+              {highThinking ? "🧠 ON" : "🧠"}
+            </span>
+          </button>
+
           <button
             onClick={clearHistory}
             title={language === 'en' ? "Clear Chat" : "ውይይት አጽዳ"}
@@ -792,7 +816,9 @@ Always end your explanations with 2 conversational, helpful revision questions f
                   {/* Simple Thinking Spinner - requirement */}
                   <div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin shrink-0" />
                   <span className="text-xs font-sans">
-                    {language === 'en' ? 'Tutor is thinking...' : 'መርጃው እያሰበ ነው...'}
+                    {language === 'en' 
+                      ? (highThinking ? 'Tutor is reasoning (3.1 Pro High Thinking)...' : 'Tutor is thinking...') 
+                      : (highThinking ? 'መርጃው በከፍተኛ ማሰብ እያሰላሰለ ነው (3.1 Pro)...' : 'መርጃው እያሰበ ነው...')}
                   </span>
                 </div>
               </div>
