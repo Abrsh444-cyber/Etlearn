@@ -1193,8 +1193,8 @@ Ensure the layout utilizes clear headers, a detailed markdown text explanation, 
                                   
                                   <div className="flex items-center gap-1.5 font-sans">
                                     {mod.isSupabase && (
-                                      <span className="text-[8px] font-bold uppercase tracking-widest px-1 bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/10 rounded flex items-center gap-0.5">
-                                        <Database className="w-2 h-2 text-yellow-500" /> Supabase
+                                      <span className="text-[8px] font-bold uppercase tracking-widest px-1 bg-[#078930]/10 text-[#078930] dark:text-emerald-400 border border-[#078930]/10 rounded flex items-center gap-0.5">
+                                        <Database className="w-2 h-2 text-[#078930] dark:text-emerald-400" /> Online Library
                                       </span>
                                     )}
                                     {hasPremiumBadge && (

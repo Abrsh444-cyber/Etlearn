@@ -626,6 +626,38 @@ export default function App() {
     }
   };
 
+  const handleSignOut = async () => {
+    playClickChime();
+    // Clear local profile and authentication variables
+    localStorage.removeItem('ethiolearn_current_profile');
+    setProfile(null);
+    
+    // Clear Google Workspace auth session if active
+    if (googleUser) {
+      try {
+        await logoutGoogle();
+        setGoogleUser(null);
+        setGoogleToken(null);
+      } catch (e) {
+        console.warn('Error signing out of Google:', e);
+      }
+    }
+    
+    // Clear Supabase auth session if active
+    try {
+      const supa = getSupabase();
+      if (supa) {
+        await supa.auth.signOut();
+        setSupaUser(null);
+      }
+    } catch (e) {
+      console.warn('Error signing out of Supabase:', e);
+    }
+    
+    playSuccessChime();
+    showToast(language === 'en' ? "Signed out successfully." : "በተሳካ ሁኔታ ወጥተዋል።");
+  };
+
   const handleSyncStatsToSheets = async () => {
     if (!googleToken || !googleUser || !profile) {
       showToast("Please sign in with Google first in the profile section!");
@@ -951,6 +983,7 @@ export default function App() {
                 onGoogleSignOut={handleGoogleSignOut}
                 isInstallable={isInstallable}
                 triggerPWAInstall={triggerPWAInstall}
+                onSignOut={handleSignOut}
               />
             )}
 

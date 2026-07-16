@@ -25,33 +25,6 @@ export function clearSupabaseCredentials() {
  * Gracefully returns null if keys are not set, preventing startup crashes.
  */
 export function getSupabase(): SupabaseClient | null {
-  if (supabaseInstance) return supabaseInstance;
-
-  // 1. Try to get from localStorage (client-side pairing)
-  let url = typeof window !== 'undefined' ? localStorage.getItem('ethiolearn_supabase_url') : null;
-  let key = typeof window !== 'undefined' ? localStorage.getItem('ethiolearn_supabase_key') : null;
-
-  // 2. If not in localStorage, try process.env or import.meta.env
-  if (!url || !key) {
-    url = (import.meta as any).env?.VITE_SUPABASE_URL || '';
-    key = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
-  }
-
-  if (url && key && url.startsWith('http')) {
-    try {
-      supabaseInstance = createClient(url, key, {
-        auth: {
-          persistSession: true,
-          autoRefreshToken: true
-        }
-      });
-      return supabaseInstance;
-    } catch (e) {
-      console.error('[Supabase Client Initialization Error]:', e);
-      return null;
-    }
-  }
-
   return null;
 }
 

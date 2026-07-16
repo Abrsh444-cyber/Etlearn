@@ -125,55 +125,12 @@ export default function StudentProfileView({
     ? Math.round(quizHistory.reduce((acc: number, item: any) => acc + (item.score || 0), 0) / quizHistory.length)
     : 0;
 
-  // Load profile data directly from Supabase student_profiles table on mount
+  // Load profile data on mount
   const fetchProfileFromSupabase = async () => {
-    try {
-      setLoading(true);
-      setFetchError(null);
-      
-      const supa = getSupabase();
-      if (!supa) {
-        // Fallback to local profile if database connection credentials are not present
-        setDbProfile(profile);
-        setLoading(false);
-        return;
-      }
-
-      const emailKey = (profile.email || '').toLowerCase().trim();
-      if (!emailKey) {
-        setDbProfile(profile);
-        setLoading(false);
-        return;
-      }
-
-      const { data, error } = await supa
-        .from('student_profiles')
-        .select('*')
-        .eq('email', emailKey)
-        .maybeSingle();
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      if (data) {
-        if (data.profile_data) {
-          setDbProfile(data.profile_data);
-        } else {
-          setDbProfile(profile);
-        }
-        setDbStudySessions(data.study_sessions || []);
-        setDbPerformanceData(data.performance_data || {});
-      } else {
-        // Row doesn't exist yet, fallback to active prop profile
-        setDbProfile(profile);
-      }
-    } catch (err: any) {
-      console.error('[Supabase Fetch Error]:', err);
-      setFetchError(err.message || 'Unable to connect to the central EthioLearn database server.');
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true);
+    setFetchError(null);
+    setDbProfile(profile);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -730,197 +687,121 @@ export default function StudentProfileView({
             </button>
           </div>
 
-          {/* Supabase Cloud Sync / Database Settings Card */}
+          {/* Account Session Control / Google Workspace & Verification Settings Card */}
           <div className="bg-[#111111]/90 rounded-2xl border border-zinc-900 p-5 space-y-4">
             <h4 className="text-xs font-bold font-mono text-zinc-400 uppercase tracking-widest flex items-center justify-between border-b border-zinc-900 pb-2">
               <span className="flex items-center gap-2">
-                <CloudLightning className="w-4 h-4 text-[#C8962E]" />
-                <span>{language === 'en' ? "Supabase Cloud Sync" : "የሱፓቤስ ዳታቤዝ"}</span>
+                <ShieldCheck className="w-4 h-4 text-[#C8962E]" />
+                <span>{language === 'en' ? "Account & Google Auth" : "አካውንት እና የጉግል ማረጋገጫ"}</span>
               </span>
-              {getSupabase() ? (
+              {googleUser ? (
                 <span className="px-2 py-0.5 rounded-full bg-emerald-950/40 border border-emerald-500/30 text-emerald-400 text-[8px] font-mono tracking-wider uppercase animate-pulse">
-                  Connected
+                  Google Connected
                 </span>
               ) : (
                 <span className="px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-500 text-[8px] font-mono tracking-wider uppercase">
-                  Offline
+                  Local Mode
                 </span>
               )}
             </h4>
 
-            {syncSuccessMsg && (
-              <p className="p-2.5 bg-emerald-950/30 border border-emerald-500/20 text-emerald-400 rounded-xl text-[11px] leading-normal font-sans">
-                {syncSuccessMsg}
-              </p>
-            )}
-
-            {syncErrorMsg && (
-              <p className="p-2.5 bg-red-950/20 border border-red-500/20 text-red-400 rounded-xl text-[11px] leading-normal font-sans">
-                {syncErrorMsg}
-              </p>
-            )}
-
-            <div className="space-y-3">
-              <p className="text-[11px] text-zinc-500 leading-relaxed font-sans">
-                {language === 'en'
-                  ? "Integrate your student portfolio directly with Supabase to save custom study notes, active courses, study hours, and exam metrics across devices."
-                  : "በመሳሪያዎችዎ ላይ ማስታወሻዎችን ፣ ኮርሶችን እና የፈተና መረጃዎችን ለማስቀመጥ ተማሪ መገለጫዎን በቀጥታ ከሱፓቤስ ጋር ያገናኙ።"}
-              </p>
-
-              {/* URL/Key Inputs */}
-              <div className="space-y-2 pt-1">
-                <div>
-                  <label className="block text-[9px] font-bold uppercase text-zinc-500 mb-1 font-mono">SUPABASE URL</label>
-                  <input
-                    type="text"
-                    value={supabaseUrl}
-                    onChange={(e) => setSupabaseUrl(e.target.value)}
-                    placeholder="https://abcdefghijklmnopqrst.supabase.co"
-                    className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-900 text-xs text-zinc-100 outline-none focus:border-[#C8962E] transition-all font-sans"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[9px] font-bold uppercase text-zinc-500 mb-1 font-mono">SUPABASE ANON KEY</label>
-                  <input
-                    type="password"
-                    value={supabaseKey}
-                    onChange={(e) => setSupabaseKey(e.target.value)}
-                    placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                    className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-900 text-xs text-zinc-100 outline-none focus:border-[#C8962E] transition-all font-mono"
-                  />
-                </div>
-
-                <div className="flex gap-2 pt-1">
-                  {localStorage.getItem('ethiolearn_supabase_url') && (
-                    <button
-                      onClick={handleClearKeys}
-                      className="flex-1 py-2 bg-rose-950/20 border border-rose-900/30 text-rose-400 hover:bg-rose-950/45 text-[10px] font-bold rounded-xl transition-all cursor-pointer font-serif uppercase tracking-wider"
-                    >
-                      Clear Saved
-                    </button>
-                  )}
+            <div className="space-y-4">
+              {/* Main Local Account Signout Button */}
+              <div>
+                <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest block mb-2">
+                  {language === 'en' ? "Academic Session" : "የአሁኑ መለያ"}
+                </span>
+                {onSignOut && (
                   <button
-                    onClick={handleSaveKeys}
-                    className="flex-1 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-200 hover:text-white text-[10px] font-bold rounded-xl transition-all cursor-pointer font-serif uppercase tracking-wider"
+                    onClick={() => {
+                      const confirmSignOut = window.confirm(
+                        language === 'en'
+                          ? 'Are you sure you want to sign out from EthioLearn? Your current progress state will be saved securely on this device.'
+                          : 'እርግጠኛ ነዎት መውጣት ይፈልጋሉ? የእርስዎ የጥናት መረጃ በዚሁ መሳሪያ ላይ ይቀመጣል።'
+                      );
+                      if (confirmSignOut) {
+                        onSignOut();
+                      }
+                    }}
+                    className="w-full py-2.5 bg-red-950/25 hover:bg-red-950/45 border border-red-900/30 text-red-400 hover:text-red-350 font-mono text-[10px] uppercase tracking-wider font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-98"
                   >
-                    Save & Test
+                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    <span>{language === 'en' ? "Sign Out from EthioLearn" : "ከኢትዮለርን ውጣ"}</span>
                   </button>
-                </div>
+                )}
               </div>
 
-              {/* Sync Actions (Only if connected) */}
-              {getSupabase() && (
-                <div className="border-t border-zinc-900 pt-3 space-y-2">
-                  <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest block">
-                    Portfolio Actions
-                  </span>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={handleBackupToSupabase}
-                      disabled={syncLoading}
-                      className="py-2.5 bg-[#C8962E] hover:bg-[#b08123] text-black font-serif font-black text-[10px] uppercase tracking-wider rounded-xl cursor-pointer transition-all active:scale-98 flex items-center justify-center gap-1.5 disabled:opacity-50"
-                    >
-                      {syncLoading ? (
-                        <div className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <CloudLightning className="w-3.5 h-3.5 shrink-0" />
-                      )}
-                      <span>Backup</span>
-                    </button>
+              {/* Google Workspace & Sheets Connector Section */}
+              <div className="border-t border-zinc-900 pt-4 space-y-3">
+                <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest block">
+                  Google Workspace Cloud Sync
+                </span>
+                
+                <p className="text-[11px] text-zinc-500 leading-relaxed font-sans">
+                  {language === 'en'
+                    ? "Connect your Google account to automatically back up your study sessions, analytics, and custom generated notes directly to your personal Google Sheets."
+                    : "የጥናት መረጃዎችን እና ማስታወሻዎችን በቀጥታ ወደ ግል ጉግል ሺትስ (Google Sheets) ለማስተላለፍ የጉግል አካውንትዎን ያገናኙ።"}
+                </p>
 
-                    <button
-                      onClick={handleRestoreFromSupabase}
-                      disabled={syncLoading}
-                      className="py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white font-serif font-bold text-[10px] uppercase tracking-wider rounded-xl cursor-pointer transition-all active:scale-98 flex items-center justify-center gap-1.5 disabled:opacity-50"
-                    >
-                      {syncLoading ? (
-                        <div className="w-3.5 h-3.5 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <RefreshCw className="w-3.5 h-3.5 shrink-0" />
-                      )}
-                      <span>Restore</span>
-                    </button>
-                  </div>
-                </div>
-              )}
+                {googleUser ? (
+                  <div className="space-y-2">
+                    <div className="p-3 bg-emerald-950/20 border border-emerald-500/20 rounded-xl flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-[11px] text-emerald-400 font-mono truncate max-w-[150px]">
+                          {googleUser.email || "Verified Google Account"}
+                        </span>
+                      </div>
+                      <span className="text-[8px] uppercase tracking-wider text-emerald-500 font-bold bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                        Active
+                      </span>
+                    </div>
 
-              {/* SQL Migration Script Collapsible */}
-              <div className="border-t border-zinc-900 pt-3">
-                <button
-                  onClick={() => { playClickChime(); setShowSqlGuide(!showSqlGuide); }}
-                  className="w-full flex items-center justify-between text-[10px] font-bold font-mono text-zinc-400 uppercase tracking-wider hover:text-zinc-200 transition-colors cursor-pointer"
-                >
-                  <span>SQL Setup Guidelines</span>
-                  {showSqlGuide ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                </button>
-
-                {showSqlGuide && (
-                  <div className="mt-3.5 space-y-2 animate-fade-in text-[10px] text-zinc-400 leading-relaxed font-sans">
-                    <p>
-                      Copy and run this SQL script in your Supabase **SQL Editor** to create the necessary schema columns for robust user-data backups:
-                    </p>
-                    <div className="relative">
-                      <textarea
-                        readOnly
-                        className="w-full p-2 text-[9px] font-mono leading-relaxed bg-black text-emerald-400 border border-zinc-900 rounded-xl h-40 focus:outline-none select-all"
-                        value={`-- 1. Create student_profiles table
-CREATE TABLE student_profiles (
-  email TEXT PRIMARY KEY,
-  profile_data JSONB NOT NULL,
-  study_sessions JSONB DEFAULT '[]'::jsonb,
-  notes_data JSONB DEFAULT '[]'::jsonb,
-  performance_data JSONB DEFAULT '{}'::jsonb,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);
-
--- 2. Create curriculum books table
-CREATE TABLE books (
-  id TEXT PRIMARY KEY,
-  title TEXT NOT NULL,
-  subject TEXT NOT NULL,
-  grade TEXT NOT NULL,
-  chapters JSONB NOT NULL,
-  pages INT DEFAULT 150,
-  description TEXT,
-  language_support TEXT DEFAULT 'Bilingual',
-  pro_required BOOLEAN DEFAULT false,
-  pdf_url TEXT,
-  content_json TEXT
-);`}
-                      />
+                    {onGoogleSignOut && (
                       <button
                         onClick={() => {
-                          const sqlText = `CREATE TABLE student_profiles (
-  email TEXT PRIMARY KEY,
-  profile_data JSONB NOT NULL,
-  study_sessions JSONB DEFAULT '[]'::jsonb,
-  notes_data JSONB DEFAULT '[]'::jsonb,
-  performance_data JSONB DEFAULT '{}'::jsonb,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);
-
-CREATE TABLE books (
-  id TEXT PRIMARY KEY,
-  title TEXT NOT NULL,
-  subject TEXT NOT NULL,
-  grade TEXT NOT NULL,
-  chapters JSONB NOT NULL,
-  pages INT DEFAULT 150,
-  description TEXT,
-  language_support TEXT DEFAULT 'Bilingual',
-  pro_required BOOLEAN DEFAULT false,
-  pdf_url TEXT,
-  content_json TEXT
-);`;
-                          navigator.clipboard.writeText(sqlText);
-                          playSuccessChime();
-                          alert("SQL schema copied to clipboard!");
+                          playClickChime();
+                          onGoogleSignOut();
                         }}
-                        className="absolute right-2.5 top-2.5 p-1 bg-zinc-900 hover:bg-zinc-800 text-[#C8962E] rounded border border-zinc-800 transition-all cursor-pointer hover:scale-105"
-                        title="Copy Script"
+                        className="w-full py-2 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-300 text-[10px] font-mono uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-98"
                       >
-                        <Copy className="w-3 h-3" />
+                        Disconnect Google Sync
                       </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {onGoogleSignIn && (
+                      <button
+                        onClick={() => {
+                          playClickChime();
+                          onGoogleSignIn();
+                        }}
+                        className="w-full py-2.5 bg-[#4285F4] hover:bg-[#357ae8] text-white font-serif font-black text-[10px] uppercase tracking-wider rounded-xl cursor-pointer transition-all active:scale-98 flex items-center justify-center gap-2"
+                      >
+                        <svg className="w-4 h-4 shrink-0 fill-current" viewBox="0 0 24 24">
+                          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                        </svg>
+                        <span>Connect Google Workspace</span>
+                      </button>
+                    )}
+
+                    {/* Google Verification Warning Sandbox Help Notice */}
+                    <div className="p-3 bg-amber-950/20 border border-amber-500/10 rounded-xl space-y-1.5 text-left">
+                      <span className="text-[9px] font-bold text-amber-500 font-mono uppercase tracking-wider flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        Unverified App Screen Notice
+                      </span>
+                      <p className="text-[10px] text-zinc-400 leading-relaxed font-sans">
+                        {language === 'en'
+                          ? "Since EthioLearn is currently operating in a sandbox development environment, Google displays a warning during sign-in. To proceed, click 'Advanced' at the bottom of the prompt, then select 'Go to EthioLearn (unsafe)' to securely log in."
+                          : "ይህ መተግበሪያ በአሁኑ ጊዜ በልማት ደረጃ (Sandbox) ላይ ስለሚገኝ፡ ጉግል በሚገቡበት ጊዜ ማስጠንቀቂያ ያሳያል። ለመቀጠል በምርጫው ግርጌ 'Advanced' የሚለውን ይጫኑ፡ በመቀጠል 'Go to EthioLearn' የሚለውን በመምረጥ በሰላም መግባት ይችላሉ።"}
+                      </p>
                     </div>
                   </div>
                 )}
