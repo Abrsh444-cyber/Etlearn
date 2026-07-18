@@ -13,6 +13,7 @@ import { PREBUILT_DECKS } from '../data/prebuiltContent';
 import { generateFlashcardsAI } from '../utils/ai';
 import { toGeezNumeral } from '../utils/ethiopianCalendar';
 import { playClickChime, playSuccessChime, playFailureChime } from '../utils/audio';
+import { safeStorage } from '../utils/safeStorage';
 
 const FREE_SPACE_DECK: Deck = {
   id: "deck_free_space",
@@ -208,7 +209,7 @@ export default function FlashcardsDeck({ apiKey, decksState, onSaveDecksState }:
 
     // Record Flashcards Log for Analytics
     try {
-      const analytics = JSON.parse(localStorage.getItem("ethiolearn_analytics") || "{}");
+      const analytics = JSON.parse(safeStorage.getItem("ethiolearn_analytics") || "{}");
       const todayStr = new Date().toISOString().split('T')[0];
       const flLogs: any[] = analytics.flashcardHist || [];
       const indexToday = flLogs.findIndex(l => l.date === todayStr);
@@ -224,7 +225,7 @@ export default function FlashcardsDeck({ apiKey, decksState, onSaveDecksState }:
         });
       }
       analytics.flashcardHist = flLogs;
-      localStorage.setItem("ethiolearn_analytics", JSON.stringify(analytics));
+      safeStorage.setItem("ethiolearn_analytics", JSON.stringify(analytics));
     } catch(e) {}
   };
 

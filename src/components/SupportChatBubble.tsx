@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { MessageCircle, X, Send, Trash2, Sparkles, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { playClickChime, playSuccessChime, playFailureChime } from '../utils/audio';
+import { safeStorage } from '../utils/safeStorage';
 
 interface Message {
   id: string;
@@ -26,7 +27,7 @@ export default function SupportChatBubble({ language, studentName }: SupportChat
 
   // Initialize chat history and default greeting
   useEffect(() => {
-    const saved = localStorage.getItem('ethiolearn_support_chat');
+    const saved = safeStorage.getItem('ethiolearn_support_chat');
     if (saved) {
       try {
         setMessages(JSON.parse(saved));
@@ -50,7 +51,7 @@ export default function SupportChatBubble({ language, studentName }: SupportChat
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
     setMessages([initial]);
-    localStorage.setItem('ethiolearn_support_chat', JSON.stringify([initial]));
+    safeStorage.setItem('ethiolearn_support_chat', JSON.stringify([initial]));
   };
 
   // Scroll to bottom whenever messages list updates or typing state changes
@@ -69,7 +70,7 @@ export default function SupportChatBubble({ language, studentName }: SupportChat
   const handleClearChat = () => {
     playClickChime();
     if (window.confirm(language === 'en' ? "Do you want to reset your conversation with Abreham?" : "ከአብርሃም ጋር ያለውን ውይይት ማጽዳት ይፈልጋሉ?")) {
-      localStorage.removeItem('ethiolearn_support_chat');
+      safeStorage.removeItem('ethiolearn_support_chat');
       initializeGreeting();
       setChatError(null);
       playSuccessChime();
@@ -94,7 +95,7 @@ export default function SupportChatBubble({ language, studentName }: SupportChat
 
     const updated = [...messages, userMsg];
     setMessages(updated);
-    localStorage.setItem('ethiolearn_support_chat', JSON.stringify(updated));
+    safeStorage.setItem('ethiolearn_support_chat', JSON.stringify(updated));
 
     // Show typing state
     setIsTyping(true);
@@ -127,7 +128,7 @@ export default function SupportChatBubble({ language, studentName }: SupportChat
 
       const finalMessages = [...updated, assistantMsg];
       setMessages(finalMessages);
-      localStorage.setItem('ethiolearn_support_chat', JSON.stringify(finalMessages));
+      safeStorage.setItem('ethiolearn_support_chat', JSON.stringify(finalMessages));
       playSuccessChime();
     } catch (err: any) {
       console.error('[Support Chat Bubble Error]:', err);

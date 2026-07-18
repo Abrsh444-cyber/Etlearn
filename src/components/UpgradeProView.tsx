@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { StudentProfile } from '../types';
 import { playClickChime, playSuccessChime } from '../utils/audio';
+import { safeStorage } from '../utils/safeStorage';
 
 interface UpgradeProViewProps {
   profile: StudentProfile;
@@ -31,10 +32,10 @@ export default function UpgradeProView({
 
   useEffect(() => {
     // Seed and calculate
-    const storedOnboarding = localStorage.getItem('ethiolearn_onboarding_time');
+    const storedOnboarding = safeStorage.getItem('ethiolearn_onboarding_time');
     let onboardingTime = storedOnboarding ? parseInt(storedOnboarding, 10) : Date.now();
     if (!storedOnboarding) {
-      localStorage.setItem('ethiolearn_onboarding_time', String(onboardingTime));
+      safeStorage.setItem('ethiolearn_onboarding_time', String(onboardingTime));
     }
     const elapsedHrs = (Date.now() - onboardingTime) / (1000 * 60 * 60);
     const calculatedDays = Math.max(0, parseFloat((3 - (elapsedHrs / 24)).toFixed(1)));

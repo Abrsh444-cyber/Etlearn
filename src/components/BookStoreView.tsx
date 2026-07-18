@@ -3,13 +3,14 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   BookOpen, Search, Download, Sparkles, AlertCircle, Play, FileText, Bot, Compass, CheckCircle, ChevronDown, Award, RefreshCw, Plus,
   BookOpenCheck, Sliders, Sun, Moon, Type, ChevronLeft, ChevronRight, Share2, HelpCircle, X, Check, Database, AlertTriangle, MessageSquare,
-  ExternalLink
+  ExternalLink, Star
 } from 'lucide-react';
 import { StudentProfile } from '../types';
 import { playClickChime, playSuccessChime, playFailureChime } from '../utils/audio';
 import { submitClaudeChat } from '../utils/ai';
 import { fetchSupabaseBooks, getSupabase, saveSupabaseCredentials, clearSupabaseCredentials } from '../utils/supabaseClient';
 import { getChapterContent } from '../data/textbookChapterContent';
+import { safeStorage } from '../utils/safeStorage';
 
 interface BookStoreViewProps {
   profile: StudentProfile;
@@ -408,10 +409,35 @@ export default function BookStoreView({
   const [selectedGrade, setSelectedGrade] = useState<string>('All');
   
   const [recentlyViewedId, setRecentlyViewedId] = useState<string | null>(() => {
-    return localStorage.getItem('ethiolearn_recently_viewed');
+    return safeStorage.getItem('ethiolearn_recently_viewed');
   });
 
   const [collapsedSubjects, setCollapsedSubjects] = useState<Record<string, boolean>>({});
+
+  const [favoriteBookIds, setFavoriteBookIds] = useState<string[]>(() => {
+    try {
+      const saved = safeStorage.getItem('ethiolearn_favorite_books');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+
+  const toggleFavoriteBook = (bookId: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    playClickChime();
+    setFavoriteBookIds(prev => {
+      const updated = prev.includes(bookId)
+        ? prev.filter(id => id !== bookId)
+        : [...prev, bookId];
+      safeStorage.setItem('ethiolearn_favorite_books', JSON.stringify(updated));
+      return updated;
+    });
+  };
 
   const renderBookCover = (mod: ModuleResource) => {
     const subject = mod.subject.toLowerCase();
@@ -470,7 +496,7 @@ export default function BookStoreView({
   const [allModules, setAllModules] = useState<ModuleResource[]>(() => {
     const baseList: ModuleResource[] = [...PREBUILT_MODULES];
     try {
-      const saved = localStorage.getItem('ethiolearn_custom_books');
+      const saved = safeStorage.getItem('ethiolearn_custom_books');
       if (saved) {
         return [...baseList, ...JSON.parse(saved)];
       }
@@ -499,8 +525,8 @@ export default function BookStoreView({
   const [isSupabaseLoading, setIsSupabaseLoading] = useState(false);
   const [supabaseSyncStatus, setSupabaseSyncStatus] = useState<'idle' | 'loading' | 'success' | 'err'>('idle');
   const [showSupabaseGuide, setShowSupabaseGuide] = useState(false);
-  const [supabaseUrlInput, setSupabaseUrlInput] = useState(() => localStorage.getItem('ethiolearn_supabase_url') || '');
-  const [supabaseKeyInput, setSupabaseKeyInput] = useState(() => localStorage.getItem('ethiolearn_supabase_key') || '');
+  const [supabaseUrlInput, setSupabaseUrlInput] = useState(() => safeStorage.getItem('ethiolearn_supabase_url') || '');
+  const [supabaseKeyInput, setSupabaseKeyInput] = useState(() => safeStorage.getItem('ethiolearn_supabase_key') || '');
 
   // In-app Reader states
   const [isReaderOpen, setIsReaderOpen] = useState(false);
@@ -570,10 +596,10 @@ export default function BookStoreView({
     };
 
     try {
-      const saved = localStorage.getItem('ethiolearn_custom_books');
+      const saved = safeStorage.getItem('ethiolearn_custom_books');
       const customBooks = saved ? JSON.parse(saved) : [];
       const updated = [...customBooks, newBook];
-      localStorage.setItem('ethiolearn_custom_books', JSON.stringify(updated));
+      safeStorage.setItem('ethiolearn_custom_books', JSON.stringify(updated));
       
       setAllModules(prev => [...prev, newBook]);
       playSuccessChime();
@@ -663,7 +689,7 @@ export default function BookStoreView({
   // Eagerly check / sync on mount
   useEffect(() => {
     const hasEnvKeys = (import.meta as any).env.VITE_SUPABASE_URL && (import.meta as any).env.VITE_SUPABASE_ANON_KEY;
-    const hasLocalKeys = localStorage.getItem('ethiolearn_supabase_url') && localStorage.getItem('ethiolearn_supabase_key');
+    const hasLocalKeys = safeStorage.getItem('ethiolearn_supabase_url') && safeStorage.getItem('ethiolearn_supabase_key');
     if (hasEnvKeys || hasLocalKeys) {
       syncSupabase(false);
     }
@@ -712,7 +738,10 @@ export default function BookStoreView({
     } else {
       matchesGrade = m.grade === selectedGrade;
     }
-    return matchesSearch && matchesGrade;
+
+    const matchesFavorites = !showFavoritesOnly || favoriteBookIds.includes(m.id);
+
+    return matchesSearch && matchesGrade && matchesFavorites;
   });
 
   // Check trial expiration vs pro
@@ -723,7 +752,7 @@ export default function BookStoreView({
     setActiveModule(mod);
     setSelectedChapter(mod.chapters[0]);
     // Save to recently viewed
-    localStorage.setItem('ethiolearn_recently_viewed', mod.id);
+    safeStorage.setItem('ethiolearn_recently_viewed', mod.id);
     setRecentlyViewedId(mod.id);
     // Reset AI states
     setAiMode('none');
@@ -1061,6 +1090,22 @@ Ensure the layout utilizes clear headers, a detailed markdown text explanation, 
             />
           </div>
 
+          <button
+            onClick={() => {
+              playClickChime();
+              setShowFavoritesOnly(!showFavoritesOnly);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+              showFavoritesOnly 
+                ? 'bg-amber-500 border-amber-500 text-white shadow-sm'
+                : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800'
+            }`}
+          >
+            <Star className={`w-3.5 h-3.5 ${showFavoritesOnly ? 'fill-white text-white' : ''}`} />
+            {language === 'en' ? 'Favorites' : 'የእኔ ምርጦች'}
+            {favoriteBookIds.length > 0 && ` (${favoriteBookIds.length})`}
+          </button>
+
           <div className="flex bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 p-0.5 rounded-xl text-xs font-bold leading-none select-none">
             {['All', 'Grade 12', 'Grade 12 New Curriculum', 'University'].map(g => (
               <button
@@ -1211,6 +1256,19 @@ Ensure the layout utilizes clear headers, a detailed markdown text explanation, 
                                     <span className="text-[9px] text-zinc-400 dark:text-zinc-500 font-mono">
                                       {mod.pages} p.
                                     </span>
+                                    <button
+                                      onClick={(e) => toggleFavoriteBook(mod.id, e)}
+                                      className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors shrink-0 text-slate-400 dark:text-zinc-500 hover:text-amber-500 group"
+                                      title={language === 'en' ? 'Add to Favorites' : 'ወደ ምርጥ መጻሕፍት ጨምር'}
+                                    >
+                                      <Star 
+                                        className={`w-3.5 h-3.5 transition-all ${
+                                          favoriteBookIds.includes(mod.id)
+                                            ? 'fill-amber-400 text-amber-500 scale-110'
+                                            : 'group-hover:scale-105'
+                                        }`} 
+                                      />
+                                    </button>
                                   </div>
                                 </div>
 
@@ -1262,12 +1320,27 @@ Ensure the layout utilizes clear headers, a detailed markdown text explanation, 
                   </h3>
                 </div>
 
-                {/* Status indicator badge */}
-                {!isEligible && activeModule.proRequired && (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-700 dark:text-amber-400 text-xs font-bold leading-none shrink-0 cursor-pointer" onClick={() => onNavigate('upgrade')}>
-                    <span>🔒 Trial Ended Upgrade</span>
-                  </div>
-                )}
+                {/* Status indicator badge / Favorite button */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={(e) => toggleFavoriteBook(activeModule.id, e)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                      favoriteBookIds.includes(activeModule.id)
+                        ? 'bg-amber-500 border-amber-500 text-white shadow-sm hover:bg-amber-600'
+                        : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800'
+                    }`}
+                  >
+                    <Star className={`w-3.5 h-3.5 ${favoriteBookIds.includes(activeModule.id) ? 'fill-white text-white' : ''}`} />
+                    {favoriteBookIds.includes(activeModule.id) 
+                      ? (language === 'en' ? 'Favorited' : 'ተመርጧል')
+                      : (language === 'en' ? 'Favorite' : 'ወደ ምርጥ')}
+                  </button>
+                  {!isEligible && activeModule.proRequired && (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-700 dark:text-amber-400 text-xs font-bold leading-none shrink-0 cursor-pointer" onClick={() => onNavigate('upgrade')}>
+                      <span>🔒 Trial Ended Upgrade</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* PDF Chapters drop and selection */}
@@ -2038,7 +2111,7 @@ Ensure the layout utilizes clear headers, a detailed markdown text explanation, 
                       />
                     </div>
                     <div className="flex justify-end gap-2 pt-1">
-                      {localStorage.getItem('ethiolearn_supabase_url') && (
+                      {safeStorage.getItem('ethiolearn_supabase_url') && (
                         <button
                           onClick={() => {
                             clearSupabaseCredentials();

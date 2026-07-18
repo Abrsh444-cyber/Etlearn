@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { safeStorage } from './safeStorage';
 
 let supabaseInstance: SupabaseClient | null = null;
 
@@ -6,8 +7,8 @@ let supabaseInstance: SupabaseClient | null = null;
  * Save Supabase credentials to localStorage for in-app pairing
  */
 export function saveSupabaseCredentials(url: string, key: string) {
-  localStorage.setItem('ethiolearn_supabase_url', url.trim());
-  localStorage.setItem('ethiolearn_supabase_key', key.trim());
+  safeStorage.setItem('ethiolearn_supabase_url', url.trim());
+  safeStorage.setItem('ethiolearn_supabase_key', key.trim());
   supabaseInstance = null; // Reset instance to force recreation with new keys
 }
 
@@ -15,8 +16,8 @@ export function saveSupabaseCredentials(url: string, key: string) {
  * Clear stored Supabase credentials
  */
 export function clearSupabaseCredentials() {
-  localStorage.removeItem('ethiolearn_supabase_url');
-  localStorage.removeItem('ethiolearn_supabase_key');
+  safeStorage.removeItem('ethiolearn_supabase_url');
+  safeStorage.removeItem('ethiolearn_supabase_key');
   supabaseInstance = null;
 }
 
@@ -66,16 +67,16 @@ export async function fetchSupabaseBooks(): Promise<any[]> {
  */
 export async function initSupabaseConfig(): Promise<void> {
   try {
-    const savedUrl = localStorage.getItem('ethiolearn_supabase_url');
-    const savedKey = localStorage.getItem('ethiolearn_supabase_key');
+    const savedUrl = safeStorage.getItem('ethiolearn_supabase_url');
+    const savedKey = safeStorage.getItem('ethiolearn_supabase_key');
     if (savedUrl && savedKey) return; // Already configured locally
 
     const res = await fetch('/api/supabase-config');
     if (res.ok) {
       const config = await res.json();
       if (config.url && config.anonKey) {
-        localStorage.setItem('ethiolearn_supabase_url', config.url);
-        localStorage.setItem('ethiolearn_supabase_key', config.anonKey);
+        safeStorage.setItem('ethiolearn_supabase_url', config.url);
+        safeStorage.setItem('ethiolearn_supabase_key', config.anonKey);
         supabaseInstance = null; // force reload with server-synced credentials
         console.log('[Supabase Client] Successfully fetched and auto-configured Supabase credentials from server.');
       }

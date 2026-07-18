@@ -248,20 +248,27 @@ export default function MindRelax() {
     if (nodes.windGain) nodes.windGain.gain.value = windVolume * 0.5;
   }, [ambientVolume, rainVolume, fireVolume, windVolume]);
 
-  const getAudioContext = (): AudioContext => {
-    if (!audioCtxRef.current) {
-      const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
-      audioCtxRef.current = new AudioCtxClass();
+  const getAudioContext = (): AudioContext | null => {
+    try {
+      if (!audioCtxRef.current) {
+        const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioCtxClass) return null;
+        audioCtxRef.current = new AudioCtxClass();
+      }
+      if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+        audioCtxRef.current.resume().catch(() => {});
+      }
+      return audioCtxRef.current;
+    } catch (e) {
+      console.warn("MindRelax audio context blocked/unsupported:", e);
+      return null;
     }
-    if (audioCtxRef.current.state === 'suspended') {
-      audioCtxRef.current.resume();
-    }
-    return audioCtxRef.current;
   };
 
   const initSynthesizers = () => {
     try {
       const ctx = getAudioContext();
+      if (!ctx) return;
       
       // Top Level routing
       mainGainRef.current = ctx.createGain();
@@ -642,6 +649,7 @@ export default function MindRelax() {
 
   const startSequenceScheduler = () => {
     const ctx = getAudioContext();
+    if (!ctx) return;
     currentNoteIndex.current = 0;
 
     const playNext = () => {
@@ -688,8 +696,10 @@ export default function MindRelax() {
       // Play
       setIsPlaying(true);
       const ctx = getAudioContext();
-      if (ctx.state === 'suspended') {
-        ctx.resume();
+      if (ctx) {
+        if (ctx.state === 'suspended') {
+          ctx.resume().catch(() => {});
+        }
       }
       initSynthesizers();
       setTimeout(() => {

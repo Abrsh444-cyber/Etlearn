@@ -40,10 +40,11 @@ import { playClickChime, playSuccessChime, playFailureChime } from './utils/audi
 import { initAuth, googleSignIn, googleSignInRedirect, logoutGoogle, exportAnalyticsToGoogleSheets } from './utils/workspace';
 import { User as FirebaseUser } from 'firebase/auth';
 import { initSupabaseConfig, getSupabase } from './utils/supabaseClient';
+import { safeStorage } from './utils/safeStorage';
 
 // Helper functions for real study streak calculation based on actual calendar days
 function recordStudyActivity() {
-  const datesStr = localStorage.getItem('ethiolearn_study_dates');
+  const datesStr = safeStorage.getItem('ethiolearn_study_dates');
   let dates: string[] = [];
   if (datesStr) {
     try {
@@ -61,12 +62,12 @@ function recordStudyActivity() {
   
   if (!dates.includes(todayKey)) {
     dates.push(todayKey);
-    localStorage.setItem('ethiolearn_study_dates', JSON.stringify(dates));
+    safeStorage.setItem('ethiolearn_study_dates', JSON.stringify(dates));
   }
 }
 
 function getCurrentStreak(): number {
-  const datesStr = localStorage.getItem('ethiolearn_study_dates');
+  const datesStr = safeStorage.getItem('ethiolearn_study_dates');
   if (!datesStr) return 0;
   let dates: string[] = [];
   try {
@@ -118,7 +119,7 @@ function getCurrentStreak(): number {
 export default function App() {
   // Load profile with default 'light' theme preference
   const [profile, setProfile] = useState<StudentProfile | null>(() => {
-    const saved = localStorage.getItem('ethiolearn_current_profile');
+    const saved = safeStorage.getItem('ethiolearn_current_profile');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -155,7 +156,7 @@ export default function App() {
             }
           });
           if (updated) {
-            localStorage.setItem('ethiolearn_current_profile', JSON.stringify(parsed));
+            safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(parsed));
           }
         }
         return parsed;
@@ -168,35 +169,35 @@ export default function App() {
 
   // Persistent language preference
   const [language, setLanguage] = useState<'en' | 'am'>(() => {
-    const saved = localStorage.getItem('ethiolearn_language_preference');
+    const saved = safeStorage.getItem('ethiolearn_language_preference');
     return (saved === 'am' || saved === 'en') ? saved : 'en';
   });
 
   const [currentPage, setCurrentPage] = useState<'home' | 'tutor' | 'quiz' | 'profile' | 'notes' | 'bookstore' | 'university' | 'upgrade' | 'examprep'>('home');
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>(() => {
-    const saved = localStorage.getItem('ethiolearn_theme');
+    const saved = safeStorage.getItem('ethiolearn_theme');
     return (saved === 'light' || saved === 'dark') ? saved : 'light';
   });
 
   // Load custom notes and flashcards
   const [customNotes, setCustomNotes] = useState<CustomNote[]>(() => {
-    const saved = localStorage.getItem('ethiolearn_custom_notes');
+    const saved = safeStorage.getItem('ethiolearn_custom_notes');
     return saved ? JSON.parse(saved) : [];
   });
 
   const [decksState, setDecksState] = useState<{ [deckId: string]: Flashcard[] }>(() => {
-    const saved = localStorage.getItem('ethiolearn_flashcards_decks');
+    const saved = safeStorage.getItem('ethiolearn_flashcards_decks');
     return saved ? JSON.parse(saved) : {};
   });
 
   // Streaks and study hours tracker
   const [streak, setStreak] = useState(() => {
-    const saved = localStorage.getItem('ethiolearn_pro_streak');
+    const saved = safeStorage.getItem('ethiolearn_pro_streak');
     return saved ? parseInt(saved, 10) : 5;
   });
 
   const [studyHours, setStudyHours] = useState(() => {
-    const saved = localStorage.getItem('ethiolearn_pro_study_hours');
+    const saved = safeStorage.getItem('ethiolearn_pro_study_hours');
     return saved ? parseFloat(saved) : 14.5;
   });
 
@@ -244,13 +245,13 @@ export default function App() {
       const email = activeProfile.email.toLowerCase();
 
       // Retrieve from local storage to get up-to-date values
-      const studySessionsRaw = localStorage.getItem('ethiolearn_study_sessions');
+      const studySessionsRaw = safeStorage.getItem('ethiolearn_study_sessions');
       const studySessions = studySessionsRaw ? JSON.parse(studySessionsRaw) : [];
 
-      const notesRaw = localStorage.getItem('ethiolearn_custom_notes');
+      const notesRaw = safeStorage.getItem('ethiolearn_custom_notes');
       const notesData = notesRaw ? JSON.parse(notesRaw) : [];
 
-      const quizRaw = localStorage.getItem('ethiolearn_quiz_perf');
+      const quizRaw = safeStorage.getItem('ethiolearn_quiz_perf');
       const performanceData = quizRaw ? JSON.parse(quizRaw) : {};
 
       // Try to select existing profile to get saved password if there is one
@@ -303,12 +304,12 @@ export default function App() {
     } else {
       document.documentElement.classList.remove('dark');
     }
-    localStorage.setItem('ethiolearn_theme', themeMode);
+    safeStorage.setItem('ethiolearn_theme', themeMode);
   }, [themeMode]);
 
   // Sync language with localStorage preference
   useEffect(() => {
-    localStorage.setItem('ethiolearn_language_preference', language);
+    safeStorage.setItem('ethiolearn_language_preference', language);
   }, [language]);
 
   // Calendar calculator
@@ -323,7 +324,7 @@ export default function App() {
 
   // Sync and initialize real active study streak
   useEffect(() => {
-    const savedDates = localStorage.getItem('ethiolearn_study_dates');
+    const savedDates = safeStorage.getItem('ethiolearn_study_dates');
     if (!savedDates) {
       // Seed 5 consecutive days back so student doesn't drop to 0 on their very first run
       const preseeded: string[] = [];
@@ -335,7 +336,7 @@ export default function App() {
         const dayStr = String(d.getDate()).padStart(2, '0');
         preseeded.push(`${y}-${m}-${dayStr}`);
       }
-      localStorage.setItem('ethiolearn_study_dates', JSON.stringify(preseeded));
+      safeStorage.setItem('ethiolearn_study_dates', JSON.stringify(preseeded));
     }
     
     // Log today's study activity on app launch
@@ -343,7 +344,7 @@ export default function App() {
     
     const realStreak = getCurrentStreak();
     setStreak(realStreak);
-    localStorage.setItem('ethiolearn_pro_streak', String(realStreak));
+    safeStorage.setItem('ethiolearn_pro_streak', String(realStreak));
   }, []);
 
   // Synchronize master API Key to the cloud container if available in active profile
@@ -438,30 +439,30 @@ export default function App() {
             if (supaRecord.profile_data) {
               console.log('[Supabase Sync] Pulled student profile from Supabase.');
               setProfile(supaRecord.profile_data);
-              localStorage.setItem('ethiolearn_current_profile', JSON.stringify(supaRecord.profile_data));
+              safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(supaRecord.profile_data));
             }
             if (supaRecord.notes_data && supaRecord.notes_data.length > 0) {
               console.log('[Supabase Sync] Pulled custom notes from Supabase.');
               setCustomNotes(supaRecord.notes_data);
-              localStorage.setItem('ethiolearn_custom_notes', JSON.stringify(supaRecord.notes_data));
+              safeStorage.setItem('ethiolearn_custom_notes', JSON.stringify(supaRecord.notes_data));
             }
             if (supaRecord.study_sessions && supaRecord.study_sessions.length > 0) {
               console.log('[Supabase Sync] Pulled study sessions from Supabase.');
-              localStorage.setItem('ethiolearn_study_sessions', JSON.stringify(supaRecord.study_sessions));
+              safeStorage.setItem('ethiolearn_study_sessions', JSON.stringify(supaRecord.study_sessions));
             }
             if (supaRecord.performance_data) {
               console.log('[Supabase Sync] Pulled performance data from Supabase.');
-              localStorage.setItem('ethiolearn_quiz_perf', JSON.stringify(supaRecord.performance_data));
+              safeStorage.setItem('ethiolearn_quiz_perf', JSON.stringify(supaRecord.performance_data));
             }
           } else if (profile) {
             console.log('[Supabase Sync] Row not found. Seeding initial profile data to student_profiles table.');
-            const studySessionsRaw = localStorage.getItem('ethiolearn_study_sessions');
+            const studySessionsRaw = safeStorage.getItem('ethiolearn_study_sessions');
             const studySessions = studySessionsRaw ? JSON.parse(studySessionsRaw) : [];
 
-            const notesRaw = localStorage.getItem('ethiolearn_custom_notes');
+            const notesRaw = safeStorage.getItem('ethiolearn_custom_notes');
             const notesData = notesRaw ? JSON.parse(notesRaw) : [];
 
-            const quizRaw = localStorage.getItem('ethiolearn_quiz_perf');
+            const quizRaw = safeStorage.getItem('ethiolearn_quiz_perf');
             const performanceData = quizRaw ? JSON.parse(quizRaw) : {};
 
             const payloadRecord = {
@@ -496,7 +497,7 @@ export default function App() {
           if (cloudProfile) {
             console.log('[Firestore Sync] Cloud profile pulled. Applying to local study desk.');
             setProfile(cloudProfile);
-            localStorage.setItem('ethiolearn_current_profile', JSON.stringify(cloudProfile));
+            safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(cloudProfile));
           } else if (profile) {
             console.log('[Firestore Sync] Creating cloud profile backup.');
             await syncProfileToFirestore(googleUser.uid, profile);
@@ -507,7 +508,7 @@ export default function App() {
           if (cloudNotes && cloudNotes.length > 0) {
             console.log('[Firestore Sync] Cloud notes pulled. Updating local portfolio.');
             setCustomNotes(cloudNotes);
-            localStorage.setItem('ethiolearn_custom_notes', JSON.stringify(cloudNotes));
+            safeStorage.setItem('ethiolearn_custom_notes', JSON.stringify(cloudNotes));
           } else if (customNotes.length > 0) {
             console.log('[Firestore Sync] Archiving existing local notes onto cloud database.');
             for (const note of customNotes) {
@@ -555,7 +556,7 @@ export default function App() {
     const ua = navigator.userAgent.toLowerCase();
     const isIOSDevice = /ipad|iphone|ipod/.test(ua);
     const isStandalonePWA = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
-    const isDismissed = localStorage.getItem('ethiolearn_ios_pwa_dismissed') === 'true';
+    const isDismissed = safeStorage.getItem('ethiolearn_ios_pwa_dismissed') === 'true';
 
     if (isIOSDevice && !isStandalonePWA && !isDismissed) {
       const timer = setTimeout(() => {
@@ -567,7 +568,7 @@ export default function App() {
 
   const handleDismissIOSPrompt = () => {
     setShowIOSPrompt(false);
-    localStorage.setItem('ethiolearn_ios_pwa_dismissed', 'true');
+    safeStorage.setItem('ethiolearn_ios_pwa_dismissed', 'true');
     playClickChime();
   };
 
@@ -613,7 +614,7 @@ export default function App() {
     // Override theme to default to current selected style
     const updated = { ...completedProfile, theme: themeMode };
     setProfile(updated);
-    localStorage.setItem('ethiolearn_current_profile', JSON.stringify(updated));
+    safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(updated));
     playSuccessChime();
     showToast(`Welcome ${completedProfile.name}!`);
   };
@@ -621,7 +622,7 @@ export default function App() {
   const handleProfileReset = () => {
     playClickChime();
     if (window.confirm("Would you like to reset your profile and re-register?")) {
-      localStorage.removeItem('ethiolearn_current_profile');
+      safeStorage.removeItem('ethiolearn_current_profile');
       setProfile(null);
     }
   };
@@ -629,7 +630,7 @@ export default function App() {
   const handleSignOut = async () => {
     playClickChime();
     // Clear local profile and authentication variables
-    localStorage.removeItem('ethiolearn_current_profile');
+    safeStorage.removeItem('ethiolearn_current_profile');
     setProfile(null);
     
     // Clear Google Workspace auth session if active
@@ -739,7 +740,7 @@ export default function App() {
 
   const handleSaveCustomNotes = (newNotes: CustomNote[]) => {
     setCustomNotes(newNotes);
-    localStorage.setItem('ethiolearn_custom_notes', JSON.stringify(newNotes));
+    safeStorage.setItem('ethiolearn_custom_notes', JSON.stringify(newNotes));
     syncWithSupabase();
 
     // Sync individual notes to Firestore if Google User is authenticated
@@ -771,14 +772,14 @@ export default function App() {
   const handleSaveDecksState = (deckId: string, cards: Flashcard[]) => {
     const updated = { ...decksState, [deckId]: cards };
     setDecksState(updated);
-    localStorage.setItem('ethiolearn_flashcards_decks', JSON.stringify(updated));
+    safeStorage.setItem('ethiolearn_flashcards_decks', JSON.stringify(updated));
     syncWithSupabase();
   };
 
   // Update profile from inside subviews
   const handleUpdateProfile = (updated: StudentProfile) => {
     setProfile(updated);
-    localStorage.setItem('ethiolearn_current_profile', JSON.stringify(updated));
+    safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(updated));
     syncWithSupabase(updated);
 
     if (googleUser) {
@@ -793,7 +794,7 @@ export default function App() {
     if (profile) {
       const updated = { ...profile, year: grade };
       setProfile(updated);
-      localStorage.setItem('ethiolearn_current_profile', JSON.stringify(updated));
+      safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(updated));
       showToast(language === 'en' ? `Curriculum set to ${grade}!` : `ደረጃው ወደ ${grade} ተቀይሯል!`);
       syncWithSupabase(updated);
 
@@ -809,11 +810,11 @@ export default function App() {
     recordStudyActivity();
     const sc = getCurrentStreak();
     setStreak(sc);
-    localStorage.setItem('ethiolearn_pro_streak', String(sc));
+    safeStorage.setItem('ethiolearn_pro_streak', String(sc));
     
     const updatedHours = Number((studyHours + 0.1).toFixed(2));
     setStudyHours(updatedHours);
-    localStorage.setItem('ethiolearn_pro_study_hours', String(updatedHours));
+    safeStorage.setItem('ethiolearn_pro_study_hours', String(updatedHours));
     
     syncWithSupabase();
   };

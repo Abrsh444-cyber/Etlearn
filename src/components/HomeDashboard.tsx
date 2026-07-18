@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { StudentProfile } from '../types';
 import { playClickChime } from '../utils/audio';
+import { safeStorage } from '../utils/safeStorage';
 
 interface HomeDashboardProps {
   profile: StudentProfile;
@@ -24,8 +25,8 @@ export default function HomeDashboard({
 }: HomeDashboardProps) {
 
   // Load last session info
-  const lastActiveSubject = localStorage.getItem('ethiolearn_last_subject') || profile.subjects[0] || "Emerging Technologies";
-  const lastScore = localStorage.getItem('ethiolearn_last_quiz_score');
+  const lastActiveSubject = safeStorage.getItem('ethiolearn_last_subject') || profile.subjects[0] || "Emerging Technologies";
+  const lastScore = safeStorage.getItem('ethiolearn_last_quiz_score');
 
   const grades = [
     { value: 'Grade 12', label: language === 'en' ? 'Grade 12' : 'ክፍል 12' },

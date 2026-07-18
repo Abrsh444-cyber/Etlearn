@@ -9,6 +9,7 @@ import {
   BarChart, PieChart, TrendingUp, Calendar, Zap, Download, RefreshCw, Smile, Award, Flame, Activity, Clock, Trash2, Play, Pause, ScrollText, CheckCircle
 } from 'lucide-react';
 import { playClickChime, playSuccessChime, playFailureChime } from '../utils/audio';
+import { safeStorage } from '../utils/safeStorage';
 
 interface AnalyticsDashboardProps {
   analyticsData: {
@@ -54,10 +55,10 @@ export default function AnalyticsDashboard({
   const [examReadinessRank, setExamReadinessRank] = useState("82.5%");
   const [personalityDesc, setPersonalityDesc] = useState({ title: '', desc: '', icon: '🎓' });
 
-  // State-backed persistent study sessions (loaded from localStorage or generated)
+  // State-backed persistent study sessions (loaded from safeStorage or generated)
   const [sessions, setSessions] = useState<any[]>(() => {
     try {
-      const saved = localStorage.getItem('ethiolearn_study_sessions');
+      const saved = safeStorage.getItem('ethiolearn_study_sessions');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return parsed;
@@ -71,23 +72,23 @@ export default function AnalyticsDashboard({
       { id: "init_4", subject: "Communicative English", date: new Date(Date.now() - 1000*60*60*96).toISOString().split('T')[0], durationMinutes: 120 }, 
       { id: "init_5", subject: "Moral and Civic Education", date: new Date(Date.now() - 1000*60*60*120).toISOString().split('T')[0], durationMinutes: 180 }
     ];
-    localStorage.setItem('ethiolearn_study_sessions', JSON.stringify(initSec));
+    safeStorage.setItem('ethiolearn_study_sessions', JSON.stringify(initSec));
     
     // Make sure analytics totalStudyHours is aligned with the initial sum
     const totalMinutes = initSec.reduce((acc, curr) => acc + curr.durationMinutes, 0);
     const newHours = Number((totalMinutes / 60).toFixed(1));
     try {
-      const savedAn = localStorage.getItem("ethiolearn_analytics");
+      const savedAn = safeStorage.getItem("ethiolearn_analytics");
       const parsed = savedAn ? JSON.parse(savedAn) : {};
       parsed.studyHours = newHours;
-      localStorage.setItem("ethiolearn_analytics", JSON.stringify(parsed));
+      safeStorage.setItem("ethiolearn_analytics", JSON.stringify(parsed));
     } catch(e){}
     return initSec;
   });
 
   const [exams, setExams] = useState<any[]>(() => {
     try {
-      const saved = localStorage.getItem('ethiolearn_exam_sessions_history');
+      const saved = safeStorage.getItem('ethiolearn_exam_sessions_history');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return parsed;
@@ -99,7 +100,7 @@ export default function AnalyticsDashboard({
       { id: "init_e2", subject: "Introduction to Economics", score: 74, date: new Date(Date.now() - 1000*60*60*48).toISOString() },
       { id: "init_e3", subject: "Emerging Technologies", score: 82, date: new Date(Date.now() - 1000*60*60*24).toISOString() }
     ];
-    localStorage.setItem('ethiolearn_exam_sessions_history', JSON.stringify(initEx));
+    safeStorage.setItem('ethiolearn_exam_sessions_history', JSON.stringify(initEx));
     return initEx;
   });
 
@@ -153,7 +154,7 @@ export default function AnalyticsDashboard({
   // Read enrolled subjects from profile data
   useEffect(() => {
     try {
-      const stored = localStorage.getItem('ethiolearn_profile');
+      const stored = safeStorage.getItem('ethiolearn_profile');
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed.subjects) && parsed.subjects.length > 0) {
@@ -169,9 +170,9 @@ export default function AnalyticsDashboard({
   useEffect(() => {
     const handleSyncFromStorage = () => {
       try {
-        const savedSec = localStorage.getItem('ethiolearn_study_sessions');
+        const savedSec = safeStorage.getItem('ethiolearn_study_sessions');
         if (savedSec) setSessions(JSON.parse(savedSec));
-        const savedEx = localStorage.getItem('ethiolearn_exam_sessions_history');
+        const savedEx = safeStorage.getItem('ethiolearn_exam_sessions_history');
         if (savedEx) setExams(JSON.parse(savedEx));
       } catch(e){}
     };
@@ -194,7 +195,7 @@ export default function AnalyticsDashboard({
     let currentStreak = 5;
     let currentMastered = 48;
 
-    // Use passed live props if they exist, otherwise fallback to localStorage logs
+    // Use passed live props if they exist, otherwise fallback to safeStorage logs
     if (analyticsData) {
       currentStudyHours = analyticsData.studyHours;
       currentStreak = analyticsData.streak;
@@ -204,7 +205,7 @@ export default function AnalyticsDashboard({
       setCardsMastered(currentMastered);
     } else {
       try {
-        const savedAn = localStorage.getItem("ethiolearn_analytics");
+        const savedAn = safeStorage.getItem("ethiolearn_analytics");
         if (savedAn) {
           const parsed = JSON.parse(savedAn);
           if (parsed.studyHours !== undefined) {
@@ -267,7 +268,7 @@ export default function AnalyticsDashboard({
     const weightScores = subjectList.map(subj => {
       let weight = 0;
       
-      const chatSaved = localStorage.getItem(`ethiolearn_chat_history_${subj}`);
+      const chatSaved = safeStorage.getItem(`ethiolearn_chat_history_${subj}`);
       if (chatSaved) {
         try {
           const chatArray = JSON.parse(chatSaved);
@@ -277,7 +278,7 @@ export default function AnalyticsDashboard({
         } catch(e){}
       }
 
-      const decksSaved = localStorage.getItem('ethiolearn_decks_state');
+      const decksSaved = safeStorage.getItem('ethiolearn_decks_state');
       if (decksSaved) {
         try {
           const decks = JSON.parse(decksSaved);
@@ -506,17 +507,17 @@ export default function AnalyticsDashboard({
     
     const updatedSessions = [newSession, ...sessions];
     setSessions(updatedSessions);
-    localStorage.setItem('ethiolearn_study_sessions', JSON.stringify(updatedSessions));
+    safeStorage.setItem('ethiolearn_study_sessions', JSON.stringify(updatedSessions));
     
     const totalMinutes = updatedSessions.reduce((acc, curr) => acc + curr.durationMinutes, 0);
     const newHours = Number((totalMinutes / 60).toFixed(1));
     
     try {
-      const savedAn = localStorage.getItem("ethiolearn_analytics");
+      const savedAn = safeStorage.getItem("ethiolearn_analytics");
       if (savedAn) {
         const parsed = JSON.parse(savedAn);
         parsed.studyHours = newHours;
-        localStorage.setItem("ethiolearn_analytics", JSON.stringify(parsed));
+        safeStorage.setItem("ethiolearn_analytics", JSON.stringify(parsed));
       }
     } catch(e){}
     
@@ -546,17 +547,17 @@ export default function AnalyticsDashboard({
     
     const updatedSessions = [newSession, ...sessions];
     setSessions(updatedSessions);
-    localStorage.setItem('ethiolearn_study_sessions', JSON.stringify(updatedSessions));
+    safeStorage.setItem('ethiolearn_study_sessions', JSON.stringify(updatedSessions));
     
     const totalMinutes = updatedSessions.reduce((acc, curr) => acc + curr.durationMinutes, 0);
     const newHours = Number((totalMinutes / 60).toFixed(1));
     
     try {
-      const savedAn = localStorage.getItem("ethiolearn_analytics");
+      const savedAn = safeStorage.getItem("ethiolearn_analytics");
       if (savedAn) {
         const parsed = JSON.parse(savedAn);
         parsed.studyHours = newHours;
-        localStorage.setItem("ethiolearn_analytics", JSON.stringify(parsed));
+        safeStorage.setItem("ethiolearn_analytics", JSON.stringify(parsed));
       }
     } catch(e){}
     
@@ -573,17 +574,17 @@ export default function AnalyticsDashboard({
     
     const updatedSessions = sessions.filter(s => s.id !== sessionId);
     setSessions(updatedSessions);
-    localStorage.setItem('ethiolearn_study_sessions', JSON.stringify(updatedSessions));
+    safeStorage.setItem('ethiolearn_study_sessions', JSON.stringify(updatedSessions));
     
     const totalMinutes = updatedSessions.reduce((acc, curr) => acc + curr.durationMinutes, 0);
     const newHours = Number((totalMinutes / 60).toFixed(1));
     
     try {
-      const savedAn = localStorage.getItem("ethiolearn_analytics");
+      const savedAn = safeStorage.getItem("ethiolearn_analytics");
       if (savedAn) {
         const parsed = JSON.parse(savedAn);
         parsed.studyHours = newHours;
-        localStorage.setItem("ethiolearn_analytics", JSON.stringify(parsed));
+        safeStorage.setItem("ethiolearn_analytics", JSON.stringify(parsed));
       }
     } catch(e){}
     

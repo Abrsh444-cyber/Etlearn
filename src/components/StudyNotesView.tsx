@@ -15,6 +15,7 @@ import { playClickChime, playSuccessChime, playFailureChime } from '../utils/aud
 import { User } from 'firebase/auth';
 import { exportNoteToGoogleDoc, exportNotesToGoogleSheets } from '../utils/workspace';
 import { jsPDF } from 'jspdf';
+import { safeStorage } from '../utils/safeStorage';
 
 interface StudyNotesViewProps {
   apiKey: string;
@@ -108,10 +109,10 @@ export default function StudyNotesView({
           setNoteCardsSuccess(`Successfully compiled ${generated.length} flashcards from your note "${title}"! Saved in 'Free Space' review deck.`);
           playSuccessChime();
         } else {
-          const localState = JSON.parse(localStorage.getItem('ethiolearn_decks_state') || '{}');
+          const localState = JSON.parse(safeStorage.getItem('ethiolearn_decks_state') || '{}');
           const original = localState["deck_free_space"] || [];
           localState["deck_free_space"] = [...customCards, ...original];
-          localStorage.setItem('ethiolearn_decks_state', JSON.stringify(localState));
+          safeStorage.setItem('ethiolearn_decks_state', JSON.stringify(localState));
           setNoteCardsSuccess(`Successfully compiled ${generated.length} flashcards! Saved in 'Free Space' review deck.`);
           playSuccessChime();
         }

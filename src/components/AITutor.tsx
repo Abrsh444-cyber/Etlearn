@@ -8,6 +8,7 @@ import { ChatMessage, submitClaudeChat, generateQuizAI, generateFlashcardsFromCo
 import { playClickChime, playSuccessChime, playFailureChime } from '../utils/audio';
 import AITutorLogo from './AITutorLogo';
 import { StudentProfile, Flashcard } from '../types';
+import { safeStorage } from '../utils/safeStorage';
 
 interface AITutorProps {
   apiKey: string;
@@ -254,7 +255,7 @@ export default function AITutor({
   
   // Persistent language mapping
   const [language, setLanguage] = useState<'en' | 'am'>(() => {
-    const saved = localStorage.getItem('ethiolearn_language_preference');
+    const saved = safeStorage.getItem('ethiolearn_language_preference');
     return (saved === 'am' || saved === 'en') ? saved : 'en';
   });
 
@@ -402,13 +403,13 @@ Always end your explanations with 2 conversational, helpful revision questions f
   };
 
   useEffect(() => {
-    // Sync language selection to localStorage
-    localStorage.setItem('ethiolearn_language_preference', language);
+    // Sync language selection to safeStorage
+    safeStorage.setItem('ethiolearn_language_preference', language);
   }, [language]);
 
   useEffect(() => {
     // Load chat history or create greeting
-    const saved = localStorage.getItem(`ethiolearn_chat_history_${selectedSubject}`);
+    const saved = safeStorage.getItem(`ethiolearn_chat_history_${selectedSubject}`);
     if (saved) {
       setMessages(JSON.parse(saved).slice(-50));
     } else {
@@ -431,7 +432,7 @@ Always end your explanations with 2 conversational, helpful revision questions f
         }
         return m;
       });
-      localStorage.setItem(`ethiolearn_chat_history_${selectedSubject}`, JSON.stringify(slimmedList.slice(-50)));
+      safeStorage.setItem(`ethiolearn_chat_history_${selectedSubject}`, JSON.stringify(slimmedList.slice(-50)));
     } catch (e) {
       console.warn("Local storage quota limit exceeded:", e);
     }
@@ -443,7 +444,7 @@ Always end your explanations with 2 conversational, helpful revision questions f
         ? `Chat history reset. Let's start fresh with our study of *${selectedSubject}*!`
         : `የውይይት መዝገብ ተሰርዟል። ስለ *${selectedSubject}* እንደገና መማር እንጀምር!`;
     setMessages([{ role: 'assistant', content: introText }]);
-    localStorage.removeItem(`ethiolearn_chat_history_${selectedSubject}`);
+    safeStorage.removeItem(`ethiolearn_chat_history_${selectedSubject}`);
   };
 
   const handleSend = async (textToSend?: string) => {

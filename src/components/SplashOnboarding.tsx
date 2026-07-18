@@ -17,6 +17,7 @@ import {
 import EthioLearnLogo from './EthioLearnLogo';
 import StudentAvatarSelector from './StudentAvatarSelector';
 import StudentAvatar from './StudentAvatar';
+import { safeStorage } from '../utils/safeStorage';
 
 export const ETHIOPIAN_UNIVERSITIES = [
   "Addis Ababa University (AAU)",
@@ -440,8 +441,8 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
   const [claudeApiKey, setClaudeApiKey] = useState('');
   
   // Supabase explicit configuration states
-  const [supabaseUrlInput, setSupabaseUrlInput] = useState(() => localStorage.getItem('ethiolearn_supabase_url') || '');
-  const [supabaseKeyInput, setSupabaseKeyInput] = useState(() => localStorage.getItem('ethiolearn_supabase_key') || '');
+  const [supabaseUrlInput, setSupabaseUrlInput] = useState(() => safeStorage.getItem('ethiolearn_supabase_url') || '');
+  const [supabaseKeyInput, setSupabaseKeyInput] = useState(() => safeStorage.getItem('ethiolearn_supabase_key') || '');
   const [showSupaConfig, setShowSupaConfig] = useState(false);
   const [isSupaConfigured, setIsSupaConfigured] = useState(() => !!getSupabase());
   const [loading, setLoading] = useState(false);
@@ -554,13 +555,13 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
     async function loadConfig() {
       await initSupabaseConfig();
       setIsSupaConfigured(!!getSupabase());
-      setSupabaseUrlInput(localStorage.getItem('ethiolearn_supabase_url') || '');
-      setSupabaseKeyInput(localStorage.getItem('ethiolearn_supabase_key') || '');
+      setSupabaseUrlInput(safeStorage.getItem('ethiolearn_supabase_url') || '');
+      setSupabaseKeyInput(safeStorage.getItem('ethiolearn_supabase_key') || '');
     }
     loadConfig();
 
     try {
-      const stored = localStorage.getItem('ethiolearn_accounts');
+      const stored = safeStorage.getItem('ethiolearn_accounts');
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
@@ -570,7 +571,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
       }
       
       // Load remembered login credentials if they exist to remember users on retry
-      const remembered = localStorage.getItem('ethiolearn_remember_login');
+      const remembered = safeStorage.getItem('ethiolearn_remember_login');
       if (remembered) {
         const parsedRem = JSON.parse(remembered);
         if (parsedRem && parsedRem.email) {
@@ -628,13 +629,13 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
             };
 
             if (supaRecord.study_sessions) {
-              localStorage.setItem('ethiolearn_study_sessions', JSON.stringify(supaRecord.study_sessions));
+              safeStorage.setItem('ethiolearn_study_sessions', JSON.stringify(supaRecord.study_sessions));
             }
             if (supaRecord.notes_data) {
-              localStorage.setItem('ethiolearn_custom_notes', JSON.stringify(supaRecord.notes_data));
+              safeStorage.setItem('ethiolearn_custom_notes', JSON.stringify(supaRecord.notes_data));
             }
             if (supaRecord.performance_data) {
-              localStorage.setItem('ethiolearn_quiz_perf', JSON.stringify(supaRecord.performance_data));
+              safeStorage.setItem('ethiolearn_quiz_perf', JSON.stringify(supaRecord.performance_data));
             }
           } else {
             profile = {
@@ -723,8 +724,8 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
       };
       const filteredAccounts = registeredAccounts.filter(acc => acc.email.toLowerCase() !== emailLower);
       const updated = [...filteredAccounts, newAccount];
-      localStorage.setItem('ethiolearn_accounts', JSON.stringify(updated));
-      localStorage.setItem('ethiolearn_active_email', userEmail);
+      safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updated));
+      safeStorage.setItem('ethiolearn_active_email', userEmail);
 
       playSuccessChime();
       onComplete(profile);
@@ -881,10 +882,10 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
       
       // Update local storage account with new password if they had one cached
       try {
-        const accountsData = localStorage.getItem('ethiolearn_accounts');
+        const accountsData = safeStorage.getItem('ethiolearn_accounts');
         if (accountsData) {
           const accounts: AccountInfo[] = JSON.parse(accountsData);
-          const activeEmail = localStorage.getItem('ethiolearn_active_email') || email;
+          const activeEmail = safeStorage.getItem('ethiolearn_active_email') || email;
           if (activeEmail) {
             const updatedAccs = accounts.map(acc => {
               if (acc.email.toLowerCase() === activeEmail.toLowerCase()) {
@@ -892,7 +893,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
               }
               return acc;
             });
-            localStorage.setItem('ethiolearn_accounts', JSON.stringify(updatedAccs));
+            safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updatedAccs));
           }
         }
       } catch (ex) {
@@ -976,8 +977,8 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                   type="button"
                   onClick={() => {
                     playClickChime();
-                    localStorage.removeItem('ethiolearn_supabase_url');
-                    localStorage.removeItem('ethiolearn_supabase_key');
+                    safeStorage.removeItem('ethiolearn_supabase_url');
+                    safeStorage.removeItem('ethiolearn_supabase_key');
                     setSupabaseUrlInput('');
                     setSupabaseKeyInput('');
                     setIsSupaConfigured(false);
@@ -1064,13 +1065,13 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
         if (supaRecord && supaRecord.profile_data) {
           profile = supaRecord.profile_data;
           if (supaRecord.study_sessions) {
-            localStorage.setItem('ethiolearn_study_sessions', JSON.stringify(supaRecord.study_sessions));
+            safeStorage.setItem('ethiolearn_study_sessions', JSON.stringify(supaRecord.study_sessions));
           }
           if (supaRecord.notes_data) {
-            localStorage.setItem('ethiolearn_custom_notes', JSON.stringify(supaRecord.notes_data));
+            safeStorage.setItem('ethiolearn_custom_notes', JSON.stringify(supaRecord.notes_data));
           }
           if (supaRecord.performance_data) {
-            localStorage.setItem('ethiolearn_quiz_perf', JSON.stringify(supaRecord.performance_data));
+            safeStorage.setItem('ethiolearn_quiz_perf', JSON.stringify(supaRecord.performance_data));
           }
         } else {
           // Fallback or initial creation
@@ -1104,17 +1105,17 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
         };
         const filteredAccounts = registeredAccounts.filter(acc => acc.email.toLowerCase() !== emailTrim);
         const updated = [...filteredAccounts, newAccount];
-        localStorage.setItem('ethiolearn_accounts', JSON.stringify(updated));
-        localStorage.setItem('ethiolearn_active_email', emailTrim);
+        safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updated));
+        safeStorage.setItem('ethiolearn_active_email', emailTrim);
 
         if (rememberMe) {
-          localStorage.setItem('ethiolearn_remember_login', JSON.stringify({
+          safeStorage.setItem('ethiolearn_remember_login', JSON.stringify({
             email: emailTrim,
             password: passwordTrim,
             rememberMe: true
           }));
         } else {
-          localStorage.removeItem('ethiolearn_remember_login');
+          safeStorage.removeItem('ethiolearn_remember_login');
         }
 
         playSuccessChime();
@@ -1150,20 +1151,20 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
         }
         return acc;
       });
-      localStorage.setItem('ethiolearn_accounts', JSON.stringify(updatedAccounts));
+      safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updatedAccounts));
       
       // Set active user session
-      localStorage.setItem('ethiolearn_active_email', found.email);
+      safeStorage.setItem('ethiolearn_active_email', found.email);
 
       // Save remembered credentials if checked
       if (rememberMe) {
-        localStorage.setItem('ethiolearn_remember_login', JSON.stringify({
+        safeStorage.setItem('ethiolearn_remember_login', JSON.stringify({
           email: found.email,
           password: found.passwordEncrypted,
           rememberMe: true
         }));
       } else {
-        localStorage.removeItem('ethiolearn_remember_login');
+        safeStorage.removeItem('ethiolearn_remember_login');
       }
     } catch (e) {}
 
@@ -1181,7 +1182,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
     if (acc.rememberMe) {
       // Direct session validation bypass if "Remember Me" is true
       try {
-        localStorage.setItem('ethiolearn_active_email', acc.email);
+        safeStorage.setItem('ethiolearn_active_email', acc.email);
       } catch (e) {}
       playSuccessChime();
       onComplete({ ...acc.profile, isRegistered: true });
@@ -1311,17 +1312,17 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
         };
 
         const updated = [...registeredAccounts.filter(acc => acc.email.toLowerCase() !== emailTrim), newAccount];
-        localStorage.setItem('ethiolearn_accounts', JSON.stringify(updated));
-        localStorage.setItem('ethiolearn_active_email', emailTrim);
+        safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updated));
+        safeStorage.setItem('ethiolearn_active_email', emailTrim);
 
         if (rememberMe) {
-          localStorage.setItem('ethiolearn_remember_login', JSON.stringify({
+          safeStorage.setItem('ethiolearn_remember_login', JSON.stringify({
             email: emailTrim,
             password: passwordTrim,
             rememberMe: true
           }));
         } else {
-          localStorage.removeItem('ethiolearn_remember_login');
+          safeStorage.removeItem('ethiolearn_remember_login');
         }
 
         // Inform the user if email confirmation is required
@@ -1377,18 +1378,18 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
     // Save accounts storage
     const updated = [...registeredAccounts, newAccount];
     try {
-      localStorage.setItem('ethiolearn_accounts', JSON.stringify(updated));
-      localStorage.setItem('ethiolearn_active_email', emailTrim);
+      safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updated));
+      safeStorage.setItem('ethiolearn_active_email', emailTrim);
 
       // Save remembered credentials if checked
       if (rememberMe) {
-        localStorage.setItem('ethiolearn_remember_login', JSON.stringify({
+        safeStorage.setItem('ethiolearn_remember_login', JSON.stringify({
           email: emailTrim,
           password: passwordTrim,
           rememberMe: true
         }));
       } else {
-        localStorage.removeItem('ethiolearn_remember_login');
+        safeStorage.removeItem('ethiolearn_remember_login');
       }
     } catch (e) {}
 

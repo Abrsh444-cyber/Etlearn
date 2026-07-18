@@ -16,6 +16,7 @@ import { getSupabase, saveSupabaseCredentials, clearSupabaseCredentials } from '
 import StudentAvatar from './StudentAvatar';
 import StudentAvatarSelector from './StudentAvatarSelector';
 import PWADownloadAssistant from './PWADownloadAssistant';
+import { safeStorage } from '../utils/safeStorage';
 
 interface StudentProfileViewProps {
   profile: StudentProfile;
@@ -73,8 +74,8 @@ export default function StudentProfileView({
   const [resetError, setResetError] = useState<string | null>(null);
 
   // Supabase Integration Settings States
-  const [supabaseUrl, setSupabaseUrl] = useState(() => localStorage.getItem('ethiolearn_supabase_url') || '');
-  const [supabaseKey, setSupabaseKey] = useState(() => localStorage.getItem('ethiolearn_supabase_key') || '');
+  const [supabaseUrl, setSupabaseUrl] = useState(() => safeStorage.getItem('ethiolearn_supabase_url') || '');
+  const [supabaseKey, setSupabaseKey] = useState(() => safeStorage.getItem('ethiolearn_supabase_key') || '');
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncSuccessMsg, setSyncSuccessMsg] = useState<string | null>(null);
   const [syncErrorMsg, setSyncErrorMsg] = useState<string | null>(null);
@@ -113,7 +114,7 @@ export default function StudentProfileView({
   // Load quiz history from local device storage
   const quizHistory = (() => {
     try {
-      const stored = localStorage.getItem("ethiolearn_exam_sessions_history");
+      const stored = safeStorage.getItem("ethiolearn_exam_sessions_history");
       return stored ? JSON.parse(stored) : [];
     } catch (e) {
       return [];
@@ -324,13 +325,13 @@ export default function StudentProfileView({
     try {
       // Collect local data
       const localProfile = profile;
-      const notesRaw = localStorage.getItem('ethiolearn_custom_notes');
+      const notesRaw = safeStorage.getItem('ethiolearn_custom_notes');
       const notesData = notesRaw ? JSON.parse(notesRaw) : [];
 
-      const studySessionsRaw = localStorage.getItem('ethiolearn_study_sessions');
+      const studySessionsRaw = safeStorage.getItem('ethiolearn_study_sessions');
       const studySessions = studySessionsRaw ? JSON.parse(studySessionsRaw) : [];
 
-      const quizRaw = localStorage.getItem('ethiolearn_quiz_perf');
+      const quizRaw = safeStorage.getItem('ethiolearn_quiz_perf');
       const performanceData = quizRaw ? JSON.parse(quizRaw) : {};
 
       const payload = {
@@ -418,16 +419,16 @@ export default function StudentProfileView({
       if (data.profile_data) {
         onUpdateProfile(data.profile_data);
         setDbProfile(data.profile_data);
-        localStorage.setItem('ethiolearn_current_profile', JSON.stringify(data.profile_data));
+        safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(data.profile_data));
       }
       if (data.notes_data) {
-        localStorage.setItem('ethiolearn_custom_notes', JSON.stringify(data.notes_data));
+        safeStorage.setItem('ethiolearn_custom_notes', JSON.stringify(data.notes_data));
       }
       if (data.study_sessions) {
-        localStorage.setItem('ethiolearn_study_sessions', JSON.stringify(data.study_sessions));
+        safeStorage.setItem('ethiolearn_study_sessions', JSON.stringify(data.study_sessions));
       }
       if (data.performance_data) {
-        localStorage.setItem('ethiolearn_quiz_perf', JSON.stringify(data.performance_data));
+        safeStorage.setItem('ethiolearn_quiz_perf', JSON.stringify(data.performance_data));
       }
 
       playSuccessChime();

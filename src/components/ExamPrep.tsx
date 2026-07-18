@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Compass, Trophy, Zap, Clock, Calendar, ArrowRight, Sparkles, FileText, CheckCircle, XCircle, HelpCircle, Award, RefreshCw, Plus, X
+  Compass, Trophy, Zap, Clock, Calendar, ArrowRight, Sparkles, FileText, CheckCircle, XCircle, HelpCircle, Award, RefreshCw, Plus, X, Star
 } from 'lucide-react';
 import { playClickChime, playSuccessChime, playFailureChime } from '../utils/audio';
 import { generateQuizAI, submitClaudeChat, ChatMessage } from '../utils/ai';
+import { safeStorage } from '../utils/safeStorage';
 
 interface ExamPrepProps {
   apiKey: string;
@@ -258,15 +259,15 @@ const PAST_EXAM_BANK: { [subject: string]: QuizQuestion[] } = {
 };
 
 export default function ExamPrep({ apiKey, enrolledSubjects, onStudyAction }: ExamPrepProps) {
-  // Load language settings from localStorage
+  // Load language settings from safeStorage
   const [language, setLanguage] = useState<'en' | 'am'>(() => {
-    const saved = localStorage.getItem('ethiolearn_language_preference');
+    const saved = safeStorage.getItem('ethiolearn_language_preference');
     return (saved === 'am' || saved === 'en') ? saved : 'en';
   });
 
   const [customQuestionBank, setCustomQuestionBank] = useState<{ [subject: string]: QuizQuestion[] }>(() => {
     try {
-      const stored = localStorage.getItem('ethiolearn_custom_exams');
+      const stored = safeStorage.getItem('ethiolearn_custom_exams');
       return stored ? JSON.parse(stored) : {};
     } catch (e) {
       return {};
@@ -275,7 +276,7 @@ export default function ExamPrep({ apiKey, enrolledSubjects, onStudyAction }: Ex
 
   const [allSubjects, setAllSubjects] = useState<string[]>(() => {
     try {
-      const stored = localStorage.getItem('ethiolearn_custom_exams');
+      const stored = safeStorage.getItem('ethiolearn_custom_exams');
       const customSubjects = stored ? Object.keys(JSON.parse(stored)) : [];
       return Array.from(new Set([...enrolledSubjects, ...customSubjects]));
     } catch (e) {
@@ -285,7 +286,7 @@ export default function ExamPrep({ apiKey, enrolledSubjects, onStudyAction }: Ex
 
   const [selectedSubject, setSelectedSubject] = useState(() => {
     try {
-      const stored = localStorage.getItem('ethiolearn_custom_exams');
+      const stored = safeStorage.getItem('ethiolearn_custom_exams');
       const customSubjects = stored ? Object.keys(JSON.parse(stored)) : [];
       const combined = Array.from(new Set([...enrolledSubjects, ...customSubjects]));
       return combined[0] || "Emerging Technologies";
@@ -333,7 +334,7 @@ export default function ExamPrep({ apiKey, enrolledSubjects, onStudyAction }: Ex
     const subjectKey = newExamSubject.trim();
 
     try {
-      const stored = localStorage.getItem('ethiolearn_custom_exams');
+      const stored = safeStorage.getItem('ethiolearn_custom_exams');
       const bank = stored ? JSON.parse(stored) : {};
       
       if (!bank[subjectKey]) {
@@ -341,7 +342,7 @@ export default function ExamPrep({ apiKey, enrolledSubjects, onStudyAction }: Ex
       }
       bank[subjectKey].push(newQn);
       
-      localStorage.setItem('ethiolearn_custom_exams', JSON.stringify(bank));
+      safeStorage.setItem('ethiolearn_custom_exams', JSON.stringify(bank));
       setCustomQuestionBank(bank);
       
       // Update subjects list if it's a brand new subject
@@ -386,12 +387,35 @@ export default function ExamPrep({ apiKey, enrolledSubjects, onStudyAction }: Ex
   const [examGrade, setExamGrade] = useState<'A' | 'B' | 'C' | 'D' | 'F'>('F');
   const [pastSessions, setPastSessions] = useState<any[]>(() => {
     try {
-      const stored = localStorage.getItem("ethiolearn_exam_sessions_history");
+      const stored = safeStorage.getItem("ethiolearn_exam_sessions_history");
       return stored ? JSON.parse(stored) : [];
     } catch (e) {
       return [];
     }
   });
+
+  const [favoriteSessionIds, setFavoriteSessionIds] = useState<string[]>(() => {
+    try {
+      const saved = safeStorage.getItem('ethiolearn_favorite_exams');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [showFavoriteSessionsOnly, setShowFavoriteSessionsOnly] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+
+  const toggleFavoriteSession = (sessionId: string) => {
+    playClickChime();
+    setFavoriteSessionIds(prev => {
+      const updated = prev.includes(sessionId)
+        ? prev.filter(id => id !== sessionId)
+        : [...prev, sessionId];
+      safeStorage.setItem('ethiolearn_favorite_exams', JSON.stringify(updated));
+      return updated;
+    });
+  };
 
   const [loadingText, setLoadingText] = useState<string | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number>(60);
@@ -407,7 +431,7 @@ export default function ExamPrep({ apiKey, enrolledSubjects, onStudyAction }: Ex
   // Sync language with state changes
   useEffect(() => {
     const handleLangChange = () => {
-      const saved = localStorage.getItem('ethiolearn_language_preference');
+      const saved = safeStorage.getItem('ethiolearn_language_preference');
       if (saved === 'am' || saved === 'en') {
         setLanguage(saved);
       }
@@ -587,24 +611,26 @@ export default function ExamPrep({ apiKey, enrolledSubjects, onStudyAction }: Ex
       grade
     };
 
+    setCurrentSessionId(newSession.id);
+
     const updatedSessions = [newSession, ...pastSessions].slice(0, 15);
     setPastSessions(updatedSessions);
-    localStorage.setItem("ethiolearn_exam_sessions_history", JSON.stringify(updatedSessions));
+    safeStorage.setItem("ethiolearn_exam_sessions_history", JSON.stringify(updatedSessions));
 
     // Save last score for Dashboard "Continue where left off" helper
-    localStorage.setItem('ethiolearn_last_subject', selectedSubject);
-    localStorage.setItem('ethiolearn_last_quiz_score', percent.toString());
+    safeStorage.setItem('ethiolearn_last_subject', selectedSubject);
+    safeStorage.setItem('ethiolearn_last_quiz_score', percent.toString());
 
     // Update global diagnostics metrics
     try {
-      const analytics = JSON.parse(localStorage.getItem("ethiolearn_analytics") || "{}");
+      const analytics = JSON.parse(safeStorage.getItem("ethiolearn_analytics") || "{}");
       analytics.examsDone = (analytics.examsDone || 0) + 1;
       analytics.examHistory = analytics.examHistory || [];
       analytics.examHistory.push({
         date: new Date().toLocaleDateString(),
         score: percent
       });
-      localStorage.setItem("ethiolearn_analytics", JSON.stringify(analytics));
+      safeStorage.setItem("ethiolearn_analytics", JSON.stringify(analytics));
     } catch(e) {}
 
     playSuccessChime();
@@ -805,33 +831,79 @@ export default function ExamPrep({ apiKey, enrolledSubjects, onStudyAction }: Ex
 
             {/* Score logs list */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-              <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
-                <Trophy className="w-5 h-5 text-emerald-600" />
-                <h3 className="font-serif font-bold text-base text-[#078930]">
-                  {language === 'en' ? 'Performance Logs' : 'የውጤት መዝገብ'}
-                </h3>
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-emerald-600" />
+                  <h3 className="font-serif font-bold text-base text-[#078930]">
+                    {language === 'en' ? 'Performance Logs' : 'የውጤት መዝገብ'}
+                  </h3>
+                </div>
+                {pastSessions.length > 0 && (
+                  <button
+                    onClick={() => {
+                      playClickChime();
+                      setShowFavoriteSessionsOnly(!showFavoriteSessionsOnly);
+                    }}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all border ${
+                      showFavoriteSessionsOnly 
+                        ? 'bg-amber-500 border-amber-500 text-white shadow-sm'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Star className={`w-3 h-3 ${showFavoriteSessionsOnly ? 'fill-white text-white' : ''}`} />
+                    {language === 'en' ? 'Best Only' : 'ምርጦቹ ብቻ'}
+                    {favoriteSessionIds.length > 0 && ` (${favoriteSessionIds.length})`}
+                  </button>
+                )}
               </div>
 
-              {pastSessions.length === 0 ? (
-                <div className="p-8 border border-dashed border-slate-200 rounded-xl text-center text-xs text-slate-400 font-serif">
-                  {language === 'en' ? 'Your test grades history is currently empty' : 'የወሰዷቸው ፈተናዎች ውጤት እዚህ ሙሉ ታሪክ ሆኖ ይቀመጣል'}
-                </div>
-              ) : (
-                <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
-                  {pastSessions.map((sess, idx) => (
-                    <div key={idx} className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
-                      <div>
-                        <span className="font-bold text-slate-800 block leading-tight">{sess.subject}</span>
-                        <span className="text-[10px] text-slate-400 mt-0.5 block">{sess.date}</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="font-mono font-extrabold text-sm text-emerald-600 block">{sess.score}%</span>
-                        <span className="block text-[10px] font-black uppercase text-amber-600">Grade {sess.grade}</span>
-                      </div>
+              {(() => {
+                const displayedSessions = pastSessions.filter(sess => {
+                  if (!showFavoriteSessionsOnly) return true;
+                  const sessId = sess.id || `session_${sess.subject}_${sess.date}_${sess.score}`;
+                  return favoriteSessionIds.includes(sessId);
+                });
+
+                if (displayedSessions.length === 0) {
+                  return (
+                    <div className="p-8 border border-dashed border-slate-200 rounded-xl text-center text-xs text-slate-400 font-serif">
+                      {showFavoriteSessionsOnly 
+                        ? (language === 'en' ? 'No favorited exam logs yet.' : 'ምርጥ ተብለው የተመረጡ ፈተናዎች የሉም።')
+                        : (language === 'en' ? 'Your test grades history is currently empty' : 'የወሰዷቸው ፈተናዎች ውጤት እዚህ ሙሉ ታሪክ ሆኖ ይቀመጣል')}
                     </div>
-                  ))}
-                </div>
-              )}
+                  );
+                }
+
+                return (
+                  <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                    {displayedSessions.map((sess, idx) => {
+                      const sessId = sess.id || `session_${sess.subject}_${sess.date}_${sess.score}`;
+                      const isFav = favoriteSessionIds.includes(sessId);
+                      return (
+                        <div key={sessId} className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between text-xs hover:border-slate-300 transition-colors">
+                          <div className="flex items-center gap-2.5">
+                            <button
+                              onClick={() => toggleFavoriteSession(sessId)}
+                              className="p-1 hover:bg-slate-200/60 rounded text-slate-400 hover:text-amber-500 transition-colors shrink-0"
+                              title={language === 'en' ? 'Toggle Favorite' : 'ምርጥ ምርጫ'}
+                            >
+                              <Star className={`w-3.5 h-3.5 transition-all ${isFav ? 'fill-amber-400 text-amber-500 scale-110' : ''}`} />
+                            </button>
+                            <div>
+                              <span className="font-bold text-slate-800 block leading-tight">{sess.subject}</span>
+                              <span className="text-[10px] text-slate-400 mt-0.5 block">{sess.date}</span>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="font-mono font-extrabold text-sm text-emerald-600 block">{sess.score}%</span>
+                            <span className="block text-[10px] font-black uppercase text-amber-600">Grade {sess.grade}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           </motion.div>
         )}
@@ -1037,6 +1109,22 @@ export default function ExamPrep({ apiKey, enrolledSubjects, onStudyAction }: Ex
                 );
               })}
             </div>
+
+            {currentSessionId && (
+              <button
+                onClick={() => toggleFavoriteSession(currentSessionId)}
+                className={`w-full h-12 flex items-center justify-center gap-2 rounded-xl text-xs font-bold transition-all border ${
+                  favoriteSessionIds.includes(currentSessionId)
+                    ? 'bg-amber-500 border-amber-500 text-white shadow-sm hover:bg-amber-600'
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <Star className={`w-4 h-4 ${favoriteSessionIds.includes(currentSessionId) ? 'fill-white text-white' : ''}`} />
+                {favoriteSessionIds.includes(currentSessionId)
+                  ? (language === 'en' ? 'Saved to Favorite Quizzes' : 'በምርጥ ፈተናዎች ስር ተቀምጧል')
+                  : (language === 'en' ? 'Save to Favorite Quizzes' : 'ይህንን ምርጥ ፈተና አስቀምጥ')}
+              </button>
+            )}
 
             <button
               onClick={() => { playClickChime(); setExamMode('setup'); }}

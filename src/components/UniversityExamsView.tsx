@@ -7,6 +7,7 @@ import {
 import { StudentProfile } from '../types';
 import { playClickChime, playSuccessChime, playFailureChime } from '../utils/audio';
 import { submitClaudeChat, generateQuizAI } from '../utils/ai';
+import { safeStorage } from '../utils/safeStorage';
 
 interface AIQuestion {
   question: string;
@@ -563,7 +564,7 @@ export default function UniversityExamsView({
   // Customizable Calendar states
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>(() => {
     try {
-      const saved = localStorage.getItem('ethiolearn_university_calendar');
+      const saved = safeStorage.getItem('ethiolearn_university_calendar');
       if (saved) return JSON.parse(saved);
     } catch (e) {
       console.error(e);
@@ -623,7 +624,7 @@ export default function UniversityExamsView({
       updated = [...calendarEvents, newEvent];
     }
     setCalendarEvents(updated);
-    localStorage.setItem('ethiolearn_university_calendar', JSON.stringify(updated));
+    safeStorage.setItem('ethiolearn_university_calendar', JSON.stringify(updated));
     setIsAddingEvent(false);
     setIsEditingEventId(null);
     setEventForm({
@@ -640,7 +641,7 @@ export default function UniversityExamsView({
   const handleDeleteEvent = (id: string) => {
     const updated = calendarEvents.filter(ev => ev.id !== id);
     setCalendarEvents(updated);
-    localStorage.setItem('ethiolearn_university_calendar', JSON.stringify(updated));
+    safeStorage.setItem('ethiolearn_university_calendar', JSON.stringify(updated));
     playFailureChime();
   };
 
@@ -665,7 +666,7 @@ export default function UniversityExamsView({
   const [simulationScore, setSimulationScore] = useState<{correct: number, total: number} | null>(null);
   const [completedPapers, setCompletedPapers] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem('ethiolearn_completed_papers');
+      const saved = safeStorage.getItem('ethiolearn_completed_papers');
       return saved ? JSON.parse(saved) : ['uni_math_sheet'];
     } catch (e) {
       return ['uni_math_sheet'];
@@ -691,13 +692,13 @@ export default function UniversityExamsView({
               
               const updated = Array.from(new Set([...completedPapers, selectedSheet.id]));
               setCompletedPapers(updated);
-              localStorage.setItem('ethiolearn_completed_papers', JSON.stringify(updated));
+              safeStorage.setItem('ethiolearn_completed_papers', JSON.stringify(updated));
             }
             return 0;
           }
           return prev - 1;
         });
-      }, 1000);
+      } , 1000);
     }
     return () => clearInterval(timer);
   }, [isSimulationActive, simulationTimeLeft, selectedSheet, simulationAnswers, completedPapers]);
@@ -730,7 +731,7 @@ export default function UniversityExamsView({
   const [surpriseQuestion, setSurpriseQuestion] = useState<AIQuestion | null>(null);
   const [isGeneratingSurprise, setIsGeneratingSurprise] = useState<boolean>(false);
   const [surpriseStreak, setSurpriseStreak] = useState<number>(() => {
-    const saved = localStorage.getItem('ethiolearn_surprise_streak');
+    const saved = safeStorage.getItem('ethiolearn_surprise_streak');
     return saved ? parseInt(saved, 10) : 0;
   });
   const [surpriseAnswered, setSurpriseAnswered] = useState<boolean>(false);
@@ -892,7 +893,7 @@ Provide a variety of questions within the scope of this curriculum. If the subje
       playFailureChime();
     }
     
-    const savedPerf = localStorage.getItem('ethiolearn_quiz_perf');
+    const savedPerf = safeStorage.getItem('ethiolearn_quiz_perf');
     let perfObj = savedPerf ? JSON.parse(savedPerf) : {};
     perfObj[`ai_custom_${customSubject}_${Date.now()}`] = {
       subject: customSubject,
@@ -901,7 +902,7 @@ Provide a variety of questions within the scope of this curriculum. If the subje
       correct: correctCount,
       date: new Date().toLocaleDateString()
     };
-    localStorage.setItem('ethiolearn_quiz_perf', JSON.stringify(perfObj));
+    safeStorage.setItem('ethiolearn_quiz_perf', JSON.stringify(perfObj));
   };
 
   const handleRequestHint = async (qIdx: number, qText: string) => {
@@ -1057,7 +1058,7 @@ Ensure it is 1 single high-quality question with physical/mathematical units whe
       playSuccessChime();
       const nextStreak = surpriseStreak + 1;
       setSurpriseStreak(nextStreak);
-      localStorage.setItem('ethiolearn_surprise_streak', String(nextStreak));
+      safeStorage.setItem('ethiolearn_surprise_streak', String(nextStreak));
       setSurpriseResultMsg({
         success: true,
         text: language === 'en' 
@@ -1067,7 +1068,7 @@ Ensure it is 1 single high-quality question with physical/mathematical units whe
     } else {
       playFailureChime();
       setSurpriseStreak(0);
-      localStorage.setItem('ethiolearn_surprise_streak', '0');
+      safeStorage.setItem('ethiolearn_surprise_streak', '0');
       setSurpriseResultMsg({
         success: false,
         text: language === 'en'
@@ -1927,7 +1928,7 @@ Guide me on how to approach this. Give me the primary formula but let me do the 
                               
                               const updated = Array.from(new Set([...completedPapers, selectedSheet.id]));
                               setCompletedPapers(updated);
-                              localStorage.setItem('ethiolearn_completed_papers', JSON.stringify(updated));
+                              safeStorage.setItem('ethiolearn_completed_papers', JSON.stringify(updated));
                             }}
                             className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-extrabold uppercase tracking-wider rounded-lg shadow-md cursor-pointer animate-pulse"
                           >
