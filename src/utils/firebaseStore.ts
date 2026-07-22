@@ -19,48 +19,21 @@ import firebaseConfig from '../../firebase-applet-config.json';
 import { StudentProfile, CustomNote } from '../types';
 
 // Safe initialization to prevent "duplicate default app" warnings
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-let firestoreInstance: ReturnType<typeof getFirestore> | null = null;
+export const db = firebaseConfig.firestoreDatabaseId
+  ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
+  : getFirestore(app);
+
+export const auth = getAuth(app);
+
 export function getDb() {
-  if (!firestoreInstance) {
-    firestoreInstance = firebaseConfig.firestoreDatabaseId 
-      ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
-      : getFirestore(app);
-  }
-  return firestoreInstance;
+  return db;
 }
 
-let authInstance: ReturnType<typeof getAuth> | null = null;
 export function getAuthInstance() {
-  if (!authInstance) {
-    authInstance = getAuth(app);
-  }
-  return authInstance;
+  return auth;
 }
-
-// Proxies as highly compatible backward-compatible exports
-export const db = new Proxy({} as any, {
-  get(target, prop, receiver) {
-    const instance = getDb();
-    const value = Reflect.get(instance, prop, receiver);
-    if (typeof value === 'function') {
-      return value.bind(instance);
-    }
-    return value;
-  }
-}) as unknown as ReturnType<typeof getFirestore>;
-
-export const auth = new Proxy({} as any, {
-  get(target, prop, receiver) {
-    const instance = getAuthInstance();
-    const value = Reflect.get(instance, prop, receiver);
-    if (typeof value === 'function') {
-      return value.bind(instance);
-    }
-    return value;
-  }
-}) as unknown as ReturnType<typeof getAuth>;
 
 // Error Operation Enum
 export enum OperationType {
@@ -97,12 +70,12 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: getAuthInstance().currentUser?.uid,
-      email: getAuthInstance().currentUser?.email,
-      emailVerified: getAuthInstance().currentUser?.emailVerified,
-      isAnonymous: getAuthInstance().currentUser?.isAnonymous,
-      tenantId: getAuthInstance().currentUser?.tenantId,
-      providerInfo: getAuthInstance().currentUser?.providerData?.map(provider => ({
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
         providerId: provider.providerId,
         email: provider.email,
       })) || []
@@ -119,10 +92,20 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
  */
 export async function testFirestoreConnection() {
   try {
-    await getDocFromServer(doc(getDb(), 'test', 'connection'));
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Firestore network timeout')), 3000)
+    );
+    await Promise.race([
+      getDocFromServer(doc(db, 'test', 'connection')),
+      timeoutPromise
+    ]);
     console.log('[Firestore Service] Initial boot liveness check succeeded.');
   } catch (error: any) {
-    console.warn("[Firestore Service] Offline or unable to contact Firestore server. Operating in cached/local mode.", error?.message || error);
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.warn("Please check your Firebase configuration or network connection.");
+    } else {
+      console.warn("[Firestore Service] Operating in cached/offline mode:", error?.message || error);
+    }
   }
 }
 
