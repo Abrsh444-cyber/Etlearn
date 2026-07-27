@@ -26,6 +26,21 @@ export function clearSupabaseCredentials() {
  * Gracefully returns null if keys are not set, preventing startup crashes.
  */
 export function getSupabase(): SupabaseClient | null {
+  if (supabaseInstance) return supabaseInstance;
+
+  const metaEnv = (import.meta as any).env || {};
+  const url = metaEnv.VITE_SUPABASE_URL || safeStorage.getItem('ethiolearn_supabase_url');
+  const key = metaEnv.VITE_SUPABASE_ANON_KEY || safeStorage.getItem('ethiolearn_supabase_key');
+
+  if (url && key && url.startsWith('http')) {
+    try {
+      supabaseInstance = createClient(url, key);
+      return supabaseInstance;
+    } catch (err) {
+      console.warn('Failed to initialize Supabase client:', err);
+      return null;
+    }
+  }
   return null;
 }
 

@@ -9,6 +9,8 @@ import { playClickChime, playSuccessChime, playFailureChime } from '../utils/aud
 import AITutorLogo from './AITutorLogo';
 import { StudentProfile, Flashcard } from '../types';
 import { safeStorage } from '../utils/safeStorage';
+import PaywallModal from './PaywallModal';
+import { getDailyAIUsageCount, incrementDailyAIUsage, checkSubscriptionStatus, FREE_DAILY_AI_LIMIT } from '../utils/monetization';
 
 interface AITutorProps {
   apiKey: string;
@@ -18,6 +20,7 @@ interface AITutorProps {
   onStudyAction?: () => void;
   profile: StudentProfile;
   onUpdateProfile: (updated: StudentProfile) => void;
+  onOpenUpgrade?: () => void;
 }
 
 const LOCAL_FALLBACK_QUIZ: { [subject: string]: any[] } = {
@@ -249,9 +252,11 @@ export default function AITutor({
   onSaveDecksState, 
   onStudyAction,
   profile,
-  onUpdateProfile
+  onUpdateProfile,
+  onOpenUpgrade
 }: AITutorProps) {
   const [selectedSubject, setSelectedSubject] = useState(enrolledSubjects[0] || "Emerging Technologies");
+  const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   
   // Persistent language mapping
   const [language, setLanguage] = useState<'en' | 'am'>(() => {
@@ -451,24 +456,20 @@ Always end your explanations with 2 conversational, helpful revision questions f
     const text = textToSend || inputValue;
     if (!text.trim() && !attachedFile) return;
 
-    const isPremiumUser = profile.isRegistered === true;
-    const creditsRemaining = profile.unregisteredAICredits !== undefined ? profile.unregisteredAICredits : 5;
+    const subInfo = checkSubscriptionStatus(profile);
+    const userId = profile.email || profile.name || 'guest';
+    const usedToday = getDailyAIUsageCount(userId);
 
-    if (!isPremiumUser && creditsRemaining <= 0) {
+    // Gating check: If not PRO and reached daily 5 question limit
+    if (!subInfo.isPro && usedToday >= FREE_DAILY_AI_LIMIT) {
       playFailureChime();
-      setErrorBanner(
-        language === 'en'
-          ? "AI Guest Credit limit reached (5/5 queries used). Please click the Profile button / avatar at the top right to Register or Sign In for unlimited premium Pro AI Access!"
-          : "የእንግዳ አይ አጠቃቀም ገደብ ላይ ደርሰዋል (5 ፈተናዎች አልቀዋል)። እባክዎን ያልተገደበ አገልግሎት ለማግኘት ቅጽበታዊ መገለጫዎን ከላይ ተጭነው ይመዝገቡ!"
-      );
+      setIsPaywallOpen(true);
       return;
     }
 
-    if (!isPremiumUser) {
-      onUpdateProfile({
-        ...profile,
-        unregisteredAICredits: creditsRemaining - 1
-      });
+    // Increment daily usage count for free tier users
+    if (!subInfo.isPro) {
+      incrementDailyAIUsage(userId);
     }
 
     const userMsg: ChatMessage = {
@@ -911,6 +912,19 @@ Always end your explanations with 2 conversational, helpful revision questions f
           </button>
         </div>
       </div>
+
+      {/* Paywall Modal Gating Component */}
+      <PaywallModal
+        isOpen={isPaywallOpen}
+        onClose={() => setIsPaywallOpen(false)}
+        onUpgradeClick={() => {
+          setIsPaywallOpen(false);
+          if (onOpenUpgrade) onOpenUpgrade();
+        }}
+        language={language}
+        questionsUsed={getDailyAIUsageCount(profile.email || profile.name || 'guest')}
+        maxQuestions={FREE_DAILY_AI_LIMIT}
+      />
     </div>
   );
 }

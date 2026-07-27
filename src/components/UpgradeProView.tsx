@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Check, Shield, Clock, HelpCircle, Phone, CreditCard, Send, Sparkles, CheckCircle, ExternalLink, HelpCircle as HelpIcon, Star
+  Check, Shield, Clock, HelpCircle, Phone, CreditCard, Send, Sparkles, CheckCircle, ExternalLink, HelpCircle as HelpIcon, Star,
+  Zap, Lock, BookOpen, FileText, Smartphone, AlertCircle, ArrowRight, RefreshCw, ShieldCheck
 } from 'lucide-react';
-import { StudentProfile } from '../types';
-import { playClickChime, playSuccessChime } from '../utils/audio';
+import { StudentProfile, SubscriptionTier, PaymentProvider, PaymentRecord } from '../types';
+import { playClickChime, playSuccessChime, playFailureChime } from '../utils/audio';
 import { safeStorage } from '../utils/safeStorage';
+import { addPaymentRecordLocal, getPaymentHistoryLocal } from '../utils/monetization';
 
 interface UpgradeProViewProps {
   profile: StudentProfile;
@@ -20,27 +22,28 @@ export default function UpgradeProView({
   onUpdateProfile,
   onClose
 }: UpgradeProViewProps) {
-  const [activeTab, setActiveTab] = useState<'pay' | 'status'>('pay');
+  const [activeTab, setActiveTab] = useState<'tiers' | 'pay' | 'status'>('tiers');
+  const [selectedTier, setSelectedTier] = useState<SubscriptionTier>('pro_monthly');
+  const [selectedSubjectBundle, setSelectedSubjectBundle] = useState<string>('Emerging Technologies');
+  
+  // Payment Form States
+  const [paymentMethod, setPaymentMethod] = useState<PaymentProvider>('telebirr');
   const [phoneInput, setPhoneInput] = useState('');
   const [senderName, setSenderName] = useState('');
   const [txnRef, setTxnRef] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'telebirr' | 'cbe'>('telebirr');
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Calculate mock remaining trial days
-  const [trialDaysLeft, setTrialDaysLeft] = useState(3);
-
-  useEffect(() => {
-    // Seed and calculate
-    const storedOnboarding = safeStorage.getItem('ethiolearn_onboarding_time');
-    let onboardingTime = storedOnboarding ? parseInt(storedOnboarding, 10) : Date.now();
-    if (!storedOnboarding) {
-      safeStorage.setItem('ethiolearn_onboarding_time', String(onboardingTime));
+  // Calculate price based on selected tier
+  const getTierPrice = (tier: SubscriptionTier) => {
+    switch (tier) {
+      case 'pro_monthly': return { etb: 200, label: language === 'en' ? 'Per Semester / Month' : 'በአንድ ሴሚስተር / ወር' };
+      case 'exam_season_pass': return { etb: 100, label: language === 'en' ? '3 Weeks Exam Pass' : 'የ 3 ሳምንታት ፈተና ፓስ' };
+      case 'subject_bundle': return { etb: 80, label: language === 'en' ? 'One-time Pack' : 'አንድ ጊዜ ክፍያ' };
+      default: return { etb: 0, label: language === 'en' ? 'Free Forever' : 'ለዘላለም ነፃ' };
     }
-    const elapsedHrs = (Date.now() - onboardingTime) / (1000 * 60 * 60);
-    const calculatedDays = Math.max(0, parseFloat((3 - (elapsedHrs / 24)).toFixed(1)));
-    setTrialDaysLeft(calculatedDays);
-  }, []);
+  };
+
+  const currentPrice = getTierPrice(selectedTier);
 
   const handleSubmitPayment = (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,319 +52,430 @@ export default function UpgradeProView({
       return;
     }
     
+    setIsSubmitting(true);
     playClickChime();
+
+    // Calculate start & end dates based on tier
+    const startDate = new Date().toISOString();
+    let endDate: string | undefined = undefined;
     
-    // Save payment submission details inside profile
-    const updatedProfile = {
+    if (selectedTier === 'pro_monthly') {
+      const end = new Date();
+      end.setDate(end.getDate() + 30); // 30 days
+      endDate = end.toISOString();
+    } else if (selectedTier === 'exam_season_pass') {
+      const end = new Date();
+      end.setDate(end.getDate() + 21); // 21 days (3 weeks)
+      endDate = end.toISOString();
+    }
+
+    // Save payment record
+    const paymentRecord: PaymentRecord = {
+      id: `PAY-${Date.now()}`,
+      userId: profile.email || profile.name || 'student',
+      amount: currentPrice.etb,
+      currency: 'ETB',
+      provider: paymentMethod,
+      providerTxnId: txnRef.trim(),
+      senderName: senderName.trim(),
+      senderPhone: phoneInput.trim(),
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    };
+    
+    addPaymentRecordLocal(paymentRecord);
+    
+    // Save payment submission details inside student profile
+    const updatedProfile: StudentProfile = {
       ...profile,
-      isPro: false, // Pending
-      proStatus: 'pending' as any,
-      proPaymentTxn: txnRef,
-      proPaymentDate: new Date().toISOString(),
-      senderName: senderName,
-      proPaymentPhone: phoneInput
+      tier: selectedTier,
+      isPro: false, // Pending verification
+      proStatus: 'pending',
+      proPaymentTxn: txnRef.trim(),
+      proPaymentDate: startDate,
+      proStartDate: startDate,
+      proEndDate: endDate,
+      senderName: senderName.trim(),
+      proPaymentPhone: phoneInput.trim(),
+      paymentMethod: paymentMethod,
+      purchasedBundles: selectedTier === 'subject_bundle' 
+        ? Array.from(new Set([...(profile.purchasedBundles || []), selectedSubjectBundle]))
+        : profile.purchasedBundles
     };
     
     onUpdateProfile(updatedProfile);
-    setIsSubmitted(true);
+    setIsSubmitting(false);
     setActiveTab('status');
     playSuccessChime();
   };
 
   const handleInstantApprove = () => {
     const code = prompt(language === 'en' 
-      ? 'ADMIN ONLY: Enter Administrative approval code (e.g., Telegram code):' 
+      ? 'ADMIN OVERRIDE: Enter Administrative approval code:' 
       : 'ለአስተዳዳሪ ብቻ፡ ክፍያውን ለማጽደቅ የአድሚን ማለፊያ ኮድ ያስገቡ፡');
     
     if (code === '207' || code === '2070' || code?.toLowerCase() === 'abreham' || code === '0101') {
       playSuccessChime();
-      const updatedProfile = {
+      
+      const startDate = new Date().toISOString();
+      const end = new Date();
+      end.setDate(end.getDate() + 30); // 30 days
+      const endDate = end.toISOString();
+
+      const updatedProfile: StudentProfile = {
         ...profile,
+        tier: selectedTier === 'free' ? 'pro_monthly' : selectedTier,
         isPro: true,
-        proStatus: 'active' as any,
+        proStatus: 'active',
         proPaymentTxn: txnRef || 'ADM_MANUAL_APPROVE_207',
-        proPaymentDate: new Date().toISOString()
+        proPaymentDate: startDate,
+        proStartDate: startDate,
+        proEndDate: endDate
       };
+
+      // Also record completed payment
+      addPaymentRecordLocal({
+        id: `PAY-APPROVED-${Date.now()}`,
+        userId: profile.email || 'student',
+        amount: currentPrice.etb || 200,
+        currency: 'ETB',
+        provider: paymentMethod,
+        providerTxnId: txnRef || 'ADM_2070_APPROVED',
+        senderName: senderName || 'Abreham Alemayehu',
+        status: 'completed',
+        createdAt: new Date().toISOString()
+      });
+
       onUpdateProfile(updatedProfile);
-      setIsSubmitted(false);
       alert(language === 'en' 
-        ? 'Manual payment approved successfully by Abreham Alemayehu! User is now upgraded to Pro status with Blue Tick active.' 
-        : 'ክፍያው በአስተዳዳሪው አብርሃም አለማየሁ ጸድቋል! ሰማያዊው ባጅ በስኬት በርቷል።');
+        ? 'Manual payment approved successfully! Pro status activated.' 
+        : 'ክፍያው በአስተዳዳሪው ጸድቋል! የፕሮ አባልነት በስኬት በርትቷል።');
       if (onClose) onClose();
     } else if (code !== null) {
-      alert(language === 'en' 
-        ? 'Invalid Administrative Code! Only Abreham Alemayehu (@ultra207) is authorized to approve payments.' 
-        : 'የተሳሳተ የአስተዳዳሪ ማለፊያ ኮድ! አብርሃም አለማየሁ (@ultra207) ብቻ ነው ይህንን መፍቀድ የሚችለው።');
+      alert(language === 'en' ? 'Invalid Administrative Code!' : 'የተሳሳተ የአስተዳዳሪ ማለፊያ ኮድ!');
     }
   };
 
-  const handleDemote = () => {
-    playSuccessChime();
-    const updatedProfile = {
-      ...profile,
-      isPro: false,
-      proStatus: 'none' as any,
-      proPaymentTxn: undefined,
-      proPaymentDate: undefined
-    };
-    onUpdateProfile(updatedProfile);
-    setIsSubmitted(false);
-  };
-
-  const statusColor = profile.isPro 
-    ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 border-emerald-250' 
-    : (profile.proStatus === 'pending' 
-        ? 'text-amber-650 bg-amber-50 dark:bg-amber-950/20 border-amber-250 animate-pulse' 
-        : 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/20 border-indigo-250');
-
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-6 text-white">
       
-      {/* Premium Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 border border-indigo-900 shadow-xl p-6 md:p-8 text-white select-none">
-        <div className="absolute top-0 right-0 p-8 opacity-10 leading-none font-serif text-9xl">PRO</div>
+      {/* Premium Header Banner */}
+      <div className="relative overflow-hidden rounded-3xl bg-[#0a1128] border border-amber-500/30 shadow-2xl p-6 md:p-8">
+        <div className="absolute top-0 right-0 p-8 opacity-5 leading-none font-serif text-9xl select-none">PRO</div>
+        <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
         
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-          <div className="space-y-2 max-w-lg">
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-gradient-to-r from-emerald-600 to-indigo-600 text-white font-serif text-[10px] font-extrabold uppercase tracking-widest leading-none">
-              <Sparkles className="w-3 h-3 fill-white text-emerald-300" />
-              {language === 'en' ? 'Semester Upgrade' : 'የሴሚስተር ማሻሻያ'}
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-2 max-w-xl">
+            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 font-serif text-[10px] font-black uppercase tracking-widest">
+              <Sparkles className="w-3.5 h-3.5" />
+              {language === 'en' ? 'EthioLearn Pro Monetization System' : 'የኢትዮ-ለርን ፕሮ የአባልነት አገልግሎት'}
             </span>
             <h2 className="text-2xl md:text-3xl font-serif font-black tracking-tight leading-tight">
-              {language === 'en' ? 'Unlock EthioLearn Pro' : 'የኢትዮ-ለርን ፕሮ መዳረሻ ይክፈቱ'}
+              {language === 'en' ? 'Invest in Your Academic Excellence' : 'በትምህርትዎ ውጤታማነት ላይ ይዋዕሉ'}
             </h2>
-            <p className="text-zinc-300 text-sm leading-relaxed">
+            <p className="text-slate-300 text-xs md:text-sm leading-relaxed">
               {language === 'en' 
-                ? 'Empower your study journey. Access complete PDF modules, past Freshman & Entrance exams with step-by-step AI explanation solvers, personalized study guides, and pro summary tools.'
-                : 'የጥናት ጉዞዎን ያግዙ! ሙሉ የትምህርት ምርጥ ሞጁሎችን፣ የዩኒቨርሲቲ መግቢያ ፈተናዎችን ደረጃ በደረጃ ከአይ መፍትሔዎች ጋር፣ እና በአጭር ጊዜ አስተማሪ ማስታወሻዎችን ያግኙ።'}
+                ? 'Select a plan tailored for Ethiopian university students. Unlock unlimited AI Tutor guidance, past exam solvers, complete subject notes, and offline access via Telebirr or CBE Birr.'
+                : 'ለኢትዮጵያ ዩኒቨርሲቲ ተማሪዎች የተዘጋጁ አማራጮች። ያልተገደበ AI መምህር፣ የPast Exam መፍትሔዎች፣ የተሟሉ ሞጁሎች እና ኦፍላይን ፋይሎችን በቴሌብር ወይም በሲቢኢ ብር ያግኙ።'}
             </p>
           </div>
 
-          <div className="flex flex-col items-center bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/10 min-w-[200px] shrink-0 text-center">
-            <span className="text-xs text-indigo-200 uppercase tracking-wider font-extrabold">
-              {language === 'en' ? 'Premium Cost' : 'የአባልነት ክፍያ'}
+          <div className="flex flex-col items-center bg-slate-900/80 backdrop-blur-md rounded-2xl p-5 border border-amber-500/20 min-w-[220px] shrink-0 text-center">
+            <span className="text-[10px] text-amber-400 font-black uppercase tracking-wider">
+              {language === 'en' ? 'Selected Tier Price' : 'የተመረጠው ክፍያ'}
             </span>
             <div className="mt-1">
-              <span className="text-3xl font-black font-serif text-amber-400">200</span>
-              <span className="text-sm font-black text-amber-300 font-sans ml-1">BIRR</span>
+              <span className="text-3xl font-black font-serif text-amber-400">{currentPrice.etb}</span>
+              <span className="text-sm font-black text-amber-300 ml-1">ETB</span>
             </div>
-            <span className="text-[10px] text-zinc-300 mt-1 uppercase tracking-wide">
-              {language === 'en' ? 'Per Semester' : 'በአንድ ሴሚስተር'}
+            <span className="text-[10px] text-slate-400 mt-1 uppercase tracking-wide">
+              {currentPrice.label}
             </span>
             
-            {/* Trial Info */}
-            <div className="mt-3.5 pt-3 border-t border-white/10 w-full text-xs text-teal-300 font-bold shrink-0">
+            <div className="mt-3 pt-3 border-t border-slate-800 w-full text-xs text-emerald-400 font-bold">
               {profile.isPro ? (
-                <div className="flex items-center justify-center gap-1 text-emerald-400">
-                  <CheckCircle className="w-4 h-4 shadow-sm" />
-                  <span>Pro Access Active!</span>
+                <div className="flex items-center justify-center gap-1">
+                  <CheckCircle className="w-4 h-4" />
+                  <span>{language === 'en' ? 'Pro Access Active' : 'ፕሮ አባልነት ነቅቷል'}</span>
                 </div>
               ) : (
-                <span>⏳ {trialDaysLeft} {language === 'en' ? 'days of free trial left' : 'ቀናት የሙከራ ጊዜ ይቀራል'}</span>
+                <span className="text-slate-300 text-[11px]">
+                  {language === 'en' ? 'Pay with Telebirr / CBE Birr' : 'በቴሌብር ወይም በሲቢኢ ብር ይክፈሉ'}
+                </span>
               )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Payment Options & Flow Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        
-        {/* Left column: payment details & instructions */}
-        <div className="lg:col-span-7 space-y-6">
-          <div className="bg-white dark:bg-[#0c0d12] border border-slate-200 dark:border-zinc-805 rounded-2xl p-6 shadow-sm">
+      {/* Navigation Tabs */}
+      <div className="flex border-b border-slate-800 pb-3 gap-6 text-xs font-bold uppercase tracking-wider">
+        <button
+          onClick={() => { playClickChime(); setActiveTab('tiers'); }}
+          className={`pb-2 border-b-2 transition-colors cursor-pointer flex items-center gap-2 ${
+            activeTab === 'tiers' ? 'border-amber-400 text-amber-400' : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Sparkles className="w-4 h-4" />
+          {language === 'en' ? '1. Subscription Tiers' : '1. የአባልነት አማራጮች'}
+        </button>
+
+        <button
+          onClick={() => { playClickChime(); setActiveTab('pay'); }}
+          className={`pb-2 border-b-2 transition-colors cursor-pointer flex items-center gap-2 ${
+            activeTab === 'pay' ? 'border-amber-400 text-amber-400' : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <CreditCard className="w-4 h-4" />
+          {language === 'en' ? '2. Telebirr / CBE Channels' : '2. የክፍያ መንገዶች'}
+        </button>
+
+        <button
+          onClick={() => { playClickChime(); setActiveTab('status'); }}
+          className={`pb-2 border-b-2 transition-colors cursor-pointer flex items-center gap-2 ${
+            activeTab === 'status' ? 'border-amber-400 text-amber-400' : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Clock className="w-4 h-4" />
+          {language === 'en' ? '3. Verification Status' : '3. የክፍያ ማረጋገጫ'}
+          {profile.proStatus === 'pending' && (
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping inline-block" />
+          )}
+        </button>
+      </div>
+
+      {/* TAB 1: SUBSCRIPTION TIERS CARDS */}
+      {activeTab === 'tiers' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             
-            {/* Nav Tabs between upgrade and transaction check */}
-            <div className="flex border-b border-slate-100 dark:border-zinc-800 pb-3 mb-5 gap-4">
-              <button
-                onClick={() => { playClickChime(); setActiveTab('pay'); }}
-                className={`pb-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer flex items-center gap-2 ${
-                  activeTab === 'pay' 
-                    ? 'border-[#078930] text-slate-800 dark:text-zinc-100' 
-                    : 'border-transparent text-slate-400 hover:text-slate-600'
-                }`}
+            {/* TIER 1: FREE TIER */}
+            <div 
+              onClick={() => setSelectedTier('free')}
+              className={`rounded-2xl p-5 border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                selectedTier === 'free' 
+                  ? 'border-amber-400 bg-slate-900 shadow-lg' 
+                  : 'border-slate-800 bg-[#0a1128]/80 hover:border-slate-700'
+              }`}
+            >
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Standard</span>
+                <h3 className="text-lg font-serif font-black">{language === 'en' ? 'Free Tier' : 'ነፃ አባልነት'}</h3>
+                <div className="mt-2 mb-4">
+                  <span className="text-2xl font-black font-serif text-white">0</span>
+                  <span className="text-xs font-bold text-slate-400 ml-1">ETB</span>
+                </div>
+                <ul className="space-y-2 text-xs text-slate-300">
+                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> 5 AI Tutor Qs / day</li>
+                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> Basic Flashcards</li>
+                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> Limited Quiz Access</li>
+                  <li className="flex items-center gap-2 text-slate-500"><Lock className="w-4 h-4" /> No PDF Downloads</li>
+                </ul>
+              </div>
+              <button 
+                onClick={() => setSelectedTier('free')}
+                className="mt-6 w-full py-2 bg-slate-800 text-slate-300 font-bold rounded-xl text-xs uppercase tracking-wider"
               >
-                <CreditCard className="w-4 h-4" />
-                {language === 'en' ? 'Payment Channels' : 'የክፍያ መንገዶች'}
-              </button>
-              <button
-                onClick={() => { playClickChime(); setActiveTab('status'); }}
-                className={`pb-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer flex items-center gap-2 ${
-                  activeTab === 'status' 
-                    ? 'border-[#078930] text-slate-800 dark:text-zinc-100' 
-                    : 'border-transparent text-slate-400 hover:text-slate-600'
-                }`}
-              >
-                <Clock className="w-4 h-4" />
-                {language === 'en' ? 'Verification Status' : 'ክፍያ ማረጋገጫ'}
-                {profile.proStatus === 'pending' && (
-                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping inline-block" />
-                )}
+                {selectedTier === 'free' ? (language === 'en' ? 'Selected' : 'ተመርጧል') : (language === 'en' ? 'Select Free' : 'ይምረጡ')}
               </button>
             </div>
 
-            {activeTab === 'pay' ? (
-              <div className="space-y-5">
-                <h3 className="text-base font-serif font-black text-slate-800 dark:text-zinc-100 uppercase tracking-tight">
-                  {language === 'en' ? 'Step 1: Choose Transfer method' : 'ደረጃ 1፡ በቀረቡት አማራጮች 200 ብር ያስተላልፉ'}
-                </h3>
-                
-                {/* Method Grid */}
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Telebirr Selector */}
-                  <button
-                    onClick={() => { playClickChime(); setPaymentMethod('telebirr'); }}
-                    className={`p-4 rounded-xl border-2 text-left cursor-pointer transition-all flex flex-col justify-between h-32 ${
-                      paymentMethod === 'telebirr'
-                        ? 'border-[#078930] bg-[#078930]/5 text-slate-900 dark:text-zinc-100'
-                        : 'border-slate-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900/40 text-slate-500 hover:border-slate-300'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <span className="px-2.5 py-1 text-[9px] font-black text-white bg-blue-600 rounded">telebirr</span>
-                      {paymentMethod === 'telebirr' && <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />}
-                    </div>
-                    <div className="mt-2 text-left leading-tight">
-                      <p className="text-xs font-bold text-slate-500 dark:text-zinc-400">Mobile Transfer</p>
-                      <p className="text-sm font-black font-serif text-slate-800 dark:text-zinc-100 mt-1">+251906046518</p>
-                    </div>
-                  </button>
-
-                  {/* CBE Selector */}
-                  <button
-                    onClick={() => { playClickChime(); setPaymentMethod('cbe'); }}
-                    className={`p-4 rounded-xl border-2 text-left cursor-pointer transition-all flex flex-col justify-between h-32 ${
-                      paymentMethod === 'cbe'
-                        ? 'border-[#078930] bg-[#078930]/5 text-slate-900 dark:text-zinc-100'
-                        : 'border-slate-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900/40 text-slate-500 hover:border-slate-300'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <span className="px-2.5 py-1 text-[9px] font-black text-white bg-slate-800 rounded">CBE Bank</span>
-                      {paymentMethod === 'cbe' && <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />}
-                    </div>
-                    <div className="mt-2 text-left leading-tight">
-                      <p className="text-xs font-bold text-slate-500 dark:text-zinc-400">Commercial Bank</p>
-                      <p className="text-xs font-black font-serif text-slate-800 dark:text-zinc-100 mt-1 break-all">1000410224643</p>
-                    </div>
-                  </button>
-                </div>
-
-                {/* Specific Account instructions details */}
-                <div className="p-4 bg-slate-50 dark:bg-zinc-900 rounded-xl border border-slate-100 dark:border-zinc-800 text-xs space-y-3">
-                  <div className="flex items-start gap-2.5">
-                    <span className="text-base text-[#078930]">📌</span>
-                    <div>
-                      {paymentMethod === 'telebirr' ? (
-                        <>
-                          <p className="font-bold text-slate-705 dark:text-zinc-200">Telebirr Transfer Details:</p>
-                          <p className="text-slate-500 mt-1 font-mono">Mobile Number: <span className="font-extrabold text-slate-850 dark:text-white">+251906046518</span></p>
-                          <p className="text-slate-500 font-mono">Account Holder: <span className="font-extrabold text-slate-850 dark:text-white">Abreham Alemayehu</span></p>
-                        </>
-                      ) : (
-                        <>
-                          <p className="font-bold text-slate-705 dark:text-zinc-200">CBE Bank Account Details:</p>
-                          <p className="text-slate-500 mt-1 font-mono">Account Number: <span className="font-extrabold text-slate-850 dark:text-white">1000410224643</span></p>
-                          <p className="text-slate-500 font-mono">Account Holder: <span className="font-extrabold text-[#078930] dark:text-emerald-450">Abreham Alemayehu</span></p>
-                        </>
-                      )}
-                      <p className="text-slate-400 dark:text-zinc-500 mt-1 text-[11px]">
-                        {language === 'en' 
-                          ? 'Please ensure the sender matches Abreham Alemayehu before submitting!' 
-                          : 'እባክዎ ከመላክዎ በፊት ስሙ "አብርሃም አለማየሁ" መሆኑን ያረጋግጡ!'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t border-slate-100 dark:border-zinc-800 pt-4 leading-relaxed text-xs space-y-2">
-                  <h4 className="font-bold text-slate-800 dark:text-zinc-200">🔔 Important Information:</h4>
-                  <p className="text-slate-500 dark:text-zinc-400">
-                    {language === 'en' 
-                      ? 'Once the transfer is processed, copy the Transaction Reference (e.g. Txn Id from Telebirr SMS or CBE proof) and fill out the Submission Form on the right. Verification takes roughly 30 minutes, after which your account displays a verified "Pro User" blue tick!' 
-                      : 'ክፍያውን እንደፈጸሙ ከቴሌብር የደረሰዎት ባለ 10-ቁምፊ መለያ ወይም የባንክ ማረጋገጫ ቁጥር በስተቀኝ ባለው ቅጽ ላይ ያስገቡ። አስተዳዳሪው ክፍያዎን በ 30 ደቂቃ ውስጥ በማረጋገጥ የ"ፕሮ ተጠቃሚ" ሰማያዊ መለያ ("blue tick") ይሰጥዎታል።'}
-                  </p>
-                </div>
+            {/* TIER 2: PRO MONTHLY (RECOMMENDED) */}
+            <div 
+              onClick={() => setSelectedTier('pro_monthly')}
+              className={`rounded-2xl p-5 border-2 transition-all cursor-pointer relative flex flex-col justify-between ${
+                selectedTier === 'pro_monthly' 
+                  ? 'border-amber-400 bg-gradient-to-b from-amber-500/10 via-slate-900 to-slate-900 shadow-xl' 
+                  : 'border-amber-500/40 bg-[#0a1128]/80 hover:border-amber-400'
+              }`}
+            >
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-400 text-slate-950 font-black text-[9px] uppercase tracking-widest px-3 py-0.5 rounded-full shadow-md">
+                {language === 'en' ? 'Most Popular' : 'በብዛት የተመረጠ'}
               </div>
-            ) : (
-              // Verification status view
-              <div className="space-y-6 py-4 text-center">
-                <div className="flex justify-center">
-                  <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-950/40 flex items-center justify-center text-amber-500">
-                    <Clock className="w-8 h-8 animate-spin" style={{ animationDuration: '3s' }} />
-                  </div>
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 block mb-1 mt-1">Full Access</span>
+                <h3 className="text-lg font-serif font-black text-amber-300">{language === 'en' ? 'PRO Monthly' : 'ፕሮ ወርሃዊ'}</h3>
+                <div className="mt-2 mb-4">
+                  <span className="text-2xl font-black font-serif text-amber-400">200</span>
+                  <span className="text-xs font-bold text-amber-300 ml-1">ETB / Month</span>
                 </div>
-
-                <div className="max-w-md mx-auto space-y-2">
-                  <h4 className="text-lg font-serif font-black text-slate-800 dark:text-zinc-100">
-                    {profile.proStatus === 'pending' 
-                      ? (language === 'en' ? 'Payment Under Verification' : 'ክፍያው በመረጋገጥ ላይ ነው')
-                      : (profile.isPro 
-                          ? (language === 'en' ? 'Pro Access Active!' : 'የፕሮ አባልነትዎ ነቅቷል!') 
-                          : (language === 'en' ? 'No Pending Verification' : 'ያልቀረበ ክፍያ ማረጋገጫ'))
-                    }
-                  </h4>
-                  
-                  {profile.proStatus === 'pending' ? (
-                    <>
-                      <p className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed font-mono">
-                        Txn ID: {profile.proPaymentTxn} • Submitted on {profile.proPaymentDate ? new Date(profile.proPaymentDate).toLocaleTimeString() : ''}
-                      </p>
-                      <p className="text-xs text-amber-700 bg-amber-50 dark:bg-amber-950/20 dark:text-amber-400 p-3 rounded-xl border border-amber-100 dark:border-amber-900">
-                        {language === 'en'
-                          ? "Our administrators are checking the ledger details. Verification usually takes 30 minutes. Once approved, the 'Pro User' verified badge will automatically unlock!"
-                          : "የአስተዳዳሪ ቡድናችን የሒሳብ መዝገብ በመፈተሽ ላይ ነው። ብዙውን ጊዜ 30 ደቂቃ ይወስዳል። እንደተረጋገጠ የ 'ፕሮ ተጠቃሚ' ሰማያዊ ማረጋገጫ በራስሰር ይበራል።"}
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-xs text-slate-400 dark:text-zinc-500">
-                      {profile.isPro 
-                        ? (language === 'en' ? "Thank you for supporting Ethiopian education! You have full access to active modules, custom exams, and AI-powered university exam helpers." : "ስለ ኢትዮ-ለርን ፕሮ አባልነት ድጋፍዎ እናመሰግናለን! ሁሉንም ሞጁሎች እና Past Exams ማግኘት ይችላሉ።")
-                        : (language === 'en' ? "You haven't submitted a payment reference yet. Please complete the transfer and fill in your transaction reference!" : "ክፍያ አልተላከም። እባክዎ ፎርሙን በስተቀኝ በኩል ይሙሉ!")
-                      }
-                    </p>
-                  )}
-                </div>
-
-                {/* Sandbox helpers inside status tab */}
-                <div className="pt-6 border-t border-slate-100 dark:border-zinc-800 max-w-sm mx-auto">
-                  <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono mb-3">🛠️ DEVELOPMENT MOCK FLOW CONTROL (FAST-TEST):</p>
-                  <div className="flex gap-2.5 justify-center">
-                    <button
-                      onClick={handleInstantApprove}
-                      className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer font-mono"
-                    >
-                      Instant Approve Pro
-                    </button>
-                    <button
-                      onClick={handleDemote}
-                      className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer font-mono"
-                    >
-                      Clear / Demote
-                    </button>
-                  </div>
-                </div>
+                <ul className="space-y-2 text-xs text-slate-200">
+                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-amber-400" /> <b>UNLIMITED</b> AI Tutor Qs</li>
+                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-amber-400" /> Offline PDF Downloads</li>
+                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-amber-400" /> Full Past Exam Solvers</li>
+                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-amber-400" /> Advanced Analytics</li>
+                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-amber-400" /> Zero Advertisements</li>
+                </ul>
               </div>
-            )}
+              <button 
+                onClick={() => { playClickChime(); setSelectedTier('pro_monthly'); setActiveTab('pay'); }}
+                className="mt-6 w-full py-2 bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-bold rounded-xl text-xs uppercase tracking-wider cursor-pointer shadow-md"
+              >
+                {language === 'en' ? 'Proceed with Pro' : 'በፕሮ ይቀጥሉ'}
+              </button>
+            </div>
+
+            {/* TIER 3: EXAM SEASON PASS */}
+            <div 
+              onClick={() => setSelectedTier('exam_season_pass')}
+              className={`rounded-2xl p-5 border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                selectedTier === 'exam_season_pass' 
+                  ? 'border-amber-400 bg-slate-900 shadow-lg' 
+                  : 'border-slate-800 bg-[#0a1128]/80 hover:border-slate-700'
+              }`}
+            >
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 block mb-1">Time-Limited</span>
+                <h3 className="text-lg font-serif font-black text-emerald-300">{language === 'en' ? 'Exam Season Pass' : 'የፈተና ወቀት ፓስ'}</h3>
+                <div className="mt-2 mb-4">
+                  <span className="text-2xl font-black font-serif text-emerald-400">100</span>
+                  <span className="text-xs font-bold text-emerald-300 ml-1">ETB / 3 Wks</span>
+                </div>
+                <ul className="space-y-2 text-xs text-slate-300">
+                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> Same perks as PRO</li>
+                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> 3 Weeks Exam Boost</li>
+                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> Auto-expires (no auto-renew)</li>
+                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-emerald-400" /> Lower entry price</li>
+                </ul>
+              </div>
+              <button 
+                onClick={() => { playClickChime(); setSelectedTier('exam_season_pass'); setActiveTab('pay'); }}
+                className="mt-6 w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs uppercase tracking-wider cursor-pointer"
+              >
+                {language === 'en' ? 'Get Season Pass' : 'ፓሱን ይውሰዱ'}
+              </button>
+            </div>
+
+            {/* TIER 4: ONE-TIME SUBJECT BUNDLE */}
+            <div 
+              onClick={() => setSelectedTier('subject_bundle')}
+              className={`rounded-2xl p-5 border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                selectedTier === 'subject_bundle' 
+                  ? 'border-amber-400 bg-slate-900 shadow-lg' 
+                  : 'border-slate-800 bg-[#0a1128]/80 hover:border-slate-700'
+              }`}
+            >
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-indigo-400 block mb-1">Single Subject</span>
+                <h3 className="text-lg font-serif font-black text-indigo-300">{language === 'en' ? 'Subject Pack' : 'የትምህርት ፓክ'}</h3>
+                <div className="mt-2 mb-4">
+                  <span className="text-2xl font-black font-serif text-indigo-400">80</span>
+                  <span className="text-xs font-bold text-indigo-300 ml-1">ETB / Pack</span>
+                </div>
+                <div className="mb-3">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Select Subject:</label>
+                  <select
+                    value={selectedSubjectBundle}
+                    onChange={(e) => setSelectedSubjectBundle(e.target.value)}
+                    className="w-full p-2 bg-slate-800 border border-slate-700 rounded-lg text-xs font-medium text-white"
+                  >
+                    {profile.subjects.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <ul className="space-y-1.5 text-xs text-slate-300">
+                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-indigo-400" /> Notes + Quizzes</li>
+                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-indigo-400" /> Dedicated AI Sessions</li>
+                </ul>
+              </div>
+              <button 
+                onClick={() => { playClickChime(); setSelectedTier('subject_bundle'); setActiveTab('pay'); }}
+                className="mt-6 w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs uppercase tracking-wider cursor-pointer"
+              >
+                {language === 'en' ? 'Buy Subject Pack' : 'ፓክ ይግዙ'}
+              </button>
+            </div>
 
           </div>
         </div>
+      )}
 
-        {/* Right column: submit payment details form */}
-        <div className="lg:col-span-5 space-y-6">
-          <div className="bg-white dark:bg-[#0c0d12] border border-slate-200 dark:border-zinc-805 rounded-2xl p-6 shadow-sm">
-            <h3 className="text-base font-serif font-black text-slate-800 dark:text-zinc-100 uppercase tracking-tight mb-1 flex items-center gap-1.5">
-              <Send className="w-4 h-4 text-[#078930]" />
-              {language === 'en' ? 'Submission Form' : 'የክፍያ ቅጽ'}
+      {/* TAB 2: TELEBIRR / CBE CHANNELS & SUBMISSION FORM */}
+      {activeTab === 'pay' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          
+          {/* Left: Transfer details */}
+          <div className="lg:col-span-7 bg-[#0a1128] border border-slate-800 rounded-2xl p-6 space-y-5">
+            <h3 className="text-base font-serif font-black text-amber-400 uppercase tracking-tight flex items-center gap-2">
+              <Smartphone className="w-5 h-5" />
+              {language === 'en' ? 'Step 1: Send Mobile Money Transfer' : 'ደረጃ 1፡ በሞባይል ገንዘብ ያስተላልፉ'}
             </h3>
-            <p className="text-[11px] text-slate-400 dark:text-zinc-500 mb-4 uppercase tracking-wider">
-              {language === 'en' ? 'Verify your transaction details' : 'የክፍያ መረጃዎን እዚህ ያስመዝግቡ'}
-            </p>
+
+            {/* Price Badge */}
+            <div className="p-3 bg-slate-900/90 rounded-xl border border-amber-500/30 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase">{language === 'en' ? 'Selected Package:' : 'የተመረጠው ፓኬጅ:'}</p>
+                <p className="text-sm font-black font-serif text-white uppercase">{selectedTier.replace('_', ' ')}</p>
+              </div>
+              <div className="text-right">
+                <span className="text-2xl font-black font-serif text-amber-400">{currentPrice.etb} ETB</span>
+              </div>
+            </div>
+
+            {/* Provider Selector Grid */}
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                onClick={() => { playClickChime(); setPaymentMethod('telebirr'); }}
+                className={`p-4 rounded-xl border-2 text-left cursor-pointer transition-all flex flex-col justify-between ${
+                  paymentMethod === 'telebirr'
+                    ? 'border-emerald-500 bg-emerald-500/10 text-white'
+                    : 'border-slate-800 bg-slate-900/40 text-slate-400 hover:border-slate-700'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="px-2.5 py-1 text-[9px] font-black text-white bg-blue-600 rounded">telebirr</span>
+                  {paymentMethod === 'telebirr' && <CheckCircle className="w-5 h-5 text-emerald-400" />}
+                </div>
+                <div className="mt-3">
+                  <p className="text-xs font-bold text-slate-400">Telebirr Mobile Number</p>
+                  <p className="text-sm font-mono font-black text-white">+251906046518</p>
+                </div>
+              </button>
+
+              <button
+                onClick={() => { playClickChime(); setPaymentMethod('cbe_birr'); }}
+                className={`p-4 rounded-xl border-2 text-left cursor-pointer transition-all flex flex-col justify-between ${
+                  paymentMethod === 'cbe_birr'
+                    ? 'border-emerald-500 bg-emerald-500/10 text-white'
+                    : 'border-slate-800 bg-slate-900/40 text-slate-400 hover:border-slate-700'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="px-2.5 py-1 text-[9px] font-black text-white bg-slate-800 rounded">CBE Bank</span>
+                  {paymentMethod === 'cbe_birr' && <CheckCircle className="w-5 h-5 text-emerald-400" />}
+                </div>
+                <div className="mt-3">
+                  <p className="text-xs font-bold text-slate-400">Commercial Bank Account</p>
+                  <p className="text-xs font-mono font-black text-white break-all">1000410224643</p>
+                </div>
+              </button>
+            </div>
+
+            {/* Account Details Box */}
+            <div className="p-4 bg-slate-900/90 rounded-xl border border-slate-800 text-xs space-y-2 font-mono">
+              <p className="font-bold text-amber-400 flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                {paymentMethod === 'telebirr' ? 'Telebirr Receiver Account' : 'CBE Receiver Account'}
+              </p>
+              <p className="text-slate-300">Account Holder: <span className="font-extrabold text-white">Abreham Alemayehu</span></p>
+              <p className="text-slate-400 text-[11px]">
+                {language === 'en' 
+                  ? 'Verify receiver name shows "Abreham Alemayehu" before sending!' 
+                  : 'ከመላክዎ በፊት የላኪው ስም "አብርሃም አለማየሁ" መሆኑን ያረጋግጡ!'}
+              </p>
+            </div>
+          </div>
+
+          {/* Right: Submission form */}
+          <div className="lg:col-span-5 bg-[#0a1128] border border-slate-800 rounded-2xl p-6 space-y-4">
+            <h3 className="text-base font-serif font-black text-amber-400 uppercase tracking-tight flex items-center gap-2">
+              <Send className="w-4 h-4" />
+              {language === 'en' ? 'Step 2: Submit Txn Reference' : 'ደረጃ 2፡ የትራንዛክሽን ቁጥር ያስገቡ'}
+            </h3>
 
             <form onSubmit={handleSubmitPayment} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">
-                  {language === 'en' ? 'Sender Name (on Bank / Telebirr)' : 'የላኪ ስም (ውጤቱ ላይ ያሉት)'} *
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
+                  {language === 'en' ? 'Sender Name (on Bank/Telebirr)' : 'የላኪ ስም (ውጤቱ ላይ ያሉት)'} *
                 </label>
                 <input
                   type="text"
@@ -369,12 +483,12 @@ export default function UpgradeProView({
                   value={senderName}
                   onChange={(e) => setSenderName(e.target.value)}
                   placeholder="e.g. Abreham Yohannes"
-                  className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-xs focus:ring-1 focus:ring-emerald-500 outline-none"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:ring-1 focus:ring-amber-400 outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
                   {language === 'en' ? 'Sender Phone Number (Optional)' : 'የመደበኛ ስልክ ቁጥር'}
                 </label>
                 <input
@@ -382,12 +496,12 @@ export default function UpgradeProView({
                   value={phoneInput}
                   onChange={(e) => setPhoneInput(e.target.value)}
                   placeholder="e.g. 0912345678"
-                  className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-xs focus:ring-1 focus:ring-emerald-500 outline-none"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:ring-1 focus:ring-amber-400 outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
                   {language === 'en' ? 'Transaction ID / Reference Number' : 'የትራንዛክሽን መለያ ቁጥር'} *
                 </label>
                 <input
@@ -396,67 +510,75 @@ export default function UpgradeProView({
                   value={txnRef}
                   onChange={(e) => setTxnRef(e.target.value)}
                   placeholder="e.g. FT16A1926B or Telebirr Txn No"
-                  className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-xs focus:ring-1 focus:ring-emerald-500 outline-none focus:border-transparent font-mono"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white font-mono focus:ring-1 focus:ring-amber-400 outline-none"
                 />
-                <p className="text-[10px] text-slate-400 dark:text-zinc-500 mt-1">
-                  {language === 'en' ? 'Must be exact referenced string to match.' : 'በትክክል መፃፉን ያረጋግጡ።'}
-                </p>
               </div>
 
               <button
                 type="submit"
-                id="btn-payment-submit"
-                className="w-full py-2.5 bg-[#078930] hover:bg-emerald-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer shadow-md active:scale-98 transition-all flex items-center justify-center gap-1.5"
+                disabled={isSubmitting}
+                className="w-full py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-bold rounded-xl text-xs uppercase tracking-wider cursor-pointer shadow-lg active:scale-98 transition-all flex items-center justify-center gap-2"
               >
-                <Send className="w-3.5 h-3.5" />
-                {language === 'en' ? 'Submit Verification' : 'ሒሳቡን አስገባ'}
+                <Send className="w-4 h-4" />
+                {language === 'en' ? 'Submit for Verification' : 'ክፍያውን አስገባ'}
               </button>
             </form>
           </div>
 
-          {/* Quick Support Card */}
-          <div className="bg-indigo-950/20 dark:bg-indigo-950/30 border border-indigo-900/40 rounded-2xl p-5 shadow-sm space-y-4">
-            <h4 className="text-xs font-extrabold uppercase tracking-widest text-indigo-400 flex items-center gap-1">
-              <span>💬</span>
-              {language === 'en' ? 'Direct support channels' : 'እርዳታና ድጋፍ'}
-            </h4>
-            
-            <p className="text-xs text-slate-500 dark:text-zinc-300 leading-relaxed font-serif">
-              {language === 'en' 
-                ? 'Encountered problems or have queries about transaction times? Message our live support coordinators directly on Telegram or Email!' 
-                : 'ክፍያ በሚፈጽሙበት ጊዜ ማንኛውም ችግር ካጋጠመዎት ወይም ፈጣን እርዳታ ከፈለጉ በተሌግራም ወይም በኢሜል ያግኙን!'}
-            </p>
+        </div>
+      )}
 
-            <div className="space-y-2 text-xs font-mono">
-              <a 
-                href="https://t.me/ultra207" 
-                target="_blank" 
-                rel="noreferrer"
-                className="flex items-center justify-between p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 transition-colors text-slate-700 dark:text-zinc-200"
-              >
-                <span>Telegram Support 1</span>
-                <span className="text-[#078930] font-bold">@ultra207 &rarr;</span>
-              </a>
-              <a 
-                href="https://t.me/ethiopia_01" 
-                target="_blank" 
-                rel="noreferrer"
-                className="flex items-center justify-between p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 transition-colors text-slate-700 dark:text-zinc-200"
-              >
-                <span>Telegram Support 2</span>
-                <span className="text-[#078930] font-bold">@ethiopia_01 &rarr;</span>
-              </a>
-              <div 
-                className="flex items-center justify-between p-2.5 rounded-xl bg-slate-100 dark:bg-zinc-900 text-slate-705 dark:text-zinc-305"
-              >
-                <span>Support Email</span>
-                <span className="font-bold cursor-help" title="Click to copy AbrehamAlemayehu@gmail.com">AbrehamAlemayehu@gmail.com</span>
-              </div>
+      {/* TAB 3: VERIFICATION STATUS & ADMIN CONTROLS */}
+      {activeTab === 'status' && (
+        <div className="bg-[#0a1128] border border-slate-800 rounded-2xl p-8 text-center space-y-6">
+          <div className="flex justify-center">
+            <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+              <Clock className="w-8 h-8 animate-spin" style={{ animationDuration: '3s' }} />
             </div>
           </div>
-        </div>
 
-      </div>
+          <div className="max-w-md mx-auto space-y-2">
+            <h4 className="text-xl font-serif font-black text-white">
+              {profile.proStatus === 'pending' 
+                ? (language === 'en' ? 'Payment Under Verification' : 'ክፍያው በመረጋገጥ ላይ ነው')
+                : (profile.isPro 
+                    ? (language === 'en' ? 'Pro Access Active!' : 'የፕሮ አባልነትዎ ነቅቷል!') 
+                    : (language === 'en' ? 'No Pending Payment Verification' : 'ያልቀረበ ክፍያ ማረጋገጫ'))
+              }
+            </h4>
+            
+            {profile.proStatus === 'pending' ? (
+              <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300 space-y-2">
+                <p className="font-mono">Txn Ref: <b>{profile.proPaymentTxn}</b></p>
+                <p>
+                  {language === 'en'
+                    ? "Our admin team is checking the Telebirr/CBE bank ledger. Approvals take ~15-30 mins."
+                    : "የአስተዳዳሪ ቡድናችን የሒሳብ መዝገብ በመፈተሽ ላይ ነው። ብዙውን ጊዜ 15-30 ደቂቃ ይወስዳል።"}
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400">
+                {profile.isPro 
+                  ? (language === 'en' ? "Thank you for subscribing! You have full access to EthioLearn Pro." : "ስለ ኢትዮ-ለርን ፕሮ አባልነት ድጋፍዎ እናመሰግናለን!")
+                  : (language === 'en' ? "Please select a subscription tier and submit your payment reference." : "እባክዎ ፓኬጅ መርጠው ክፍያውን ያስገቡ!")
+                }
+              </p>
+            )}
+          </div>
+
+          {/* Admin Fast-Test Control */}
+          <div className="pt-6 border-t border-slate-800 max-w-sm mx-auto">
+            <p className="text-[10px] text-slate-500 font-mono mb-3">🛠️ ADMIN / LAUNCH TEST CODE (FAST-APPROVE):</p>
+            <button
+              onClick={handleInstantApprove}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer font-mono"
+            >
+              Instant Approve (Code: 2070)
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

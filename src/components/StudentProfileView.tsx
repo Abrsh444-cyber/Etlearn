@@ -16,6 +16,7 @@ import { getSupabase, saveSupabaseCredentials, clearSupabaseCredentials } from '
 import StudentAvatar from './StudentAvatar';
 import StudentAvatarSelector from './StudentAvatarSelector';
 import PWADownloadAssistant from './PWADownloadAssistant';
+import BillingAccountSection from './BillingAccountSection';
 import { safeStorage } from '../utils/safeStorage';
 
 interface StudentProfileViewProps {
@@ -30,6 +31,7 @@ interface StudentProfileViewProps {
   isInstallable?: boolean;
   triggerPWAInstall?: () => Promise<void>;
   onSignOut?: () => void;
+  onNavigateToUpgrade?: () => void;
 }
 
 export default function StudentProfileView({
@@ -43,7 +45,8 @@ export default function StudentProfileView({
   onGoogleSignOut,
   isInstallable,
   triggerPWAInstall,
-  onSignOut
+  onSignOut,
+  onNavigateToUpgrade
 }: StudentProfileViewProps) {
   
   // Database State
@@ -554,6 +557,15 @@ export default function StudentProfileView({
         isInstallable={isInstallable || false} 
         triggerPWAInstall={triggerPWAInstall || (async () => {})} 
         isOffline={!navigator.onLine}
+      />
+
+      {/* Billing & Subscription Account History Section */}
+      <BillingAccountSection
+        profile={activeProfileData}
+        language={language}
+        onNavigateToUpgrade={() => {
+          if (onNavigateToUpgrade) onNavigateToUpgrade();
+        }}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">

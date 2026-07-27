@@ -961,6 +961,7 @@ export default function App() {
                 onStudyAction={handleRecordStudyAction}
                 profile={profile}
                 onUpdateProfile={handleUpdateProfile}
+                onOpenUpgrade={() => setCurrentPage('upgrade')}
               />
             )}
 
@@ -985,6 +986,7 @@ export default function App() {
                 isInstallable={isInstallable}
                 triggerPWAInstall={triggerPWAInstall}
                 onSignOut={handleSignOut}
+                onNavigateToUpgrade={() => setCurrentPage('upgrade')}
               />
             )}
 

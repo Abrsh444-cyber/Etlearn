@@ -3,6 +3,44 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export type SubscriptionTier = 'free' | 'pro_monthly' | 'exam_season_pass' | 'subject_bundle';
+export type SubscriptionStatus = 'active' | 'pending' | 'expired' | 'none';
+export type PaymentProvider = 'telebirr' | 'cbe_birr' | 'chapa' | 'santim_pay' | 'manual';
+export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
+
+export interface SubscriptionRecord {
+  id: string;
+  userId: string;
+  tier: SubscriptionTier;
+  status: SubscriptionStatus;
+  subjectBundleId?: string;
+  startDate: string;
+  endDate?: string;
+  paymentMethod: PaymentProvider;
+  autoRenew: boolean;
+}
+
+export interface PaymentRecord {
+  id: string;
+  userId: string;
+  subscriptionId?: string;
+  amount: number;
+  currency: string;
+  provider: PaymentProvider;
+  providerTxnId: string;
+  senderName: string;
+  senderPhone?: string;
+  status: PaymentStatus;
+  createdAt: string;
+}
+
+export interface FeatureUsageRecord {
+  userId: string;
+  featureType: 'ai_tutor_queries' | 'quiz_attempts' | 'pdf_downloads';
+  count: number;
+  resetAt: string; // ISO Date String
+}
+
 export interface StudentProfile {
   name: string;
   email?: string;
@@ -19,11 +57,16 @@ export interface StudentProfile {
   unregisteredAICredits?: number;
   // Premium subscription details
   isPro?: boolean;
-  proStatus?: 'none' | 'trial' | 'pending' | 'active';
+  tier?: SubscriptionTier;
+  proStatus?: 'none' | 'trial' | 'pending' | 'active' | 'expired';
   proPaymentTxn?: string;
   proPaymentDate?: string;
+  proStartDate?: string;
+  proEndDate?: string;
+  purchasedBundles?: string[]; // Array of subject bundle IDs purchased
   senderName?: string;
   proPaymentPhone?: string;
+  paymentMethod?: PaymentProvider;
 }
 
 export interface Flashcard {
