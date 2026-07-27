@@ -41,6 +41,13 @@ export interface FeatureUsageRecord {
   resetAt: string; // ISO Date String
 }
 
+export interface AccountInfo {
+  email: string;
+  passwordEncrypted: string;
+  rememberMe: boolean;
+  profile: StudentProfile;
+}
+
 export interface StudentProfile {
   name: string;
   email?: string;

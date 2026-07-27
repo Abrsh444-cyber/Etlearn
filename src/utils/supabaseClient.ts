@@ -3,12 +3,114 @@ import { safeStorage } from './safeStorage';
 
 let supabaseInstance: SupabaseClient | null = null;
 
+export const ETHIOLEARN_SUPABASE_SQL_SCRIPT = `-- EthioLearn 1-Click Supabase Database Setup Script
+-- Copy and paste this directly into your Supabase SQL Editor (https://supabase.com/dashboard/project/_/sql)
+
+-- 1. Create ethiolearn_sync table for full cloud study backup
+CREATE TABLE IF NOT EXISTS ethiolearn_sync (
+  email TEXT PRIMARY KEY,
+  data JSONB NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. Create student_profiles table for profile metrics
+CREATE TABLE IF NOT EXISTS student_profiles (
+  email TEXT PRIMARY KEY,
+  profile_data JSONB,
+  notes_data JSONB,
+  study_sessions JSONB,
+  performance_data JSONB,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. Create books table for dynamic digital textbooks
+CREATE TABLE IF NOT EXISTS books (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  grade TEXT NOT NULL DEFAULT 'Grade 12',
+  description TEXT,
+  pdf_url TEXT,
+  chapters JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 4. Enable public read/write access for anonymous key
+ALTER TABLE ethiolearn_sync DISABLE ROW LEVEL SECURITY;
+ALTER TABLE student_profiles DISABLE ROW LEVEL SECURITY;
+ALTER TABLE books DISABLE ROW LEVEL SECURITY;
+
+GRANT ALL ON ethiolearn_sync TO anon, authenticated;
+GRANT ALL ON student_profiles TO anon, authenticated;
+GRANT ALL ON books TO anon, authenticated;
+`;
+
+/**
+ * Clean and normalize header strings to ensure strict ISO-8859-1 / ASCII compatibility.
+ * Removes smart quotes, zero-width spaces, and any non-ASCII characters that break fetch Request headers.
+ */
+export function cleanAsciiHeader(str?: string): string {
+  if (!str) return '';
+  return str
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '') // Zero-width spaces & BOM
+    .replace(/[^\x20-\x7E]/g, '') // Strict ASCII printable chars (32-126)
+    .trim()
+    .replace(/^['"]|['"]$/g, '');
+}
+
+/**
+ * Clean and normalize Supabase URL & Key string inputs
+ */
+export function sanitizeCredentials(rawUrl?: string, rawKey?: string): { url: string; key: string; isValid: boolean } {
+  let url = cleanAsciiHeader(rawUrl);
+  let key = cleanAsciiHeader(rawKey);
+
+  if (!url || !key) {
+    return { url: '', key: '', isValid: false };
+  }
+
+  const isPlaceholder = (val: string) => {
+    const l = val.toLowerCase();
+    return (
+      l.includes('your-project') ||
+      l.includes('your-anon-key') ||
+      l.includes('abcdefghijklmnopqrst') ||
+      l === 'undefined' ||
+      l === 'null' ||
+      l === 'none' ||
+      l.length < 5
+    );
+  };
+
+  if (isPlaceholder(url) || isPlaceholder(key)) {
+    return { url: '', key: '', isValid: false };
+  }
+
+  // Ensure url has valid protocol
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = `https://${url}`;
+  }
+
+  // Strip trailing slashes
+  url = url.replace(/\/+$/, '');
+
+  return { url, key, isValid: true };
+}
+
 /**
  * Save Supabase credentials to localStorage for in-app pairing
  */
 export function saveSupabaseCredentials(url: string, key: string) {
-  safeStorage.setItem('ethiolearn_supabase_url', url.trim());
-  safeStorage.setItem('ethiolearn_supabase_key', key.trim());
+  const sanitized = sanitizeCredentials(url, key);
+  if (sanitized.isValid) {
+    safeStorage.setItem('ethiolearn_supabase_url', sanitized.url);
+    safeStorage.setItem('ethiolearn_supabase_key', sanitized.key);
+  } else {
+    safeStorage.setItem('ethiolearn_supabase_url', url.trim());
+    safeStorage.setItem('ethiolearn_supabase_key', key.trim());
+  }
   supabaseInstance = null; // Reset instance to force recreation with new keys
 }
 
@@ -22,26 +124,178 @@ export function clearSupabaseCredentials() {
 }
 
 /**
+ * Verifies if candidate credentials create valid HTTP headers without throwing ISO-8859-1 errors.
+ */
+function isValidHeaderCredential(url: string, key: string): boolean {
+  try {
+    const cleanUrl = cleanAsciiHeader(url);
+    const cleanKey = cleanAsciiHeader(key);
+    if (!cleanUrl || !cleanKey) return false;
+    new Request(`${cleanUrl}/rest/v1/`, {
+      method: 'GET',
+      headers: {
+        apikey: cleanKey,
+        Authorization: `Bearer ${cleanKey}`
+      }
+    });
+    return true;
+  } catch (e) {
+    console.warn('[Supabase Client] Rejecting credentials due to invalid header format:', e);
+    return false;
+  }
+}
+
+/**
  * Lazily configures and retrieves the Supabase client instance.
- * Gracefully returns null if keys are not set, preventing startup crashes.
+ * Gracefully returns null if keys are not set or invalid, preventing crashes.
  */
 export function getSupabase(): SupabaseClient | null {
   if (supabaseInstance) return supabaseInstance;
 
-  const metaEnv = (import.meta as any).env || {};
-  const url = metaEnv.VITE_SUPABASE_URL || safeStorage.getItem('ethiolearn_supabase_url');
-  const key = metaEnv.VITE_SUPABASE_ANON_KEY || safeStorage.getItem('ethiolearn_supabase_key');
+  // 1. First check user's explicitly saved credentials in browser local storage
+  const storedUrl = safeStorage.getItem('ethiolearn_supabase_url');
+  const storedKey = safeStorage.getItem('ethiolearn_supabase_key');
+  const storedClean = sanitizeCredentials(storedUrl || '', storedKey || '');
 
-  if (url && key && url.startsWith('http')) {
+  if (storedClean.isValid && isValidHeaderCredential(storedClean.url, storedClean.key)) {
     try {
-      supabaseInstance = createClient(url, key);
+      supabaseInstance = createClient(storedClean.url, storedClean.key, {
+        auth: { persistSession: true, autoRefreshToken: true }
+      });
       return supabaseInstance;
     } catch (err) {
-      console.warn('Failed to initialize Supabase client:', err);
-      return null;
+      console.warn('Failed to initialize saved Supabase client:', err);
     }
   }
+
+  // 2. Fall back to environment variables
+  const metaEnv = (import.meta as any).env || {};
+  const envUrl = metaEnv.VITE_SUPABASE_URL || '';
+  const envKey = metaEnv.VITE_SUPABASE_ANON_KEY || '';
+  const envClean = sanitizeCredentials(envUrl, envKey);
+
+  if (envClean.isValid && isValidHeaderCredential(envClean.url, envClean.key)) {
+    try {
+      supabaseInstance = createClient(envClean.url, envClean.key, {
+        auth: { persistSession: true, autoRefreshToken: true }
+      });
+      return supabaseInstance;
+    } catch (err) {
+      console.warn('Failed to initialize env Supabase client:', err);
+    }
+  }
+
   return null;
+}
+
+/**
+ * Comprehensive diagnostic check for Supabase connection
+ */
+export async function testSupabaseConnection(overrideUrl?: string, overrideKey?: string): Promise<{
+  success: boolean;
+  message: string;
+  details?: string;
+  tablesFound: string[];
+  needsSqlSetup: boolean;
+}> {
+  let client: SupabaseClient | null = null;
+  let targetUrl = overrideUrl;
+  let targetKey = overrideKey;
+
+  if (overrideUrl && overrideKey) {
+    const clean = sanitizeCredentials(overrideUrl, overrideKey);
+    if (!clean.isValid || !isValidHeaderCredential(clean.url, clean.key)) {
+      return {
+        success: false,
+        message: 'Invalid URL or Anon Key format. Please check for placeholders or non-ASCII characters.',
+        tablesFound: [],
+        needsSqlSetup: false
+      };
+    }
+    try {
+      client = createClient(clean.url, clean.key);
+    } catch (err: any) {
+      return {
+        success: false,
+        message: `Client initialization failed: ${err.message || err}`,
+        tablesFound: [],
+        needsSqlSetup: false
+      };
+    }
+  } else {
+    client = getSupabase();
+    targetUrl = safeStorage.getItem('ethiolearn_supabase_url') || '';
+    targetKey = safeStorage.getItem('ethiolearn_supabase_key') || '';
+  }
+
+  if (!client) {
+    return {
+      success: false,
+      message: 'No valid Supabase credentials found. Please enter your project URL and Anon key.',
+      tablesFound: [],
+      needsSqlSetup: false
+    };
+  }
+
+  const tablesFound: string[] = [];
+
+  // Check table ethiolearn_sync
+  try {
+    const { error: syncErr } = await client.from('ethiolearn_sync').select('email').limit(1);
+    if (!syncErr) tablesFound.push('ethiolearn_sync');
+  } catch (e) {}
+
+  // Check table student_profiles
+  try {
+    const { error: profErr } = await client.from('student_profiles').select('email').limit(1);
+    if (!profErr) tablesFound.push('student_profiles');
+  } catch (e) {}
+
+  // Check table books
+  try {
+    const { error: booksErr } = await client.from('books').select('id').limit(1);
+    if (!booksErr) tablesFound.push('books');
+  } catch (e) {}
+
+  // Also check grade12_books
+  try {
+    const { error: g12Err } = await client.from('grade12_books').select('id').limit(1);
+    if (!g12Err) tablesFound.push('grade12_books');
+  } catch (e) {}
+
+  if (tablesFound.length > 0) {
+    return {
+      success: true,
+      message: `Connected successfully! Found database tables: [${tablesFound.join(', ')}].`,
+      tablesFound,
+      needsSqlSetup: false
+    };
+  }
+
+  // If no tables found, verify if host is reachable via REST ping
+  try {
+    const { url, key } = sanitizeCredentials(targetUrl || '', targetKey || '');
+    if (url && key && isValidHeaderCredential(url, key)) {
+      const pingRes = await fetch(`${url}/rest/v1/`, { method: 'GET', headers: { apikey: key } });
+      if (pingRes.ok || pingRes.status === 200 || pingRes.status === 401 || pingRes.status === 404) {
+        return {
+          success: true,
+          message: 'Connected to Supabase project REST API! Note: Database tables are not created yet.',
+          details: 'Your credentials are valid! Please copy and run the 1-click SQL setup script in your Supabase SQL Editor to create tables.',
+          tablesFound: [],
+          needsSqlSetup: true
+        };
+      }
+    }
+  } catch (err) {}
+
+  return {
+    success: false,
+    message: 'Could not connect to Supabase. Please verify your Project URL and Anon Key.',
+    details: 'Make sure your project URL starts with https://, your database status is active, and Row Level Security or CORS settings allow requests.',
+    tablesFound: [],
+    needsSqlSetup: true
+  };
 }
 
 /**
@@ -52,14 +306,14 @@ export async function fetchSupabaseBooks(): Promise<any[]> {
   if (!client) return [];
 
   try {
-    // Attempt to select from "grade12_books" or "books"
+    // Attempt to select from "books"
     const { data, error } = await client
       .from('books')
       .select('*')
       .order('title', { ascending: true });
 
     if (error) {
-      // Try fallback table alternative
+      // Try fallback table alternative "grade12_books"
       const { data: fallbackData, error: fallbackError } = await client
         .from('grade12_books')
         .select('*');
@@ -80,25 +334,41 @@ export async function fetchSupabaseBooks(): Promise<any[]> {
 /**
  * Asynchronously loads Supabase config from server if not already stored in localStorage.
  */
-export async function initSupabaseConfig(): Promise<void> {
-  try {
-    const savedUrl = safeStorage.getItem('ethiolearn_supabase_url');
-    const savedKey = safeStorage.getItem('ethiolearn_supabase_key');
-    if (savedUrl && savedKey) return; // Already configured locally
-
-    const res = await fetch('/api/supabase-config');
-    if (res.ok) {
-      const config = await res.json();
-      if (config.url && config.anonKey) {
-        safeStorage.setItem('ethiolearn_supabase_url', config.url);
-        safeStorage.setItem('ethiolearn_supabase_key', config.anonKey);
-        supabaseInstance = null; // force reload with server-synced credentials
-        console.log('[Supabase Client] Successfully fetched and auto-configured Supabase credentials from server.');
+export function initSupabaseConfig(): Promise<void> {
+  return new Promise((resolve) => {
+    try {
+      const savedUrl = safeStorage.getItem('ethiolearn_supabase_url');
+      const savedKey = safeStorage.getItem('ethiolearn_supabase_key');
+      const cleanSaved = sanitizeCredentials(savedUrl || '', savedKey || '');
+      if (cleanSaved.isValid) {
+        resolve();
+        return; // Already configured locally
       }
+
+      fetch('/api/supabase-config')
+        .then((res) => (res.ok ? res.json() : null))
+        .then((config) => {
+          if (config && config.url && config.anonKey) {
+            const cleanConfig = sanitizeCredentials(config.url, config.anonKey);
+            if (cleanConfig.isValid) {
+              safeStorage.setItem('ethiolearn_supabase_url', cleanConfig.url);
+              safeStorage.setItem('ethiolearn_supabase_key', cleanConfig.key);
+              supabaseInstance = null; // force reload with server-synced credentials
+              console.log('[Supabase Client] Successfully fetched and auto-configured Supabase credentials from server.');
+            }
+          }
+          resolve();
+        })
+        .catch((err) => {
+          console.warn('[Supabase Client] Failed to fetch server-side Supabase credentials:', err);
+          resolve();
+        });
+    } catch (err) {
+      console.warn('[Supabase Client] Init error:', err);
+      resolve();
     }
-  } catch (err) {
-    console.warn('[Supabase Client] Failed to fetch server-side Supabase credentials:', err);
-  }
+  });
 }
+
 
 

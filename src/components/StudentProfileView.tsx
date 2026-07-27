@@ -10,9 +10,9 @@ import {
   Copy, RefreshCw, CloudLightning, ChevronDown, ChevronUp, CheckCircle,
   FileText, HelpCircle, ShieldCheck
 } from 'lucide-react';
-import { StudentProfile } from '../types';
+import { StudentProfile, AccountInfo } from '../types';
 import { playClickChime, playSuccessChime, playFailureChime } from '../utils/audio';
-import { getSupabase, saveSupabaseCredentials, clearSupabaseCredentials } from '../utils/supabaseClient';
+import { getSupabase, saveSupabaseCredentials, clearSupabaseCredentials, testSupabaseConnection, ETHIOLEARN_SUPABASE_SQL_SCRIPT } from '../utils/supabaseClient';
 import StudentAvatar from './StudentAvatar';
 import StudentAvatarSelector from './StudentAvatarSelector';
 import PWADownloadAssistant from './PWADownloadAssistant';
@@ -75,6 +75,7 @@ export default function StudentProfileView({
   const [resetLoading, setResetLoading] = useState(false);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
+  const [newPasswordInput, setNewPasswordInput] = useState('');
 
   // Supabase Integration Settings States
   const [supabaseUrl, setSupabaseUrl] = useState(() => safeStorage.getItem('ethiolearn_supabase_url') || '');
@@ -276,17 +277,39 @@ export default function StudentProfileView({
   };
 
   // Save Supabase credentials directly from the settings panel
-  const handleSaveKeys = () => {
+  const handleSaveKeys = async () => {
     if (!supabaseUrl.trim() || !supabaseKey.trim()) {
       setSyncErrorMsg(language === 'en' ? "Please fill in both URL and Key." : "እባክዎን የ URL እና የቁልፍ መረጃዎችን ያስገቡ።");
       playFailureChime();
       return;
     }
     saveSupabaseCredentials(supabaseUrl, supabaseKey);
-    playSuccessChime();
-    setSyncSuccessMsg(language === 'en' ? "Supabase keys saved! Connected successfully." : "የሱፓቤስ መረጃዎች ተቀምጠዋል! በተሳካ ሁኔታ ተገናኝቷል።");
-    // Refresh student profile from new keys
-    fetchProfileFromSupabase();
+    playClickChime();
+    setSyncLoading(true);
+    setSyncSuccessMsg(null);
+    setSyncErrorMsg(null);
+
+    const diag = await testSupabaseConnection(supabaseUrl, supabaseKey);
+    setSyncLoading(false);
+
+    if (diag.success) {
+      playSuccessChime();
+      if (diag.needsSqlSetup) {
+        setSyncSuccessMsg(language === 'en'
+          ? "Supabase connected! Note: Database tables are not created yet. Click '1-Click SQL Script' below to copy the setup script for your SQL Editor."
+          : "ሱፓቤስ ተገናኝቷል! ማሳሰቢያ፦ የዳታቤዝ ሰንጠረዦች አልተፈጠሩም። እባክዎን '1-Click SQL Script' በመንካት ስክሪፕቱን ኮፒ አድርገው በሱፓቤስ ላይ ያሂዱ።"
+        );
+      } else {
+        setSyncSuccessMsg(language === 'en'
+          ? `Supabase paired & verified! Ready for live cloud backup.`
+          : `የሱፓቤስ ቁልፎች በተሳካ ሁኔታ ተረጋግጠዋል!`
+        );
+      }
+      fetchProfileFromSupabase();
+    } else {
+      playFailureChime();
+      setSyncErrorMsg(diag.message || (language === 'en' ? "Failed to verify Supabase connection." : "ከሱፓቤስ ጋር መገናኘት አልተቻለም።"));
+    }
   };
 
   // Clear Supabase credentials
@@ -306,17 +329,6 @@ export default function StudentProfileView({
     setSyncSuccessMsg(null);
     setSyncErrorMsg(null);
 
-    const supa = getSupabase();
-    if (!supa) {
-      setSyncErrorMsg(language === 'en' 
-        ? "Supabase client is not connected. Save your URL and Anon Key first." 
-        : "ሱፓቤስ አልተገናኘም። መጀመሪያ የ URL እና Anon Key ያስቀምጡ።"
-      );
-      playFailureChime();
-      setSyncLoading(false);
-      return;
-    }
-
     const email = (profile.email || '').toLowerCase().trim();
     if (!email) {
       setSyncErrorMsg(language === 'en' ? "Please register with an email address first." : "እባክዎን መጀመሪያ በኢሜይል ይመዝገቡ።");
@@ -325,54 +337,101 @@ export default function StudentProfileView({
       return;
     }
 
-    try {
-      // Collect local data
-      const localProfile = profile;
-      const notesRaw = safeStorage.getItem('ethiolearn_custom_notes');
-      const notesData = notesRaw ? JSON.parse(notesRaw) : [];
+    // Collect local data payload
+    const localProfile = profile;
+    const notesRaw = safeStorage.getItem('ethiolearn_custom_notes');
+    const notesData = notesRaw ? JSON.parse(notesRaw) : [];
+    const studySessionsRaw = safeStorage.getItem('ethiolearn_study_sessions');
+    const studySessions = studySessionsRaw ? JSON.parse(studySessionsRaw) : [];
+    const quizRaw = safeStorage.getItem('ethiolearn_quiz_perf');
+    const performanceData = quizRaw ? JSON.parse(quizRaw) : {};
 
-      const studySessionsRaw = safeStorage.getItem('ethiolearn_study_sessions');
-      const studySessions = studySessionsRaw ? JSON.parse(studySessionsRaw) : [];
+    const fullBackupPayload = {
+      email,
+      profile_data: localProfile,
+      notes_data: notesData,
+      study_sessions: studySessions,
+      performance_data: performanceData,
+      updated_at: new Date().toISOString()
+    };
 
-      const quizRaw = safeStorage.getItem('ethiolearn_quiz_perf');
-      const performanceData = quizRaw ? JSON.parse(quizRaw) : {};
+    let backupSuccess = false;
 
-      const payload = {
-        email,
-        profile_data: localProfile,
-        notes_data: notesData,
-        study_sessions: studySessions,
-        performance_data: performanceData,
-        updated_at: new Date().toISOString()
-      };
+    // Layer 1: Client-side try student_profiles table
+    const supa = getSupabase();
+    if (supa) {
+      try {
+        const { error: profErr } = await supa
+          .from('student_profiles')
+          .upsert(fullBackupPayload, { onConflict: 'email' });
+        
+        if (!profErr) {
+          backupSuccess = true;
+        }
+      } catch (e) {}
 
-      const { error } = await supa
-        .from('student_profiles')
-        .upsert(payload, { onConflict: 'email' });
+      // Layer 2: Client-side try ethiolearn_sync table
+      if (!backupSuccess) {
+        try {
+          const { error: syncErr } = await supa
+            .from('ethiolearn_sync')
+            .upsert({ email, data: fullBackupPayload, updated_at: new Date().toISOString() }, { onConflict: 'email' });
+          if (!syncErr) {
+            backupSuccess = true;
+          }
+        } catch (e) {}
+      }
+    }
 
-      if (error) throw error;
+    // Layer 3: Server HTTP API Proxy Sync
+    if (!backupSuccess) {
+      try {
+        const res = await fetch('/api/db/sync-supabase', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: supabaseUrl,
+            key: supabaseKey,
+            email,
+            action: 'backup',
+            payload: fullBackupPayload
+          })
+        });
+        const serverData = await res.json();
+        if (res.ok && serverData.success) {
+          backupSuccess = true;
+        } else if (serverData.error) {
+          throw new Error(serverData.error);
+        }
+      } catch (proxyErr: any) {
+        console.warn('[Supabase Backup Proxy Fail]:', proxyErr);
+      }
+    }
 
+    setSyncLoading(false);
+
+    if (backupSuccess) {
       playSuccessChime();
       setSyncSuccessMsg(language === 'en'
         ? "All local notes, profile specifications, and study statistics have been backed up successfully!"
-        : "ማስታወሻዎችዎ፣ መገለጫዎ እና የጥናት መረጃዎችዎ በተሳካ ሁኔታ ወደ ሱፓቤስ ተቀምጠዋል!"
+        : "ማስታወሻዎችዎ፣ መገለጫዎ እና የጥናት መረጃዎችዎ በተሳካ ሁኔታ በክላውድ ተቀምጠዋል!"
       );
-    } catch (err: any) {
-      console.error('[Supabase Manual Backup Error]:', err);
+    } else {
       playFailureChime();
-      setSyncErrorMsg(err.message || "Could not complete backup to Supabase.");
-    } finally {
-      setSyncLoading(false);
+      setSyncErrorMsg(language === 'en'
+        ? "Cloud backup failed. Please check your internet connection."
+        : "ባክአፕ ማድረግ አልተቻለም። እባክዎን የኢንተርኔት ግንኙነትዎን ያረጋግጡ።"
+      );
     }
   };
 
-  // Manual Portfolio Restore from Supabase
+  // Manual Portfolio Restore from Cloud
   const handleRestoreFromSupabase = async () => {
     playClickChime();
     
     const confirmRestore = window.confirm(language === 'en'
-      ? "Warning: This will overwrite your current local study sessions, custom notes, and profile settings with the data saved in Supabase. Do you wish to proceed?"
-      : "ማስጠንቀቂያ፦ ይህ የአሁኑን የጥናት መረጃዎች፣ ማስታወሻዎች እና መገለጫዎን በሱፓቤስ ላይ ባለው መረጃ ይተካዋል። መቀጠል ይፈልጋሉ?"
+      ? "Warning: This will overwrite your current local study sessions, custom notes, and profile settings with the data saved in cloud backup. Do you wish to proceed?"
+      : "ማስጠንቀቂያ፦ ይህ የአሁኑን የጥናት መረጃዎች፣ ማስታወሻዎች እና መገለጫዎን በክላውድ ላይ ባለው መረጃ ይተካዋል። መቀጠል ይፈልጋሉ?"
     );
     if (!confirmRestore) return;
 
@@ -380,17 +439,6 @@ export default function StudentProfileView({
     setSyncSuccessMsg(null);
     setSyncErrorMsg(null);
 
-    const supa = getSupabase();
-    if (!supa) {
-      setSyncErrorMsg(language === 'en' 
-        ? "Supabase client is not connected. Save your URL and Anon Key first." 
-        : "ሱፓቤስ አልተገናኘም። መጀመሪያ የ URL እና Anon Key ያስቀምጡ።"
-      );
-      playFailureChime();
-      setSyncLoading(false);
-      return;
-    }
-
     const email = (profile.email || '').toLowerCase().trim();
     if (!email) {
       setSyncErrorMsg(language === 'en' ? "Please register with an email address first." : "እባክዎን መጀመሪያ በኢሜይል ይመዝገቡ።");
@@ -399,52 +447,97 @@ export default function StudentProfileView({
       return;
     }
 
+    let restoredPayload: any = null;
+
+    // Layer 1: Client-side student_profiles
+    const supa = getSupabase();
+    if (supa) {
+      try {
+        const { data: profData, error: profErr } = await supa
+          .from('student_profiles')
+          .select('*')
+          .eq('email', email)
+          .maybeSingle();
+
+        if (!profErr && profData) {
+          restoredPayload = profData;
+        }
+      } catch (e) {}
+
+      // Layer 2: Client-side ethiolearn_sync
+      if (!restoredPayload) {
+        try {
+          const { data: syncData, error: syncErr } = await supa
+            .from('ethiolearn_sync')
+            .select('data')
+            .eq('email', email)
+            .maybeSingle();
+
+          if (!syncErr && syncData?.data) {
+            restoredPayload = syncData.data;
+          }
+        } catch (e) {}
+      }
+    }
+
+    // Layer 3: Server API Sync Proxy
+    if (!restoredPayload) {
+      try {
+        const res = await fetch('/api/db/sync-supabase', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: supabaseUrl,
+            key: supabaseKey,
+            email,
+            action: 'restore'
+          })
+        });
+        const serverRes = await res.json();
+        if (res.ok && serverRes.payload) {
+          restoredPayload = serverRes.payload;
+        }
+      } catch (e) {}
+    }
+
+    setSyncLoading(false);
+
+    if (!restoredPayload) {
+      playFailureChime();
+      setSyncErrorMsg(language === 'en'
+        ? "No backup record found in cloud storage for this email address."
+        : "በዚህ ኢሜይል በክላውድ ላይ ምንም የተቀመጠ መረጃ አልተገኘም።"
+      );
+      return;
+    }
+
+    // Apply restored payload
     try {
-      const { data, error } = await supa
-        .from('student_profiles')
-        .select('*')
-        .eq('email', email)
-        .maybeSingle();
-
-      if (error) throw error;
-
-      if (!data) {
-        setSyncErrorMsg(language === 'en'
-          ? "No backup record found in your Supabase database for this email."
-          : "በዚህ ኢሜይል በሱፓቤስ ላይ ምንም የተቀመጠ መረጃ አልተገኘም።"
-        );
-        playFailureChime();
-        setSyncLoading(false);
-        return;
+      const pData = restoredPayload.profile_data || restoredPayload;
+      if (pData && typeof pData === 'object') {
+        onUpdateProfile(pData);
+        setDbProfile(pData);
+        safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(pData));
       }
-
-      // Restore data to state and local storage
-      if (data.profile_data) {
-        onUpdateProfile(data.profile_data);
-        setDbProfile(data.profile_data);
-        safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(data.profile_data));
+      if (restoredPayload.notes_data) {
+        safeStorage.setItem('ethiolearn_custom_notes', JSON.stringify(restoredPayload.notes_data));
       }
-      if (data.notes_data) {
-        safeStorage.setItem('ethiolearn_custom_notes', JSON.stringify(data.notes_data));
+      if (restoredPayload.study_sessions) {
+        safeStorage.setItem('ethiolearn_study_sessions', JSON.stringify(restoredPayload.study_sessions));
       }
-      if (data.study_sessions) {
-        safeStorage.setItem('ethiolearn_study_sessions', JSON.stringify(data.study_sessions));
-      }
-      if (data.performance_data) {
-        safeStorage.setItem('ethiolearn_quiz_perf', JSON.stringify(data.performance_data));
+      if (restoredPayload.performance_data) {
+        safeStorage.setItem('ethiolearn_quiz_perf', JSON.stringify(restoredPayload.performance_data));
       }
 
       playSuccessChime();
       setSyncSuccessMsg(language === 'en'
-        ? "Portfolio successfully restored from Supabase! Please refresh the application to view all updated notes and metrics."
-        : "የጥናት መረጃዎ ከሱፓቤስ በተሳካ ሁኔታ ተመልሷል! ሁሉንም አዳዲስ ማስታወሻዎች ለማየት እባክዎን ገጹን ሪፍሬሽ ያድርጉ።"
+        ? "Portfolio successfully restored from cloud backup! Your study statistics and notes are up to date."
+        : "የጥናት መረጃዎ ከክላውድ በተሳካ ሁኔታ ተመልሷል!"
       );
     } catch (err: any) {
-      console.error('[Supabase Manual Restore Error]:', err);
+      console.error('[Restore Application Fail]:', err);
       playFailureChime();
-      setSyncErrorMsg(err.message || "Failed to restore backup from Supabase.");
-    } finally {
-      setSyncLoading(false);
+      setSyncErrorMsg("Failed to parse restored profile packet.");
     }
   };
 
@@ -455,37 +548,73 @@ export default function StudentProfileView({
     setResetMessage(null);
     setResetError(null);
 
-    const supa = getSupabase();
-    if (!supa) {
-      setResetError(language === 'en' 
-        ? "Supabase client is offline. Contact campus administrator Ezra at ezrat2116@gmail.com." 
-        : "ዳታቤዝ ግንኙነት የለም። እባክዎን የአካዳሚክ አስተዳዳሪውን እዝራን ያነጋግሩ (ezrat2116@gmail.com)።"
-      );
-      playFailureChime();
+    const userEmail = (profile.email || '').toLowerCase().trim();
+    const newPass = newPasswordInput.trim();
+
+    if (newPass) {
+      if (newPass.length < 5) {
+        setResetError(language === 'en' ? "Password must be at least 5 characters." : "የይለፍ ቃል ከ5 ፊደላት ያላነሰ መሆን አለበት።");
+        playFailureChime();
+        setResetLoading(false);
+        return;
+      }
+
+      const supa = getSupabase();
+      if (supa) {
+        try {
+          await supa.auth.updateUser({ password: newPass });
+        } catch (e) {}
+      }
+
+      try {
+        const stored = safeStorage.getItem('ethiolearn_accounts');
+        if (stored) {
+          const accounts: AccountInfo[] = JSON.parse(stored);
+          const updated = accounts.map(a => {
+            if (a.email.toLowerCase() === userEmail) {
+              return { ...a, passwordEncrypted: newPass };
+            }
+            return a;
+          });
+          safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updated));
+        }
+      } catch (e) {}
+
+      playSuccessChime();
+      setResetMessage(language === 'en' ? "Password updated successfully!" : "የይለፍ ቃልዎ በተሳካ ሁኔታ ተቀይሯል!");
+      setNewPasswordInput('');
       setResetLoading(false);
       return;
     }
 
-    try {
-      const userEmail = (profile.email || '').toLowerCase().trim();
-      const { error } = await supa.auth.resetPasswordForEmail(userEmail, {
-        redirectTo: window.location.origin
-      });
+    const supa = getSupabase();
+    if (supa) {
+      try {
+        const { error } = await supa.auth.resetPasswordForEmail(userEmail, {
+          redirectTo: window.location.origin
+        });
 
-      if (error) {
-        throw error;
+        if (error) throw error;
+
+        playSuccessChime();
+        setResetMessage(language === 'en'
+          ? `A secure password reset link has been dispatched to ${userEmail}. Check your inbox or spam folder.`
+          : `የይለፍ ቃል መቀየሪያ ሊንክ ወደ ${userEmail} ተልኳል። እባክዎን የኢሜይል ማህደርዎን ይመልከቱ።`
+        );
+      } catch (err: any) {
+        console.warn('[Supabase Reset Error]:', err);
+        setResetMessage(language === 'en'
+          ? "Please type your new password in the input box above and click 'Update Password'."
+          : "እባክዎን አዲሱን የይለፍ ቃል ከላይ ባለው ሳጥን ውስጥ ያስገቡ እና 'የይለፍ ቃል ቀይር' የሚለውን ይጫኑ።"
+        );
+      } finally {
+        setResetLoading(false);
       }
-
-      playSuccessChime();
+    } else {
       setResetMessage(language === 'en'
-        ? `A secure password reset link has been dispatched to ${userEmail}. Check your inbox or spam folder.`
-        : `የይለፍ ቃል መቀየሪያ ሊንክ ወደ ${userEmail} ተልኳል። እባክዎን የኢሜይል ማህደርዎን ይመልከቱ።`
+        ? "Please type your new password in the input box above and click 'Update Password'."
+        : "እባክዎን አዲሱን የይለፍ ቃል ከላይ ባለው ሳጥን ውስጥ ያስገቡ እና 'የይለፍ ቃል ቀይር' የሚለውን ይጫኑ።"
       );
-    } catch (err: any) {
-      console.error('[Supabase Reset Error]:', err);
-      playFailureChime();
-      setResetError(err.message || 'Failed to dispatch password reset request.');
-    } finally {
       setResetLoading(false);
     }
   };
@@ -686,18 +815,31 @@ export default function StudentProfileView({
               </p>
             )}
 
-            <button
-              onClick={handleTriggerPasswordReset}
-              disabled={resetLoading}
-              className="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white font-serif font-bold text-xs rounded-xl cursor-pointer transition-all active:scale-98 flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {resetLoading ? (
-                <div className="w-3.5 h-3.5 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <Lock className="w-3.5 h-3.5 text-[#C8962E]" />
-              )}
-              <span>{language === 'en' ? "Request Password Reset" : "የይለፍ ቃል መቀየርያ ሊንክ ላክ"}</span>
-            </button>
+            <div className="space-y-2 pt-1">
+              <input
+                type="password"
+                placeholder={language === 'en' ? "Enter new password (min 5 chars)..." : "አዲስ የይለፍ ቃል ያስገቡ..."}
+                value={newPasswordInput}
+                onChange={(e) => setNewPasswordInput(e.target.value)}
+                className="w-full bg-zinc-900/90 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 outline-none focus:border-[#C8962E] transition-all font-mono"
+              />
+              <button
+                onClick={handleTriggerPasswordReset}
+                disabled={resetLoading}
+                className="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white font-serif font-bold text-xs rounded-xl cursor-pointer transition-all active:scale-98 flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {resetLoading ? (
+                  <div className="w-3.5 h-3.5 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Lock className="w-3.5 h-3.5 text-[#C8962E]" />
+                )}
+                <span>
+                  {newPasswordInput.trim() 
+                    ? (language === 'en' ? "Update Password" : "የይለፍ ቃል ቀይር") 
+                    : (language === 'en' ? "Request Password Reset Link" : "የይለፍ ቃል መቀየርያ ሊንክ ላክ")}
+                </span>
+              </button>
+            </div>
           </div>
 
           {/* Account Session Control / Google Workspace & Verification Settings Card */}

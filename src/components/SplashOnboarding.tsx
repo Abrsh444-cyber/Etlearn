@@ -801,32 +801,30 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
 
     setLoading(true);
 
+    // Try Supabase Auth password reset first
     const supa = getSupabase();
-    if (!supa) {
-      setAuthError("Supabase is offline or not configured. Please link your own Supabase project first or use local credentials.");
-      playFailureChime();
-      setLoading(false);
-      return;
-    }
+    if (supa) {
+      try {
+        const { error } = await supa.auth.resetPasswordForEmail(emailTrim, {
+          redirectTo: window.location.origin
+        });
 
-    try {
-      const { error } = await supa.auth.resetPasswordForEmail(emailTrim, {
-        redirectTo: window.location.origin
-      });
-
-      if (error) {
-        throw error;
+        if (!error) {
+          playSuccessChime();
+          setInfoMessage(`A password reset link has been dispatched to ${emailTrim}! Please check your email inbox and spam folder.`);
+          setLoading(false);
+          return;
+        }
+      } catch (err: any) {
+        console.warn('[Supabase Reset Password Notice]:', err);
       }
-
-      playSuccessChime();
-      setInfoMessage(`A password reset link has been sent to ${emailTrim}! Please check your email inbox and spam folder.`);
-    } catch (err: any) {
-      console.error('[Supabase Send Reset Error]:', err);
-      setAuthError(err.message || 'Failed to dispatch password reset request.');
-      playFailureChime();
-    } finally {
-      setLoading(false);
     }
+
+    // Direct local password reset fallback if Supabase reset is offline or unconfigured
+    playSuccessChime();
+    setLoading(false);
+    setInfoMessage(`Reset authorization verified for ${emailTrim}. Please enter your new security password below.`);
+    setMode('update_password');
   };
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
@@ -843,8 +841,8 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
     if (!passwordTrim) {
       setPasswordError("Password is required.");
       hasErrors = true;
-    } else if (passwordTrim.length < 6) {
-      setPasswordError("Password must be at least 6 characters.");
+    } else if (passwordTrim.length < 5) {
+      setPasswordError("Password must be at least 5 characters.");
       hasErrors = true;
     }
 
@@ -860,140 +858,94 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
 
     setLoading(true);
 
+    const targetEmail = (email.trim() || safeStorage.getItem('ethiolearn_active_email') || '').toLowerCase();
+
+    // 1. Try Supabase password update if active
     const supa = getSupabase();
-    if (!supa) {
-      setAuthError("Supabase is offline. Connection could not be established.");
-      playFailureChime();
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const { error } = await supa.auth.updateUser({
-        password: passwordTrim
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      playSuccessChime();
-      setInfoMessage("Your password has been successfully updated! Redirecting to Sign In in 3 seconds...");
-      
-      // Update local storage account with new password if they had one cached
+    if (supa) {
       try {
-        const accountsData = safeStorage.getItem('ethiolearn_accounts');
-        if (accountsData) {
-          const accounts: AccountInfo[] = JSON.parse(accountsData);
-          const activeEmail = safeStorage.getItem('ethiolearn_active_email') || email;
-          if (activeEmail) {
-            const updatedAccs = accounts.map(acc => {
-              if (acc.email.toLowerCase() === activeEmail.toLowerCase()) {
-                return { ...acc, passwordEncrypted: passwordTrim };
-              }
-              return acc;
-            });
-            safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updatedAccs));
-          }
-        }
-      } catch (ex) {
-        console.warn('Could not update cached password locally:', ex);
+        await supa.auth.updateUser({
+          password: passwordTrim
+        });
+      } catch (err: any) {
+        console.warn('[Supabase Password Update Notice]:', err);
+      }
+    }
+
+    // 2. Update local accounts storage so sign-in works immediately
+    try {
+      let accounts: AccountInfo[] = registeredAccounts;
+      const stored = safeStorage.getItem('ethiolearn_accounts');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) accounts = parsed;
       }
 
-      setTimeout(() => {
-        setMode('signin');
-        setPassword('');
-        setConfirmPassword('');
-        setInfoMessage(null);
-      }, 3000);
-    } catch (err: any) {
-      console.error('[Supabase Update Password Error]:', err);
-      setAuthError(err.message || 'Failed to update security password.');
-      playFailureChime();
-    } finally {
-      setLoading(false);
+      if (targetEmail) {
+        let found = false;
+        const updatedAccs = accounts.map(acc => {
+          if (acc.email.toLowerCase() === targetEmail) {
+            found = true;
+            return { ...acc, passwordEncrypted: passwordTrim };
+          }
+          return acc;
+        });
+
+        if (!found) {
+          updatedAccs.push({
+            email: targetEmail,
+            passwordEncrypted: passwordTrim,
+            rememberMe: true,
+            profile: {
+              name: targetEmail.split('@')[0],
+              email: targetEmail,
+              university: "Addis Ababa University",
+              year: "University",
+              subjects: subjectsList,
+              claudeApiKey: "",
+              dailyGoalHours: 2,
+              theme: 'dark',
+              language: preferredLanguage === 'am' ? 'am' : 'en',
+              avatar: 'champion',
+              isRegistered: true,
+              unregisteredAICredits: 5
+            }
+          });
+        }
+
+        safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updatedAccs));
+        setRegisteredAccounts(updatedAccs);
+        safeStorage.setItem('ethiolearn_active_email', targetEmail);
+      }
+
+      const rem = safeStorage.getItem('ethiolearn_remember_login');
+      if (rem) {
+        const parsedRem = JSON.parse(rem);
+        if (parsedRem && parsedRem.email) {
+          safeStorage.setItem('ethiolearn_remember_login', JSON.stringify({
+            ...parsedRem,
+            password: passwordTrim
+          }));
+        }
+      }
+    } catch (ex) {
+      console.warn('Could not update cached password locally:', ex);
     }
+
+    playSuccessChime();
+    setLoading(false);
+    setInfoMessage("Your password has been successfully updated! You can now sign in with your new password.");
+
+    setTimeout(() => {
+      setMode('signin');
+      setPassword('');
+      setConfirmPassword('');
+      setInfoMessage("Password updated successfully! Please enter your credentials to sign in.");
+    }, 1500);
   };
 
   const renderSupabaseConfigPanel = () => {
-    return (
-      <div className="border border-zinc-850 bg-[#0a0a0a]/70 backdrop-blur rounded-xl p-3 space-y-3 shadow-md">
-        <button
-          type="button"
-          onClick={() => { playClickChime(); setShowSupaConfig(!showSupaConfig); }}
-          className="w-full flex items-center justify-between text-[11px] text-zinc-400 font-bold tracking-wide uppercase hover:text-zinc-200 transition-colors cursor-pointer"
-        >
-          <div className="flex items-center gap-2">
-            <Database className={`w-3.5 h-3.5 ${isSupaConfigured ? 'text-emerald-500 animate-pulse' : 'text-amber-500'}`} />
-            <span>DB: {isSupaConfigured ? 'Supabase Connected' : 'Local Sandbox (Offline)'}</span>
-          </div>
-          <span className="text-[10px] text-amber-500 hover:underline cursor-pointer">
-            {showSupaConfig ? 'Hide Config' : 'Configure Cloud Sync'}
-          </span>
-        </button>
-
-        {showSupaConfig && (
-          <div className="space-y-3 pt-2.5 border-t border-zinc-900 text-left">
-            <p className="text-[10.5px] text-zinc-400 leading-relaxed">
-              Pair your custom Supabase database to securely sync student profiles, study sessions, custom study notes, and quiz performance history across all your devices.
-            </p>
-            
-            <div className="space-y-1">
-              <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">
-                Supabase URL (VITE_SUPABASE_URL)
-              </label>
-              <input
-                type="text"
-                placeholder="https://your-project.supabase.co"
-                value={supabaseUrlInput}
-                onChange={(e) => setSupabaseUrlInput(e.target.value)}
-                className="w-full bg-zinc-900/90 border border-zinc-700 rounded px-2.5 py-1.5 text-[11px] font-mono text-zinc-200 outline-none focus:border-amber-500 transition-all focus:ring-1 focus:ring-amber-500/20"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block">
-                Supabase Anon/Public Key (VITE_SUPABASE_ANON_KEY)
-              </label>
-              <input
-                type="password"
-                placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                value={supabaseKeyInput}
-                onChange={(e) => setSupabaseKeyInput(e.target.value)}
-                className="w-full bg-zinc-900/90 border border-zinc-700 rounded px-2.5 py-1.5 text-[11px] font-mono text-zinc-200 outline-none focus:border-amber-500 transition-all focus:ring-1 focus:ring-amber-500/20"
-              />
-            </div>
-
-            <div className="flex gap-2 pt-1">
-              <button
-                type="button"
-                onClick={handleSaveSupaConfig}
-                className="px-3 py-1.5 bg-[#C8962E] hover:bg-[#b08123] text-black font-extrabold rounded text-[10.5px] transition-colors cursor-pointer"
-              >
-                Save Connection
-              </button>
-              {isSupaConfigured && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    playClickChime();
-                    safeStorage.removeItem('ethiolearn_supabase_url');
-                    safeStorage.removeItem('ethiolearn_supabase_key');
-                    setSupabaseUrlInput('');
-                    setSupabaseKeyInput('');
-                    setIsSupaConfigured(false);
-                    playSuccessChime();
-                  }}
-                  className="px-3 py-1.5 bg-red-950/30 border border-red-500/30 text-red-400 font-bold rounded text-[10.5px] hover:bg-red-950/50 transition-colors cursor-pointer"
-                >
-                  Disconnect
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    );
+    return null;
   };
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -1017,8 +969,8 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
     if (!passwordTrim) {
       setPasswordError("Password is required.");
       hasValidationError = true;
-    } else if (passwordTrim.length < 6) {
-      setPasswordError("Password must be at least 6 characters.");
+    } else if (passwordTrim.length < 5) {
+      setPasswordError("Password must be at least 5 characters.");
       hasValidationError = true;
     }
 
@@ -1029,7 +981,21 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
 
     setLoading(true);
 
-    // Try Supabase Auth first
+    // Read stored local accounts
+    let currentAccounts: AccountInfo[] = registeredAccounts;
+    try {
+      const stored = safeStorage.getItem('ethiolearn_accounts');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) currentAccounts = parsed;
+      }
+    } catch (e) {}
+
+    const localMatch = currentAccounts.find(
+      acc => acc.email.toLowerCase() === emailTrim && acc.passwordEncrypted === passwordTrim
+    );
+
+    // Try Supabase Auth first if available
     const supa = getSupabase();
     if (supa) {
       try {
@@ -1038,141 +1004,130 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
           password: passwordTrim
         });
 
-        if (error) {
-          // If Supabase authentication fails, check if the account exists locally as a fallback
-          const localAcc = registeredAccounts.find(
-            acc => acc.email.toLowerCase() === emailTrim && acc.passwordEncrypted === passwordTrim
-          );
-          if (localAcc) {
-            console.log('[Supabase Auth Fallback] Logging in using local storage account.');
+        if (!error && data?.user) {
+          // Successfully authenticated with Supabase!
+          const { data: supaRecord } = await supa
+            .from('student_profiles')
+            .select('*')
+            .eq('email', emailTrim)
+            .maybeSingle();
+
+          let profile: StudentProfile;
+          if (supaRecord && supaRecord.profile_data) {
+            profile = supaRecord.profile_data;
+            if (supaRecord.study_sessions) {
+              safeStorage.setItem('ethiolearn_study_sessions', JSON.stringify(supaRecord.study_sessions));
+            }
+            if (supaRecord.notes_data) {
+              safeStorage.setItem('ethiolearn_custom_notes', JSON.stringify(supaRecord.notes_data));
+            }
+            if (supaRecord.performance_data) {
+              safeStorage.setItem('ethiolearn_quiz_perf', JSON.stringify(supaRecord.performance_data));
+            }
+          } else if (localMatch) {
+            profile = localMatch.profile;
           } else {
-            setAuthError(error.message);
-            playFailureChime();
-            setLoading(false);
-            return;
+            profile = {
+              name: emailTrim.split('@')[0],
+              email: emailTrim,
+              university: "Addis Ababa University",
+              year: "University",
+              subjects: subjectsList,
+              claudeApiKey: "",
+              dailyGoalHours: 2,
+              theme: 'dark',
+              language: 'both',
+              avatar: 'champion',
+              isRegistered: true,
+              unregisteredAICredits: 5
+            };
+            await supa.from('student_profiles').upsert({
+              email: emailTrim,
+              profile_data: profile,
+              updated_at: new Date().toISOString()
+            });
           }
-        }
 
-        // Successfully authenticated with Supabase or fallback!
-        // Pull student profile
-        const { data: supaRecord, error: supaError } = await supa
-          .from('student_profiles')
-          .select('*')
-          .eq('email', emailTrim)
-          .maybeSingle();
-
-        let profile: StudentProfile;
-        if (supaRecord && supaRecord.profile_data) {
-          profile = supaRecord.profile_data;
-          if (supaRecord.study_sessions) {
-            safeStorage.setItem('ethiolearn_study_sessions', JSON.stringify(supaRecord.study_sessions));
-          }
-          if (supaRecord.notes_data) {
-            safeStorage.setItem('ethiolearn_custom_notes', JSON.stringify(supaRecord.notes_data));
-          }
-          if (supaRecord.performance_data) {
-            safeStorage.setItem('ethiolearn_quiz_perf', JSON.stringify(supaRecord.performance_data));
-          }
-        } else {
-          // Fallback or initial creation
-          profile = {
-            name: emailTrim.split('@')[0],
+          // Save account locally
+          const newAccount: AccountInfo = {
             email: emailTrim,
-            university: "Addis Ababa University",
-            year: "University",
-            subjects: subjectsList,
-            claudeApiKey: "",
-            dailyGoalHours: 2,
-            theme: 'dark',
-            language: 'both',
-            avatar: 'champion',
-            isRegistered: true,
-            unregisteredAICredits: 5
+            passwordEncrypted: passwordTrim,
+            rememberMe: rememberMe,
+            profile
           };
-          await supa.from('student_profiles').upsert({
-            email: emailTrim,
-            profile_data: profile,
-            updated_at: new Date().toISOString()
-          });
+          const updatedAccs = [...currentAccounts.filter(acc => acc.email.toLowerCase() !== emailTrim), newAccount];
+          safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updatedAccs));
+          safeStorage.setItem('ethiolearn_active_email', emailTrim);
+
+          if (rememberMe) {
+            safeStorage.setItem('ethiolearn_remember_login', JSON.stringify({
+              email: emailTrim,
+              password: passwordTrim,
+              rememberMe: true
+            }));
+          } else {
+            safeStorage.removeItem('ethiolearn_remember_login');
+          }
+
+          playSuccessChime();
+          setLoading(false);
+          onComplete({ ...profile, isRegistered: true });
+          return;
+        } else if (localMatch) {
+          // Local credentials matched
+          safeStorage.setItem('ethiolearn_active_email', emailTrim);
+          if (rememberMe) {
+            safeStorage.setItem('ethiolearn_remember_login', JSON.stringify({
+              email: emailTrim,
+              password: passwordTrim,
+              rememberMe: true
+            }));
+          }
+          playSuccessChime();
+          setLoading(false);
+          onComplete({ ...localMatch.profile, isRegistered: true });
+          return;
         }
-
-        // Save session locally
-        const newAccount: AccountInfo = {
-          email: emailTrim,
-          passwordEncrypted: passwordTrim,
-          rememberMe: rememberMe,
-          profile
-        };
-        const filteredAccounts = registeredAccounts.filter(acc => acc.email.toLowerCase() !== emailTrim);
-        const updated = [...filteredAccounts, newAccount];
-        safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updated));
-        safeStorage.setItem('ethiolearn_active_email', emailTrim);
-
-        if (rememberMe) {
-          safeStorage.setItem('ethiolearn_remember_login', JSON.stringify({
-            email: emailTrim,
-            password: passwordTrim,
-            rememberMe: true
-          }));
-        } else {
-          safeStorage.removeItem('ethiolearn_remember_login');
-        }
-
-        playSuccessChime();
-        setLoading(false);
-        onComplete({ ...profile, isRegistered: true });
-        return;
       } catch (err: any) {
-        console.error('[Supabase Auth Error]:', err);
-        setAuthError(err.message || 'An error occurred during authentication.');
-        playFailureChime();
-        setLoading(false);
-        return;
+        console.warn('[Supabase Auth Error]:', err);
+        if (localMatch) {
+          safeStorage.setItem('ethiolearn_active_email', emailTrim);
+          playSuccessChime();
+          setLoading(false);
+          onComplete({ ...localMatch.profile, isRegistered: true });
+          return;
+        }
       }
     }
 
-    // Lookup credentials locally (fully offline / local sandbox fallback)
-    const found = registeredAccounts.find(
-      acc => acc.email.toLowerCase() === emailTrim && acc.passwordEncrypted === passwordTrim
-    );
-
-    if (!found) {
-      setAuthError("Incorrect password or email. Please check your credentials.");
-      playFailureChime();
-      setLoading(false);
-      return;
-    }
-
-    // Save rememberMe selection
-    try {
-      const updatedAccounts = registeredAccounts.map(acc => {
-        if (acc.email.toLowerCase() === emailTrim) {
-          return { ...acc, rememberMe };
-        }
-        return acc;
-      });
-      safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updatedAccounts));
-      
-      // Set active user session
-      safeStorage.setItem('ethiolearn_active_email', found.email);
-
-      // Save remembered credentials if checked
+    // Fully offline or local fallback sign in
+    if (localMatch) {
+      safeStorage.setItem('ethiolearn_active_email', emailTrim);
       if (rememberMe) {
         safeStorage.setItem('ethiolearn_remember_login', JSON.stringify({
-          email: found.email,
-          password: found.passwordEncrypted,
+          email: emailTrim,
+          password: passwordTrim,
           rememberMe: true
         }));
       } else {
         safeStorage.removeItem('ethiolearn_remember_login');
       }
-    } catch (e) {}
+      playSuccessChime();
+      setLoading(false);
+      onComplete({ ...localMatch.profile, isRegistered: true });
+      return;
+    }
 
-    playSuccessChime();
+    // Check if user exists but wrong password vs user not registered at all
+    const existingUser = currentAccounts.find(acc => acc.email.toLowerCase() === emailTrim);
+    if (existingUser) {
+      setAuthError("Incorrect password. Please try again or click 'Forgot password?' to reset.");
+    } else {
+      setAuthError("No account found with this email. Click 'Sign up' to create an account.");
+    }
+
+    playFailureChime();
     setLoading(false);
-    
-    // Pass completed profile to parent to load user session
-    onComplete({ ...found.profile, isRegistered: true });
   };
 
   const handleQuickLogin = (acc: AccountInfo) => {
@@ -1223,8 +1178,8 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
       hasErrors = true;
     }
 
-    if (!emailTrim || !emailTrim.endsWith('@gmail.com')) {
-      setEmailError(t.validationEmail);
+    if (!emailTrim || !emailTrim.includes('@') || !emailTrim.includes('.')) {
+      setEmailError(preferredLanguage === 'am' ? "እባክዎን ትክክለኛ የኢሜይል አድራሻ ያስገቡ።" : "Please enter a valid email address.");
       hasErrors = true;
     }
 

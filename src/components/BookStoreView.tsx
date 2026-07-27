@@ -662,16 +662,16 @@ export default function BookStoreView({
         if (manual) {
           playSuccessChime();
           alert(language === 'en'
-            ? `Successfully synchronized ${list.length} textbook records from your Supabase database! They are now integrated and marked with a ⚡ Supabase tag.`
-            : `ከእርስዎ ሱፓቤስ (Supabase) ዳታቤዝ ${list.length} መጽሐፍት በተሳካ ሁኔታ ተመሳስለዋል! መጽሐፍቱ በ ⚡ ምልክት ተለይተው ቀርበዋል።`);
+            ? `Successfully synchronized ${list.length} textbook records from the library server!`
+            : `ከዲጂታል ቤተ-መጽሐፍት ሰርቨር ${list.length} መጽሐፍት በተሳካ ሁኔታ ተመሳስለዋል!`);
         }
       } else {
         setSupabaseSyncStatus('success');
         if (manual) {
           playSuccessChime();
           alert(language === 'en'
-            ? 'Connected to Supabase! However, the "books" or "grade12_books" table is currently empty in your database, so we are displaying prebuilt Ethiopian curriculum books.'
-            : 'ከሱፓቤስ ጋር በትክክል ተገናኝቷል! ነገር ግን በ "books" ሰንጠረዥ ውስጥ ምንም መጽሐፍ ስላልተገኘ prebuilt መጽሐፍትን እያሳየን ነው።');
+            ? 'Library updated! Displaying prebuilt Ethiopian curriculum textbooks.'
+            : 'ቤተ-መጽሐፍቱ በትክክል ታድሷል! የኢትዮጵያ ካሪኩለም መጽሐፍት ቀርበዋል።');
         }
       }
     } catch (e: any) {
@@ -2037,181 +2037,7 @@ Ensure the layout utilizes clear headers, a detailed markdown text explanation, 
       {/* 🔌 SUPABASE WIZARD SETUP GUIDE MODAL                      */}
       {/* ========================================================= */}
       <AnimatePresence>
-        {false && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 select-none"
-          >
-            <motion.div
-              initial={{ scale: 0.95 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.95 }}
-              className="bg-white dark:bg-[#0c0d12] border border-slate-200 dark:border-zinc-805 rounded-3xl p-6 md:p-8 max-w-2xl w-full shadow-2xl space-y-6 overflow-y-auto max-h-[90vh]"
-            >
-              <div className="flex items-center justify-between border-b pb-4">
-                <div className="flex items-center gap-2.5">
-                  <Database className="w-5 h-5 text-emerald-600 animate-bounce" />
-                  <h3 className="font-serif font-black text-lg text-slate-900 dark:text-zinc-100">
-                    Connect Your Supabase Database
-                  </h3>
-                </div>
-                <button
-                  onClick={() => { playClickChime(); setShowSupabaseGuide(false); }}
-                  className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-500/10 transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="space-y-4 text-xs leading-relaxed text-slate-650 dark:text-zinc-300">
-                <p className="font-semibold text-slate-800 dark:text-neutral-200">
-                  EthioLearn includes a built-in Supabase client ready to fetch Grade 12 textbooks dynamically directly from your cloud table. To configure this integration, please follow these steps:
-                </p>
-
-                <div className="bg-emerald-500/10 p-3.5 rounded-2xl border border-emerald-500/20 space-y-2">
-                  <p className="font-black text-[#078930] dark:text-emerald-400">Step 1: Set up Environmental Secrets</p>
-                  <p className="text-[11px]">
-                    Go to your **Secrets/Environment Settings** panel inside your AI Studio builder and declare:
-                  </p>
-                  <div className="p-2.5 bg-black/5 dark:bg-black/35 rounded-xl text-[10px] font-mono leading-relaxed space-y-1 text-slate-700 dark:text-zinc-300 select-all">
-                    <p>VITE_SUPABASE_URL = "https://your-project-ref.supabase.co"</p>
-                    <p>VITE_SUPABASE_ANON_KEY = "your-anon-key-here"</p>
-                  </div>
-                  <p className="text-[10px] italic text-slate-400">
-                    *After saving the variables, restart the server for the connection to initiate.*
-                  </p>
-                </div>
-
-                <div className="bg-slate-100 dark:bg-zinc-900 p-4 rounded-2xl border border-dashed border-slate-300 dark:border-zinc-800 space-y-3">
-                  <p className="font-black text-emerald-600 dark:text-emerald-400">⚡ Direct Supabase Connection Form</p>
-                  <p className="text-[11px] text-slate-500">
-                    If you don't want to use environment variables, paste your Supabase keys directly below to connect instantly.
-                  </p>
-                  <div className="space-y-2">
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">SUPABASE URL</label>
-                      <input
-                        type="text"
-                        value={supabaseUrlInput}
-                        onChange={(e) => setSupabaseUrlInput(e.target.value)}
-                        placeholder="https://abcdefghijklmnopqrst.supabase.co"
-                        className="w-full p-2 rounded-xl bg-white dark:bg-black border border-slate-300 dark:border-zinc-800 text-xs text-slate-805 dark:text-zinc-200 outline-none focus:ring-1 focus:ring-emerald-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">SUPABASE ANON KEY</label>
-                      <input
-                        type="password"
-                        value={supabaseKeyInput}
-                        onChange={(e) => setSupabaseKeyInput(e.target.value)}
-                        placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                        className="w-full p-2 rounded-xl bg-white dark:bg-black border border-slate-300 dark:border-zinc-805 text-xs text-slate-805 dark:text-zinc-200 outline-none focus:ring-1 focus:ring-emerald-500"
-                      />
-                    </div>
-                    <div className="flex justify-end gap-2 pt-1">
-                      {safeStorage.getItem('ethiolearn_supabase_url') && (
-                        <button
-                          onClick={() => {
-                            clearSupabaseCredentials();
-                            setSupabaseUrlInput('');
-                            setSupabaseKeyInput('');
-                            playClickChime();
-                            alert('Stored Supabase credentials cleared. Falling back to default system settings.');
-                          }}
-                          className="px-3 py-1 bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 text-[11px] font-bold rounded-lg transition-all cursor-pointer"
-                        >
-                          Clear Saved Keys
-                        </button>
-                      )}
-                      <button
-                        onClick={() => {
-                          if (!supabaseUrlInput.trim() || !supabaseKeyInput.trim()) {
-                            alert('Please fill out both fields.');
-                            return;
-                          }
-                          saveSupabaseCredentials(supabaseUrlInput, supabaseKeyInput);
-                          playSuccessChime();
-                          alert('Supabase credentials saved successfully to browser storage! Testing connection now.');
-                          syncSupabase(true);
-                        }}
-                        className="px-3 py-1 bg-[#078930] text-white hover:bg-emerald-700 text-[11px] font-bold rounded-lg transition-all cursor-pointer"
-                      >
-                        Save & Test Connection
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2.5">
-                  <p className="font-black text-[#078930] dark:text-emerald-405 flex items-center gap-1">
-                    🟢 Step 2: Run Table Creation in Supabase Console
-                  </p>
-                  <p className="text-[11px]">
-                    Navigate to your Supabase project dashboard, open the **SQL Editor**, and run this migration script:
-                  </p>
-                  
-                  <textarea
-                    readOnly
-                    className="w-full text-[10px] font-mono leading-relaxed bg-slate-900 text-neutral-150 p-3 rounded-2xl h-44 border border-zinc-800 focus:outline-none select-all focus:ring-0"
-                    value={`-- Create books table matching EthioLearn schema
-CREATE TABLE books (
-  id TEXT PRIMARY KEY,
-  title TEXT NOT NULL,
-  subject TEXT NOT NULL,
-  grade TEXT NOT NULL,
-  chapters JSONB NOT NULL,
-  pages INT DEFAULT 150,
-  description TEXT,
-  language_support TEXT DEFAULT 'Bilingual',
-  pro_required BOOLEAN DEFAULT false,
-  pdf_url TEXT,
-  content_json TEXT
-);
-
--- Seed with a sample Grade 12 New Curriculum Book
-INSERT INTO books (id, title, subject, grade, chapters, pages, description, language_support, pro_required)
-VALUES (
-  'g12_temp_civics',
-  'Grade 12 Citizenship Education New Curriculum',
-  'Civics',
-  'Grade 12 New Curriculum',
-  '["Chapter 1: Democratic Values", "Chapter 2: Constitution and Rule of Law"]'::jsonb,
-  140,
-  'Dynamic textbook loaded straight from my custom Supabase cloud database!',
-  'Bilingual',
-  false
-);`}
-                  />
-                  <p className="text-[9px] text-center text-slate-400">
-                    (Click inside the black box to select all, then paste into your Supabase panel)
-                  </p>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between gap-4">
-                <p className="text-[10px] text-slate-400">
-                  EthioLearn client relies on stable web integrations.
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => { playClickChime(); setShowSupabaseGuide(false); }}
-                    className="px-4 py-2 border rounded-xl text-xs font-bold text-slate-600 dark:text-zinc-300 hover:bg-slate-50 cursor-pointer"
-                  >
-                    Close
-                  </button>
-                  <button
-                    onClick={() => { setShowSupabaseGuide(false); syncSupabase(true); }}
-                    className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl text-xs font-extrabold tracking-wider uppercase cursor-pointer shadow-md"
-                  >
-                    Test Connection
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
+        {/* Supabase textbook sync indicator */}
 
         {showAddBookModal && (
           <motion.div
