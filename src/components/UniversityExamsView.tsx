@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Award, HelpCircle, Bot, BookOpen, Clock, Activity, Check, CheckCircle, Flame, Filter, FileText, Sparkles,
-  Zap, RefreshCw, AlertCircle, BookMarked, Trophy, ArrowRight, Dices, ChevronRight, MessageSquare
+  Zap, RefreshCw, AlertCircle, BookMarked, Trophy, ArrowRight, Dices, ChevronRight, MessageSquare, Search, SortAsc, X
 } from 'lucide-react';
 import { StudentProfile } from '../types';
 import { playClickChime, playSuccessChime, playFailureChime } from '../utils/audio';
@@ -556,7 +556,40 @@ export default function UniversityExamsView({
   onOpenInAppViewer
 }: UniversityExamsProps) {
   const [activeTab, setActiveTab] = useState<'practice' | 'external' | 'ai-custom'>('practice');
-  const [examCategory, setExamCategory] = useState<'all' | 'g12' | 'uni'>('all');
+  const [examCategory, setExamCategory] = useState<'all' | 'g12' | 'uni'>(() => {
+    const saved = safeStorage.getItem('ethiolearn_exam_category_tab');
+    return (saved === 'g12' || saved === 'uni' || saved === 'all') ? saved : 'all';
+  });
+  const [paperSearchQuery, setPaperSearchQuery] = useState<string>('');
+  const [debouncedPaperQuery, setDebouncedPaperQuery] = useState<string>('');
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
+  const [paperSortBy, setPaperSortBy] = useState<'year_desc' | 'year_asc' | 'university' | 'deadline'>('year_desc');
+
+  // Debounce paper search query (~250ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedPaperQuery(paperSearchQuery);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [paperSearchQuery]);
+
+  const handleCategoryChange = (cat: 'all' | 'g12' | 'uni') => {
+    playClickChime();
+    setExamCategory(cat);
+    safeStorage.setItem('ethiolearn_exam_category_tab', cat);
+  };
+
+  const toggleSubjectFilter = (subj: string) => {
+    playClickChime();
+    setSelectedSubjects(prev => 
+      prev.includes(subj) ? prev.filter(s => s !== subj) : [...prev, subj]
+    );
+  };
+
+  const availablePaperSubjects = useMemo(() => {
+    return Array.from(new Set(UNIVERSITY_SHEETS.map(s => s.subject))).sort();
+  }, []);
+
   const [selectedSheet, setSelectedSheet] = useState<ExamPaperSheet | null>(null);
   const [selectedQuestionIdx, setSelectedQuestionIdx] = useState<number>(-1);
   const [userSelectedChoice, setUserSelectedChoice] = useState<number | null>(null);
@@ -674,7 +707,7 @@ export default function UniversityExamsView({
   });
 
   // Automatically handle countdown timer in simulation
-  React.useEffect(() => {
+  useEffect(() => {
     let timer: any;
     if (isSimulationActive && simulationTimeLeft > 0) {
       timer = setInterval(() => {
@@ -743,7 +776,7 @@ export default function UniversityExamsView({
   const isEligible = profile.isPro || profile.proStatus === 'pending';
 
   // Automatically update suggested unit when subject changes
-  React.useEffect(() => {
+  useEffect(() => {
     if (RECOMMENDED_UNITS[customSubject]) {
       setCustomUnit(RECOMMENDED_UNITS[customSubject][0]);
     }
@@ -1078,11 +1111,68 @@ Ensure it is 1 single high-quality question with physical/mathematical units whe
     }
   };
 
-  const filteredSheets = UNIVERSITY_SHEETS.filter(sheet => {
-    if (examCategory === 'g12') return sheet.id.startsWith('g12');
-    if (examCategory === 'uni') return sheet.id.startsWith('uni');
-    return true;
-  });
+  const getPaperDeadlineEvent = (sheet: ExamPaperSheet): CalendarEvent | null => {
+    const sheetSubj = sheet.subject.toLowerCase();
+    const sheetUni = sheet.university.toLowerCase();
+    const isG12 = sheet.id.startsWith('g12');
+
+    return calendarEvents.find(ev => {
+      const title = ev.title.toLowerCase();
+      const desc = ev.description.toLowerCase();
+      if (title.includes(sheetSubj) || desc.includes(sheetSubj)) return true;
+      if (sheetUni !== 'moe ethiopia secondary' && (title.includes(sheetUni) || desc.includes(sheetUni))) return true;
+      if (isG12 && (title.includes('euee') || title.includes('grade 12') || title.includes('entrance'))) return true;
+      return false;
+    }) || null;
+  };
+
+  const filteredSheets = useMemo(() => {
+    return UNIVERSITY_SHEETS.filter(sheet => {
+      // 1. Level tab filter
+      if (examCategory === 'g12' && !sheet.id.startsWith('g12')) return false;
+      if (examCategory === 'uni' && !sheet.id.startsWith('uni')) return false;
+
+      // 2. Subject chips filter (AND)
+      if (selectedSubjects.length > 0 && !selectedSubjects.includes(sheet.subject)) {
+        return false;
+      }
+
+      // 3. Search query filter (AND)
+      const q = debouncedPaperQuery.trim().toLowerCase();
+      if (q) {
+        const matchesTitle = sheet.title.toLowerCase().includes(q);
+        const matchesSubject = sheet.subject.toLowerCase().includes(q);
+        const matchesUni = sheet.university.toLowerCase().includes(q);
+        const matchesYear = sheet.year.toLowerCase().includes(q);
+        const matchesTopic = sheet.questions.some(qItem => 
+          qItem.qText.toLowerCase().includes(q) || qItem.subjectTopic.toLowerCase().includes(q)
+        );
+        if (!matchesTitle && !matchesSubject && !matchesUni && !matchesYear && !matchesTopic) {
+          return false;
+        }
+      }
+
+      return true;
+    }).sort((a, b) => {
+      if (paperSortBy === 'year_desc') {
+        return b.year.localeCompare(a.year);
+      }
+      if (paperSortBy === 'year_asc') {
+        return a.year.localeCompare(b.year);
+      }
+      if (paperSortBy === 'university') {
+        return a.university.localeCompare(b.university);
+      }
+      if (paperSortBy === 'deadline') {
+        const eventA = getPaperDeadlineEvent(a);
+        const eventB = getPaperDeadlineEvent(b);
+        const daysA = eventA ? eventA.daysLeft : 999;
+        const daysB = eventB ? eventB.daysLeft : 999;
+        return daysA - daysB;
+      }
+      return 0;
+    });
+  }, [examCategory, selectedSubjects, debouncedPaperQuery, paperSortBy, calendarEvents]);
 
   const handleSelectSheet = (sheet: ExamPaperSheet) => {
     playClickChime();
@@ -1517,17 +1607,42 @@ Guide me on how to approach this. Give me the primary formula but let me do the 
         
         {/* Left column: list of past university exam papers (4 cols) */}
         <div className="lg:col-span-4 space-y-4">
-          <div className="bg-white dark:bg-[#0c0d12] border border-slate-200 dark:border-zinc-805 p-4 rounded-2xl">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-              <Filter className="w-3.5 h-3.5 text-indigo-650" />
-              Select Available Papers:
-            </h3>
+          <div className="bg-white dark:bg-[#0c0d12] border border-slate-200 dark:border-zinc-805 p-4 rounded-2xl sticky top-2 z-20 shadow-md space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
+                <Filter className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                {language === 'en' ? 'Select Available Papers:' : 'ያሉትን ፈተናዎች ይምረጡ፡'}
+              </h3>
+              <span className="text-[10px] font-mono font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-full">
+                {filteredSheets.length} {filteredSheets.length === 1 ? 'paper' : 'papers'}
+              </span>
+            </div>
 
-            {/* Category selection tabs */}
-            <div className="grid grid-cols-3 gap-1 p-1 bg-slate-100 dark:bg-zinc-900 rounded-xl mb-4 text-center text-[10.5px] select-none border border-slate-200/50 dark:border-zinc-800">
+            {/* Live Search Bar */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500" />
+              <input
+                type="text"
+                value={paperSearchQuery}
+                onChange={(e) => setPaperSearchQuery(e.target.value)}
+                placeholder={language === 'en' ? 'Search subject, course code, university...' : 'በትምህርት አይነት፣ ዩኒቨርሲቲ ይፈልጉ...'}
+                className="w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl pl-8 pr-8 py-2 text-xs font-medium text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:border-indigo-500 min-h-[40px]"
+              />
+              {paperSearchQuery && (
+                <button
+                  onClick={() => setPaperSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 p-1 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Level Tabs: All / Grade 12 / University */}
+            <div className="grid grid-cols-3 gap-1 p-1 bg-slate-100 dark:bg-zinc-900 rounded-xl text-center text-[10.5px] select-none border border-slate-200/50 dark:border-zinc-800">
               <button
-                onClick={() => { playClickChime(); setExamCategory('all'); }}
-                className={`py-1.5 px-1 rounded-lg font-extrabold transition-all cursor-pointer ${
+                onClick={() => handleCategoryChange('all')}
+                className={`py-2 px-1 rounded-lg font-extrabold transition-all cursor-pointer min-h-[38px] ${
                   examCategory === 'all'
                     ? 'bg-indigo-600 text-white shadow-sm'
                     : 'text-slate-500 hover:text-slate-700 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-850'
@@ -1536,8 +1651,8 @@ Guide me on how to approach this. Give me the primary formula but let me do the 
                 {language === 'en' ? 'All' : 'ሁሉም'}
               </button>
               <button
-                onClick={() => { playClickChime(); setExamCategory('g12'); }}
-                className={`py-1.5 px-1 rounded-lg font-extrabold transition-all cursor-pointer ${
+                onClick={() => handleCategoryChange('g12')}
+                className={`py-2 px-1 rounded-lg font-extrabold transition-all cursor-pointer min-h-[38px] ${
                   examCategory === 'g12'
                     ? 'bg-indigo-600 text-white shadow-sm'
                     : 'text-slate-500 hover:text-slate-700 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-850'
@@ -1546,8 +1661,8 @@ Guide me on how to approach this. Give me the primary formula but let me do the 
                 {language === 'en' ? 'Grade 12' : '12ኛ ክፍል'}
               </button>
               <button
-                onClick={() => { playClickChime(); setExamCategory('uni'); }}
-                className={`py-1.5 px-1 rounded-lg font-extrabold transition-all cursor-pointer ${
+                onClick={() => handleCategoryChange('uni')}
+                className={`py-2 px-1 rounded-lg font-extrabold transition-all cursor-pointer min-h-[38px] ${
                   examCategory === 'uni'
                     ? 'bg-indigo-600 text-white shadow-sm'
                     : 'text-slate-500 hover:text-slate-700 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-850'
@@ -1557,39 +1672,137 @@ Guide me on how to approach this. Give me the primary formula but let me do the 
               </button>
             </div>
 
-            <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
+            {/* Subject Filter Chips */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-wider">
+                <span>Subjects:</span>
+                {selectedSubjects.length > 0 && (
+                  <button
+                    onClick={() => { playClickChime(); setSelectedSubjects([]); }}
+                    className="text-indigo-500 hover:underline cursor-pointer lowercase"
+                  >
+                    clear ({selectedSubjects.length})
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                <button
+                  onClick={() => { playClickChime(); setSelectedSubjects([]); }}
+                  className={`px-2.5 py-1 rounded-lg text-[10.5px] font-extrabold transition-all shrink-0 cursor-pointer min-h-[36px] ${
+                    selectedSubjects.length === 0
+                      ? 'bg-purple-600 text-white shadow-sm'
+                      : 'bg-slate-100 dark:bg-zinc-850 text-slate-600 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  All
+                </button>
+                {availablePaperSubjects.map((subj) => {
+                  const isSelected = selectedSubjects.includes(subj);
+                  return (
+                    <button
+                      key={subj}
+                      onClick={() => toggleSubjectFilter(subj)}
+                      className={`px-2.5 py-1 rounded-lg text-[10.5px] font-extrabold transition-all shrink-0 cursor-pointer min-h-[36px] border ${
+                        isSelected
+                          ? 'bg-purple-600 border-purple-500 text-white shadow-sm'
+                          : 'bg-slate-50 dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-300 hover:border-purple-500/50'
+                      }`}
+                    >
+                      {subj}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Sort Control */}
+            <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-zinc-800 text-[10.5px]">
+              <span className="font-bold text-slate-400 dark:text-zinc-500 flex items-center gap-1">
+                <SortAsc className="w-3 h-3" /> Sort by:
+              </span>
+              <select
+                value={paperSortBy}
+                onChange={(e) => { playClickChime(); setPaperSortBy(e.target.value as any); }}
+                className="bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg px-2 py-1 font-bold text-slate-700 dark:text-zinc-200 cursor-pointer focus:outline-none"
+              >
+                <option value="year_desc">Year (Newest → Oldest)</option>
+                <option value="year_asc">Year (Oldest → Newest)</option>
+                <option value="university">University Name</option>
+                <option value="deadline">Closest Exam Deadline</option>
+              </select>
+            </div>
+
+            {/* Paper Cards List */}
+            <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
               {filteredSheets.length === 0 ? (
-                <div className="text-center py-6 text-zinc-400 text-xs">
-                  No exam papers found in this filter.
+                <div className="text-center py-8 bg-slate-50 dark:bg-zinc-900/50 rounded-xl border border-dashed border-slate-200 dark:border-zinc-800 p-4">
+                  <p className="text-xs font-bold text-slate-500 dark:text-zinc-400">
+                    {language === 'en' ? 'No exam papers match your active search or filters.' : 'ከተመረጠው ማጣሪያ ጋር የሚስማማ ፈተና አልተገኘም።'}
+                  </p>
+                  <button
+                    onClick={() => {
+                      setPaperSearchQuery('');
+                      setSelectedSubjects([]);
+                      setExamCategory('all');
+                      safeStorage.setItem('ethiolearn_exam_category_tab', 'all');
+                    }}
+                    className="mt-2 px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-pointer min-h-[36px]"
+                  >
+                    Reset Filters
+                  </button>
                 </div>
               ) : (
                 filteredSheets.map(sheet => {
                   const isSheetActive = selectedSheet?.id === sheet.id;
-                  
+                  const isCompleted = completedPapers.includes(sheet.id);
+                  const deadlineEvent = getPaperDeadlineEvent(sheet);
+
                   return (
                     <div
                       key={sheet.id}
                       onClick={() => handleSelectSheet(sheet)}
-                      className={`p-3.5 rounded-xl border transition-all cursor-pointer text-left relative ${
+                      className={`p-3.5 rounded-xl border transition-all cursor-pointer text-left relative min-h-[80px] ${
                         isSheetActive
-                          ? 'border-indigo-650 bg-indigo-50/50 dark:bg-indigo-950/20 font-bold'
-                          : 'border-slate-100 dark:border-zinc-805 bg-slate-50 dark:bg-zinc-900/40 hover:border-indigo-305'
+                          ? 'border-indigo-600 bg-indigo-50/70 dark:bg-indigo-950/40 ring-1 ring-indigo-500 font-bold shadow-md'
+                          : 'border-slate-100 dark:border-zinc-800 bg-slate-50/80 dark:bg-zinc-900/40 hover:border-indigo-500/50 hover:bg-slate-100/60 dark:hover:bg-zinc-850'
                       }`}
                     >
-                      <div className="flex justify-between items-center gap-1 mb-1.5">
-                        <span className="text-[8.5px] font-black uppercase text-indigo-700 bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded leading-none">
+                      <div className="flex justify-between items-center gap-1.5 mb-1.5">
+                        <span className="text-[8.5px] font-black uppercase text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 px-1.5 py-0.5 rounded leading-none">
                           {sheet.subject}
                         </span>
-                        <span className="text-[9.5px] text-zinc-400 font-mono italic">{sheet.year}</span>
+
+                        <div className="flex items-center gap-1.5">
+                          {/* Inline Progress Badge */}
+                          {isCompleted && (
+                            <span className="text-[8.5px] font-black uppercase text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.5 rounded flex items-center gap-1 leading-none">
+                              <CheckCircle className="w-2.5 h-2.5 text-emerald-500" /> Done
+                            </span>
+                          )}
+
+                          {/* Deadline Countdown Badge */}
+                          {deadlineEvent && (
+                            <span className="text-[8.5px] font-black uppercase text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 px-1.5 py-0.5 rounded flex items-center gap-1 leading-none">
+                              ⏳ {deadlineEvent.daysLeft}d Left
+                            </span>
+                          )}
+
+                          <span className="text-[9.5px] text-zinc-400 font-mono italic">{sheet.year}</span>
+                        </div>
                       </div>
 
-                      <h4 className="text-[11px] font-serif font-black text-slate-800 dark:text-zinc-150 leading-tight">
+                      <h4 className="text-[11.5px] font-serif font-black text-slate-800 dark:text-zinc-150 leading-tight">
                         {sheet.title}
                       </h4>
 
-                      <p className="text-[9.5px] text-slate-400 mt-1 uppercase font-mono tracking-wide">
-                        🏛️ {sheet.university}
-                      </p>
+                      <div className="flex items-center justify-between mt-1.5 text-[9.5px] text-slate-400 font-mono tracking-wide">
+                        <span>🏛️ {sheet.university}</span>
+                        {isSheetActive && (
+                          <span className="text-indigo-600 dark:text-indigo-400 font-sans font-extrabold text-[9px] uppercase tracking-widest flex items-center gap-1 animate-pulse">
+                            Active in Solver &rarr;
+                          </span>
+                        )}
+                      </div>
                     </div>
                   );
                 })

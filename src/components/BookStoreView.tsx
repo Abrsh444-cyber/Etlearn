@@ -406,13 +406,51 @@ export default function BookStoreView({
   onOpenInAppViewer
 }: BookStoreViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+
+  // Debounce search input (~250ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   const [selectedGrade, setSelectedGrade] = useState<string>('All');
   
-  const [recentlyViewedId, setRecentlyViewedId] = useState<string | null>(() => {
-    return safeStorage.getItem('ethiolearn_recently_viewed');
+  // Recent books list (1 to 3 items)
+  const [recentBookIds, setRecentBookIds] = useState<string[]>(() => {
+    try {
+      const saved = safeStorage.getItem('ethiolearn_recent_books');
+      if (saved) return JSON.parse(saved);
+      const oldSingle = safeStorage.getItem('ethiolearn_recently_viewed');
+      return oldSingle ? [oldSingle] : [];
+    } catch (e) {
+      return [];
+    }
   });
 
-  const [collapsedSubjects, setCollapsedSubjects] = useState<Record<string, boolean>>({});
+  // Collapsed subjects state (default is collapsed = true unless explicitly saved as false)
+  const [collapsedSubjects, setCollapsedSubjects] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = safeStorage.getItem('ethiolearn_bookstore_collapsed_subjects');
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+
+  const toggleSubjectCollapse = (subj: string) => {
+    setCollapsedSubjects(prev => {
+      // Default state is collapsed (true). So clicking toggles: if undefined or true, becomes false (expanded).
+      const currentIsCollapsed = prev[subj] ?? true;
+      const updated = { ...prev, [subj]: !currentIsCollapsed };
+      safeStorage.setItem('ethiolearn_bookstore_collapsed_subjects', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const [activeSubjectChip, setActiveSubjectChip] = useState<string>('All');
 
   const [favoriteBookIds, setFavoriteBookIds] = useState<string[]>(() => {
     try {
@@ -626,107 +664,14 @@ export default function BookStoreView({
     }
   };
 
-  // Sync Supabase Books dynamically
-  const syncSupabase = async (manual = false) => {
-    setIsSupabaseLoading(true);
-    setSupabaseSyncStatus('loading');
-    if (manual) playClickChime();
-    
-    try {
-      const list = await fetchSupabaseBooks();
-      if (list && list.length > 0) {
-        const mapped: ModuleResource[] = list.map(item => ({
-          id: item.id || `sb_${Date.now()}_${Math.random()}`,
-          title: item.title || 'Dynamic Book',
-          subject: item.subject || 'Academic',
-          grade: item.grade || 'Grade 12 New Curriculum',
-          chapters: Array.isArray(item.chapters) 
-            ? item.chapters 
-            : (typeof item.chapters === 'string' ? JSON.parse(item.chapters) : ['Chapter 1']),
-          pages: Number(item.pages || 150),
-          description: item.description || '',
-          languageSupport: item.language_support || item.languageSupport || 'Bilingual',
-          proRequired: item.pro_required ?? item.proRequired ?? false,
-          pdfUrl: item.pdf_url,
-          contentJson: item.content_json,
-          isSupabase: true
-        }));
-
-        setAllModules(prev => {
-          // Keep all local ones, replace any prior supabase ones to avoid duplicates
-          const nonSupabase = prev.filter(m => !m.isSupabase);
-          return [...nonSupabase, ...mapped];
-        });
-        
-        setSupabaseSyncStatus('success');
-        if (manual) {
-          playSuccessChime();
-          alert(language === 'en'
-            ? `Successfully synchronized ${list.length} textbook records from the library server!`
-            : `ከዲጂታል ቤተ-መጽሐፍት ሰርቨር ${list.length} መጽሐፍት በተሳካ ሁኔታ ተመሳስለዋል!`);
-        }
-      } else {
-        setSupabaseSyncStatus('success');
-        if (manual) {
-          playSuccessChime();
-          alert(language === 'en'
-            ? 'Library updated! Displaying prebuilt Ethiopian curriculum textbooks.'
-            : 'ቤተ-መጽሐፍቱ በትክክል ታድሷል! የኢትዮጵያ ካሪኩለም መጽሐፍት ቀርበዋል።');
-        }
-      }
-    } catch (e: any) {
-      console.error(e);
-      setSupabaseSyncStatus('err');
-      if (manual) {
-        playFailureChime();
-        setShowSupabaseGuide(true);
-      }
-    } finally {
-      setIsSupabaseLoading(false);
-    }
-  };
-
-  // Eagerly check / sync on mount
-  useEffect(() => {
-    const hasEnvKeys = (import.meta as any).env.VITE_SUPABASE_URL && (import.meta as any).env.VITE_SUPABASE_ANON_KEY;
-    const hasLocalKeys = safeStorage.getItem('ethiolearn_supabase_url') && safeStorage.getItem('ethiolearn_supabase_key');
-    if (hasEnvKeys || hasLocalKeys) {
-      syncSupabase(false);
-    }
-  }, []);
-
-  // Merge books loaded from App.tsx prop automatically
-  useEffect(() => {
-    if (supabaseBooks && supabaseBooks.length > 0) {
-      const mapped: ModuleResource[] = supabaseBooks.map(item => ({
-        id: item.id || `sb_prop_${Date.now()}_${Math.random()}`,
-        title: item.title || 'Dynamic Book',
-        subject: item.subject || 'Academic',
-        grade: item.grade || 'Grade 12 New Curriculum',
-        chapters: Array.isArray(item.chapters) 
-          ? item.chapters 
-          : (typeof item.chapters === 'string' ? JSON.parse(item.chapters) : ['Chapter 1']),
-        pages: Number(item.pages || 150),
-        description: item.description || '',
-        languageSupport: item.language_support || item.languageSupport || 'Bilingual',
-        proRequired: item.pro_required ?? item.proRequired ?? false,
-        pdfUrl: item.pdf_url,
-        contentJson: item.content_json,
-        isSupabase: true
-      }));
-
-      setAllModules(prev => {
-        const nonSupabase = prev.filter(m => !m.isSupabase);
-        return [...nonSupabase, ...mapped];
-      });
-    }
-  }, [supabaseBooks]);
-
-  // Filter modules
+  // Filter modules with debounced search query and precise grade checks
   const filtered = allModules.filter(m => {
-    const matchesSearch = m.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          m.subject.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          m.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const q = debouncedSearchQuery.trim().toLowerCase();
+    const matchesSearch = !q || 
+                          m.title.toLowerCase().includes(q) || 
+                          m.subject.toLowerCase().includes(q) || 
+                          m.description.toLowerCase().includes(q) ||
+                          m.chapters.some(ch => ch.toLowerCase().includes(q));
     
     let matchesGrade = false;
     if (selectedGrade === 'All') {
@@ -735,6 +680,8 @@ export default function BookStoreView({
       matchesGrade = m.grade === 'Grade 12';
     } else if (selectedGrade === 'Grade 12 New Curriculum') {
       matchesGrade = m.grade === 'Grade 12 New Curriculum';
+    } else if (selectedGrade === 'University') {
+      matchesGrade = m.grade === 'University';
     } else {
       matchesGrade = m.grade === selectedGrade;
     }
@@ -744,6 +691,30 @@ export default function BookStoreView({
     return matchesSearch && matchesGrade && matchesFavorites;
   });
 
+  // IntersectionObserver to sync active subject chip with scroll position
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const subjId = entry.target.getAttribute('data-subject-id');
+            if (subjId) {
+              setActiveSubjectChip(subjId);
+            }
+          }
+        });
+      },
+      { threshold: 0.15, rootMargin: '-60px 0px -40% 0px' }
+    );
+
+    const subjectElements = document.querySelectorAll('[data-subject-id]');
+    subjectElements.forEach((el) => observer.observe(el));
+
+    return () => observer.disconnect();
+  }, [filtered, collapsedSubjects, debouncedSearchQuery]);
+
   // Check trial expiration vs pro
   const isEligible = profile.isPro || profile.proStatus === 'pending';
 
@@ -751,9 +722,15 @@ export default function BookStoreView({
     playClickChime();
     setActiveModule(mod);
     setSelectedChapter(mod.chapters[0]);
-    // Save to recently viewed
+    
+    // Save to recent books history (up to 3 items)
+    setRecentBookIds(prev => {
+      const updated = [mod.id, ...prev.filter(id => id !== mod.id)].slice(0, 3);
+      safeStorage.setItem('ethiolearn_recent_books', JSON.stringify(updated));
+      return updated;
+    });
     safeStorage.setItem('ethiolearn_recently_viewed', mod.id);
-    setRecentlyViewedId(mod.id);
+
     // Reset AI states
     setAiMode('none');
     setAiResponse('');
@@ -1095,7 +1072,7 @@ Ensure the layout utilizes clear headers, a detailed markdown text explanation, 
               playClickChime();
               setShowFavoritesOnly(!showFavoritesOnly);
             }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer min-h-[38px] ${
               showFavoritesOnly 
                 ? 'bg-amber-500 border-amber-500 text-white shadow-sm'
                 : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800'
@@ -1106,14 +1083,14 @@ Ensure the layout utilizes clear headers, a detailed markdown text explanation, 
             {favoriteBookIds.length > 0 && ` (${favoriteBookIds.length})`}
           </button>
 
-          <div className="flex bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 p-0.5 rounded-xl text-xs font-bold leading-none select-none">
+          <div className="flex bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 p-0.5 rounded-xl text-xs font-bold leading-none select-none overflow-x-auto">
             {['All', 'Grade 12', 'Grade 12 New Curriculum', 'University'].map(g => (
               <button
                 key={g}
                 onClick={() => { playClickChime(); setSelectedGrade(g); }}
-                className={`px-3 py-1.5 rounded-lg text-[10px] cursor-pointer tracking-tight uppercase ${
+                className={`px-3 py-2 rounded-lg text-[10px] cursor-pointer tracking-tight uppercase transition-all whitespace-nowrap min-h-[36px] ${
                   selectedGrade === g 
-                    ? 'bg-[#078930] text-white shadow-sm' 
+                    ? 'bg-[#078930] text-white shadow-sm font-black' 
                     : 'text-slate-500 hover:text-slate-800 dark:text-zinc-400 dark:hover:text-zinc-200'
                 }`}
               >
@@ -1124,44 +1101,123 @@ Ensure the layout utilizes clear headers, a detailed markdown text explanation, 
         </div>
       </div>
 
+      {/* Sticky Subject Quick-Nav Bar */}
+      {(() => {
+        const availableSubjects = Array.from(new Set(filtered.map(m => m.subject))) as string[];
+        if (availableSubjects.length <= 1) return null;
+
+        return (
+          <div className="sticky top-2 z-20 bg-slate-900/90 dark:bg-[#0c0d12]/90 backdrop-blur-md border border-slate-200 dark:border-zinc-800 p-2.5 rounded-2xl shadow-md overflow-x-auto scrollbar-none flex items-center gap-2 select-none">
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-zinc-500 pl-2 shrink-0 flex items-center gap-1">
+              <Compass className="w-3.5 h-3.5 text-[#078930]" /> Jump To:
+            </span>
+            <button
+              onClick={() => {
+                playClickChime();
+                setActiveSubjectChip('All');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all shrink-0 cursor-pointer flex items-center gap-1 min-h-[36px] ${
+                activeSubjectChip === 'All'
+                  ? 'bg-[#078930] text-white shadow-sm'
+                  : 'bg-slate-100 dark:bg-zinc-850 text-slate-600 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-800'
+              }`}
+            >
+              All ({filtered.length})
+            </button>
+
+            {availableSubjects.map((subj) => {
+              const isActive = activeSubjectChip === subj;
+              const count = filtered.filter(m => m.subject === subj).length;
+              return (
+                <button
+                  key={subj}
+                  onClick={() => {
+                    playClickChime();
+                    setActiveSubjectChip(subj);
+                    // Ensure target subject section is uncollapsed
+                    if (collapsedSubjects[subj] ?? true) {
+                      setCollapsedSubjects(prev => {
+                        const updated = { ...prev, [subj]: false };
+                        safeStorage.setItem('ethiolearn_bookstore_collapsed_subjects', JSON.stringify(updated));
+                        return updated;
+                      });
+                    }
+                    setTimeout(() => {
+                      const targetEl = document.getElementById(`subject-section-${encodeURIComponent(subj)}`);
+                      if (targetEl) {
+                        targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }
+                    }, 40);
+                  }}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 border min-h-[36px] ${
+                    isActive
+                      ? 'bg-emerald-600 border-emerald-500 text-white shadow-md font-black scale-105'
+                      : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:border-emerald-500/50'
+                  }`}
+                >
+                  <span>{subj}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                    isActive ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400'
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        );
+      })()}
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* Module selection left list (5 columns) */}
         <div className="lg:col-span-5 space-y-5">
-          {/* Recently viewed / Continue reading section */}
+          {/* Continue where you left off (1 - 3 recent books) */}
           {(() => {
-            const recentlyViewedModule = allModules.find(m => m.id === recentlyViewedId);
-            if (!recentlyViewedModule) return null;
+            const recentModules = recentBookIds
+              .map(id => allModules.find(m => m.id === id))
+              .filter((m): m is ModuleResource => !!m);
+
+            if (recentModules.length === 0) return null;
+
             return (
-              <div className="bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-blue-500/10 dark:from-indigo-500/20 dark:via-purple-500/20 dark:to-blue-500/20 border border-indigo-200 dark:border-indigo-500/30 p-4 rounded-2xl shadow-sm space-y-3 relative overflow-hidden">
-                <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-indigo-400/10 blur-xl animate-pulse" />
+              <div className="bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-emerald-500/10 dark:from-indigo-500/20 dark:via-purple-500/20 dark:to-emerald-500/20 border border-indigo-200 dark:border-indigo-500/30 p-4 rounded-2xl shadow-sm space-y-3 relative overflow-hidden">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
-                    <span>📖</span> {language === 'en' ? 'Continue Reading' : 'ንባብ ይቀጥሉ'}
+                    <span>📖</span> {language === 'en' ? 'Continue Where You Left Off' : 'ንባብዎን ካቆሙበት ይቀጥሉ'}
                   </h4>
                   <span className="text-[9px] text-indigo-600 dark:text-indigo-400 font-mono font-extrabold bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-md">
-                    {language === 'en' ? 'Recently Viewed' : 'በቅርብ የታዩ'}
+                    {recentModules.length} {recentModules.length === 1 ? 'Book' : 'Books'}
                   </span>
                 </div>
-                <div 
-                  onClick={() => handleSelectModule(recentlyViewedModule)}
-                  className="flex items-center gap-3 bg-white/95 dark:bg-[#121a2e]/95 p-3 rounded-xl hover:shadow-md cursor-pointer border border-slate-100 dark:border-zinc-800 transition-all hover:scale-[1.01]"
-                >
-                  {renderBookCover(recentlyViewedModule)}
-                  <div className="flex-1 min-w-0">
-                    <span className="text-[9px] uppercase font-bold text-slate-400 dark:text-zinc-500">
-                      {recentlyViewedModule.grade} • {recentlyViewedModule.subject}
-                    </span>
-                    <h5 className="font-serif font-black text-xs text-slate-800 dark:text-zinc-100 truncate mt-0.5">
-                      {recentlyViewedModule.title}
-                    </h5>
-                    <p className="text-[10px] text-slate-500 dark:text-zinc-400 line-clamp-1 mt-0.5">
-                      {recentlyViewedModule.description}
-                    </p>
-                  </div>
-                  <div className="shrink-0 text-indigo-500 text-sm font-bold">
-                    &rarr;
-                  </div>
+
+                <div className="grid grid-cols-1 gap-2">
+                  {recentModules.map(rm => (
+                    <div 
+                      key={rm.id}
+                      onClick={() => handleSelectModule(rm)}
+                      className="flex items-center gap-3 bg-white/95 dark:bg-[#121a2e]/95 p-2.5 rounded-xl hover:shadow-md cursor-pointer border border-slate-100 dark:border-zinc-800 transition-all hover:scale-[1.01] group"
+                    >
+                      {renderBookCover(rm)}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1 text-[9px] font-extrabold uppercase text-slate-400 dark:text-zinc-500">
+                          <span>{rm.grade}</span>
+                          <span>•</span>
+                          <span className="text-emerald-600 dark:text-emerald-400">{rm.subject}</span>
+                        </div>
+                        <h5 className="font-serif font-black text-xs text-slate-800 dark:text-zinc-100 truncate mt-0.5 group-hover:text-indigo-500 transition-colors">
+                          {rm.title}
+                        </h5>
+                        <p className="text-[10px] text-slate-500 dark:text-zinc-400 line-clamp-1">
+                          {rm.description}
+                        </p>
+                      </div>
+                      <button className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase tracking-wider rounded-lg shrink-0 shadow-sm cursor-pointer">
+                        Resume &rarr;
+                      </button>
+                    </div>
+                  ))}
                 </div>
               </div>
             );
@@ -1189,25 +1245,41 @@ Ensure the layout utilizes clear headers, a detailed markdown text explanation, 
               }
 
               return subjectKeys.map(subj => {
-                const isCollapsed = !!collapsedSubjects[subj];
+                // Default state is collapsed (true), unless user explicitly opened it, or active search
+                const isSearching = debouncedSearchQuery.trim().length > 0;
+                const isCollapsed = isSearching ? false : (collapsedSubjects[subj] ?? true);
                 const subjectModules = groupedBySubject[subj];
+
                 return (
-                  <div key={subj} className="border border-slate-200 dark:border-zinc-800/60 p-3 rounded-2xl bg-white dark:bg-[#0f1423] shadow-sm space-y-2">
+                  <div 
+                    key={subj} 
+                    id={`subject-section-${encodeURIComponent(subj)}`}
+                    data-subject-id={subj}
+                    className="border border-slate-200 dark:border-zinc-800/60 p-3 rounded-2xl bg-white dark:bg-[#0f1423] shadow-sm space-y-2 scroll-mt-20"
+                  >
                     {/* Collapsible Subject Header */}
                     <div 
                       onClick={() => {
                         playClickChime();
-                        setCollapsedSubjects(prev => ({ ...prev, [subj]: !prev[subj] }));
+                        toggleSubjectCollapse(subj);
                       }}
-                      className="flex items-center justify-between px-2 py-2 cursor-pointer select-none hover:bg-slate-50 dark:hover:bg-zinc-800/40 rounded-xl transition-all"
+                      className="flex items-center justify-between px-2 py-2 cursor-pointer select-none hover:bg-slate-50 dark:hover:bg-zinc-800/40 rounded-xl transition-all min-h-[44px]"
                     >
                       <div className="flex items-center gap-2">
                         <span className="text-sm">📚</span>
-                        <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-700 dark:text-zinc-300">
-                          {subj} <span className="text-[10px] text-slate-400 font-mono font-normal">({subjectModules.length})</span>
+                        <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-700 dark:text-zinc-300 flex items-center gap-2">
+                          <span>{subj}</span>
+                          <span className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono font-normal bg-slate-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full">
+                            {subjectModules.length} {subjectModules.length === 1 ? 'book' : 'books'}
+                          </span>
                         </h4>
                       </div>
-                      <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isCollapsed ? '-rotate-90' : 'rotate-0'}`} />
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-slate-400 dark:text-zinc-500">
+                          {isCollapsed ? 'Expand' : 'Collapse'}
+                        </span>
+                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isCollapsed ? '-rotate-90' : 'rotate-0'}`} />
+                      </div>
                     </div>
                     
                     {/* Subject book cards list */}
