@@ -1064,9 +1064,10 @@ Don't worry, your learning never stops! I am here to help you study. To help you
     }
   });
 
+async function startServer() {
   // Serve static assets in production or use Vite developer middleware
   if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
-    (async () => {
+    try {
       const { createServer: createViteServer } = await import('vite');
       const vite = await createViteServer({
         server: { middlewareMode: true },
@@ -1077,7 +1078,12 @@ Don't worry, your learning never stops! I am here to help you study. To help you
       app.listen(PORT, '0.0.0.0', () => {
         console.log(`[EthioLearn Server] bound on port ${PORT} (dev mode with Vite)`);
       });
-    })();
+    } catch (err) {
+      console.error('[EthioLearn Server] Failed to start Vite dev server:', err);
+      app.listen(PORT, '0.0.0.0', () => {
+        console.log(`[EthioLearn Server] fallback bound on port ${PORT}`);
+      });
+    }
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
@@ -1094,5 +1100,8 @@ Don't worry, your learning never stops! I am here to help you study. To help you
       });
     }
   }
+}
+
+startServer();
 
 export default app;
