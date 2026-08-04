@@ -419,8 +419,8 @@ Always end your explanations with 2 conversational, helpful revision questions f
       setMessages(JSON.parse(saved).slice(-50));
     } else {
       const introText = language === 'en' 
-        ? `Selam! I am your AI Academic Tutor for *${selectedSubject}*. Ask me any question, attach your homework, or hit "Generate Quiz" to challenge your knowledge! 🇪🇹`
-        : `ሰላም! እኔ ለ*${selectedSubject}* የትምህርት ረዳትዎ ነኝ። ማንኛውንም ጥያቄ ይጠይቁኝ፣ የቤት ስራዎን ያያይዙ ወይም ራስዎን ለመፈተን "ፈተናዎች" የሚለውን ይጫኑ! 🇪🇹`;
+        ? `Greetings. I am your AI Academic Tutor for *${selectedSubject}*. Please ask any question, attach your study materials, or click "Generate Quiz" to challenge your knowledge.`
+        : `ጤና ይስጥልኝ። እኔ ለ*${selectedSubject}* የትምህርት ረዳትዎ ነኝ። ማንኛውንም ጥያቄ ይጠይቁኝ፣ የጥናት መረጃዎችን ያያይዙ ወይም ራስዎን ለመፈተን "ፈተናዎች" የሚለውን ይጫኑ።`;
       setMessages([{ role: 'assistant', content: introText }]);
     }
   }, [selectedSubject, language]);

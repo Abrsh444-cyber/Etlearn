@@ -30,7 +30,19 @@ export default function SupportChatBubble({ language, studentName }: SupportChat
     const saved = safeStorage.getItem('ethiolearn_support_chat');
     if (saved) {
       try {
-        setMessages(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        // If cached chat contains outdated informal greetings or Ezra references, refresh to formal greeting
+        const isOutdated = parsed.some((m: Message) => 
+          m.content.includes('Ezra') || 
+          m.content.includes('Hello my friend') || 
+          m.content.includes('ሰላም ጓደኛዬ') ||
+          m.content.includes('Selamalekum')
+        );
+        if (isOutdated) {
+          initializeGreeting();
+        } else {
+          setMessages(parsed);
+        }
       } catch (e) {
         initializeGreeting();
       }
@@ -41,8 +53,8 @@ export default function SupportChatBubble({ language, studentName }: SupportChat
 
   const initializeGreeting = () => {
     const greetingText = language === 'en'
-      ? `Hello my friend${studentName ? `, ${studentName}` : ''}! I'm Abreham, the creator of EthioLearn. 🇪🇹✨ How is your academic journey going? Ask me any questions about our focus courses, soundscapes, practice exams, or how to get the most out of our campus!`
-      : `ሰላም ጓደኛዬ${studentName ? ` ${studentName}` : ''}! እኔ የኢትዮለርን መስራች አብርሃም ነኝ። 🇪🇹✨ የአካዳሚክ ጉዞዎ እንዴት እየሄደ ነው? ስለ ጥናት ሞጁሎች፣ ፈተናዎች ወይም መድረኩን እንዴት መጠቀም እንደሚችሉ ማንኛውንም ጥያቄ ይጠይቁኝ!`;
+      ? `Greetings${studentName ? `, ${studentName}` : ''}. I am Abreham, lead developer and academic advisor at EthioLearn. How may I assist you with your academic studies, exam preparation, or platform inquiries today?`
+      : `ጤና ይስጥልኝ${studentName ? ` ${studentName}` : ''}። እኔ አብርሃም፤ የኢትዮለርን መሐንዲስ እና የአካዳሚክ አማካሪ ነኝ። በዛሬው ዕለት በትምህርትዎ፣ በፈተና ዝግጅትዎ ወይም በመድረኩ አጠቃቀም ዙሪያ እንዴት ልረዳዎ እችላለሁ?`;
 
     const initial: Message = {
       id: 'greeting-id',

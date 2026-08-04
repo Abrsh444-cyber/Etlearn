@@ -609,7 +609,7 @@ export default function BookStoreView({
         sections: [
           {
             title: `1. Study Module: ${ch}`,
-            body: newBookContent || `Detailed student learning sheet for ${ch}. Use Ezra's AI assistant or the summary tools below to flesh out standard study logs.`
+            body: newBookContent || `Detailed student learning sheet for ${ch}. Use Abreham's AI assistant or the summary tools below to flesh out standard study logs.`
           }
         ],
         keyTerms: [

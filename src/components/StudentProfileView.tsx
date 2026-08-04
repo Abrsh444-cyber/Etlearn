@@ -1003,7 +1003,7 @@ export default function StudentProfileView({
             </div>
           </div>
 
-          {/* Supabase Cloud Backup & Integration Card */}
+          {/* Cloud Sync & Automatic Backup Card */}
           <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-5 space-y-4">
             <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-2">
               <Database className="w-4 h-4 text-amber-400" />
@@ -1012,8 +1012,8 @@ export default function StudentProfileView({
 
             <p className="text-xs text-slate-400 leading-relaxed">
               {language === 'en'
-                ? "Connect your Supabase Cloud project keys to sync notes and study records."
-                : "የጥናት መረጃዎችን በክላውድ ለማስቀመጥ የሱፓቤስ ቁልፎችዎን ያስገቡ።"}
+                ? "Your notes, study progress, and flashcard sets are automatically saved to your cloud account."
+                : "ማስታወሻዎችዎ፣ የጥናት እድገትዎ እና ፍላሽ ካርዶችዎ በራስ-ሰር በክላውድ መለያዎ ይቀመጣሉ።"}
             </p>
 
             {syncSuccessMsg && (
@@ -1028,40 +1028,31 @@ export default function StudentProfileView({
               </p>
             )}
 
-            <div className="space-y-2 pt-1">
-              <input
-                type="text"
-                placeholder="Supabase URL (https://xxxx.supabase.co)..."
-                value={supabaseUrl}
-                onChange={(e) => setSupabaseUrl(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-amber-500 font-mono"
-              />
-              <input
-                type="password"
-                placeholder="Supabase Anon Key..."
-                value={supabaseKey}
-                onChange={(e) => setSupabaseKey(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-amber-500 font-mono"
-              />
-
-              <div className="flex gap-2 pt-1">
-                <button
-                  onClick={handleSaveKeys}
-                  disabled={syncLoading}
-                  className="flex-1 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl cursor-pointer transition-all flex items-center justify-center gap-1.5"
-                >
-                  <CloudLightning className="w-3.5 h-3.5" />
-                  <span>{language === 'en' ? "Save & Verify" : "አስቀምጥ እና አረጋግጥ"}</span>
-                </button>
-                <button
-                  onClick={handleBackupToSupabase}
-                  disabled={syncLoading}
-                  className="py-2 px-3 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-bold text-xs rounded-xl cursor-pointer transition-all"
-                  title="Backup Now"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${syncLoading ? 'animate-spin' : ''}`} />
-                </button>
+            <div className="space-y-3 pt-1">
+              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CloudLightning className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs font-bold text-slate-200">
+                    {language === 'en' ? "Cloud Status: Active" : "የክላውድ ሁኔታ፡ ንቁ"}
+                  </span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-[10px] font-bold">
+                  {language === 'en' ? "SYNCED" : "ተያይዟል"}
+                </span>
               </div>
+
+              <button
+                onClick={handleBackupToSupabase}
+                disabled={syncLoading}
+                className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl cursor-pointer transition-all flex items-center justify-center gap-2 shadow-md disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${syncLoading ? 'animate-spin' : ''}`} />
+                <span>
+                  {syncLoading 
+                    ? (language === 'en' ? "Syncing Cloud Backup..." : "በማመሳሰል ላይ...") 
+                    : (language === 'en' ? "Sync Data Now" : "አሁን አመሳስል")}
+                </span>
+              </button>
             </div>
           </div>
 

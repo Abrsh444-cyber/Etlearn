@@ -172,7 +172,7 @@ const PORT = 3000;
 
       if (action === 'accept') {
         tickets[ticketIndex].status = "Accepted";
-        tickets[ticketIndex].reply = "Your problem has been accepted by advisor Ezra (ezrat2116@gmail.com). We are actively reviewing this and will assist you shortly.";
+        tickets[ticketIndex].reply = "Your problem has been accepted by advisor Abreham. We are actively reviewing this and will assist you shortly.";
       } else if (action === 'reply') {
         tickets[ticketIndex].status = "Resolved";
         tickets[ticketIndex].reply = reply || "Your problem has been resolved. Thank you!";
@@ -185,7 +185,7 @@ const PORT = 3000;
     }
   });
 
-  // Support chat with Ezra persona using Google Gemini 3.5-flash or any other server key
+  // Support chat with Abreham persona using Google Gemini 3.5-flash or any other server key
   app.post(['/api/support/chat', '/api/support/chat/'], async (req, res) => {
     try {
       const { messages } = req.body;
@@ -193,10 +193,10 @@ const PORT = 3000;
         return res.status(400).json({ error: 'Messages array is required for support assistant.' });
       }
 
-      // Prepare system instruction for Ezra persona
-      const systemInstruction = `You are Ezra, the creator, lead developer, and academic advisor of EthioLearn (ezrat2116@gmail.com). You are a friendly, encouraging, and brilliant Ethiopian tech student and educator who built this platform to help Ethiopian high school and university students excel in their studies.
-Your tone is warm, personal, professional, and deeply supportive of students' academic journeys. Feel free to use phrases like 'my friend', 'እሺ' (Ishi), or brief Amharic greetings naturally when appropriate to make Ethiopian students feel at home, but respond primarily in the language the student asks in (English, Amharic, or a mix of both).
-Explain with enthusiasm when they ask about features like flashcards, customizable soundscapes, exam prep, or study notes. Keep your answers concise, practical, and highly empathetic. If they encounter technical bugs or need direct support, remind them that they can also submit a formal support ticket to you (ezrat2116@gmail.com) from their Profile tab. Always talk in the first person ('I', 'me', 'my platform') as Ezra himself.`;
+      // Prepare system instruction for Abreham persona
+      const systemInstruction = `You are Abreham, the lead developer and academic advisor of EthioLearn.
+Your tone is polite, formal, professional, and respectful. Address students with academic courtesy. Do NOT use casual slang, informal greetings, or phrases like 'Selamalekum' or 'my friend'. Respond primarily in the language the student asks in (English, Amharic, or a mix of both).
+Provide clear, accurate, and structured academic and technical guidance regarding focus courses, flashcards, soundscapes, exam prep, or digital notes. Maintain a professional educational tone at all times. If students encounter technical issues or need direct support, advise them to submit a formal support ticket from their Profile tab. Always speak in the first person ('I', 'me', 'our platform') as Abreham.`;
 
       // Candidates array of API keys/configurations to try
       const candidates: { type: string; key: string }[] = [];
@@ -212,16 +212,18 @@ Explain with enthusiasm when they ask about features like flashcards, customizab
 
       // Build specific candidates for keys
       for (const k of keysList) {
-        if (k.startsWith('AIzaSy')) {
+        if (k.startsWith('AIza')) {
           candidates.push({ type: 'gemini', key: k });
         } else if (k.startsWith('gsk_')) {
           candidates.push({ type: 'groq', key: k });
         } else if (k.startsWith('sk-ant-')) {
           candidates.push({ type: 'anthropic', key: k });
-        } else if (k.startsWith('sk-') && !k.startsWith('sk-or-')) {
+        } else if (k.startsWith('sk-or-')) {
+          candidates.push({ type: 'openrouter', key: k });
+        } else if (k.startsWith('sk-')) {
           candidates.push({ type: 'openai', key: k });
         } else {
-          candidates.push({ type: 'openrouter', key: k });
+          candidates.push({ type: 'gemini', key: k });
         }
       }
 
@@ -391,7 +393,7 @@ Explain with enthusiasm when they ask about features like flashcards, customizab
 
       if (!success) {
         console.log(`[Support API Cascade] All cloud strategies failed. Using local advisor fallback response.`);
-        replyText = "Selam, my friend! This is your academic advisor Ezra. It looks like all our premium cloud AI lines are highly loaded right now, but your learning never stops on EthioLearn! Feel free to ask me anything about exam prep, textbook chapters, or submitting a support ticket from your profile tab. I am always here to support you!";
+        replyText = "Greetings. I am Abreham, your academic advisor at EthioLearn. Our AI services are currently experiencing high request volume, but please feel free to ask your question regarding exam preparation, textbook chapters, or technical support, and I will assist you shortly.";
       }
 
       return res.json({ success: true, reply: replyText });
@@ -976,7 +978,7 @@ Don't worry, your learning never stops! I am here to help you study. To help you
 2. **Review key formulas or terms**: Use the Flashcards tool to practice key concepts.
 3. **Try standard quiz practice**: Go to the Prep Blueprint tab to solve exam-style multiple-choice questions.
 
-*Tip for Ezra (Administrator): Please check your API key configurations in the Profile/Onboarding panel or server env variables (GEMINI_API_KEY) to restore full cloud-guided tutoring!*`;
+*Tip for Administrator (Abreham): Please check your API key configurations in the Profile/Onboarding panel or server env variables (GEMINI_API_KEY) to restore full cloud-guided tutoring!*`;
 
         const fullText = greeting + explanation;
         const words = fullText.split(' ');
@@ -996,21 +998,23 @@ Don't worry, your learning never stops! I am here to help you study. To help you
 
       // Strategy 1: User specified API key
       if (resolvedUserKey && isValidServiceKey(resolvedUserKey)) {
-        if (resolvedUserKey.startsWith('AIzaSy')) {
+        if (resolvedUserKey.startsWith('AIza')) {
           attempts.push({ name: 'User Gemini Direct', run: () => runGeminiDirect(resolvedUserKey) });
         } else if (resolvedUserKey.startsWith('gsk_')) {
           attempts.push({ name: 'User Groq Direct', run: () => runGroqDirect(resolvedUserKey, model) });
         } else if (resolvedUserKey.startsWith('sk-ant-')) {
           attempts.push({ name: 'User Anthropic Direct', run: () => runAnthropicDirect(resolvedUserKey) });
-        } else if (resolvedUserKey.startsWith('sk-') && !resolvedUserKey.startsWith('sk-or-')) {
+        } else if (resolvedUserKey.startsWith('sk-or-')) {
+          attempts.push({ name: 'User OpenRouter Direct', run: () => runOpenRouterStream(resolvedUserKey, model) });
+        } else if (resolvedUserKey.startsWith('sk-')) {
           attempts.push({ name: 'User OpenAI Direct', run: () => runOpenAiDirect(resolvedUserKey) });
         } else {
-          attempts.push({ name: 'User OpenRouter Direct', run: () => runOpenRouterStream(resolvedUserKey, model) });
+          attempts.push({ name: 'User Gemini Direct', run: () => runGeminiDirect(resolvedUserKey) });
         }
       }
 
       // Strategy 2: Google Gemini env or cached key
-      const geminiKey = process.env.GEMINI_API_KEY || (cachedMasterApiKey && cachedMasterApiKey.startsWith('AIzaSy') ? cachedMasterApiKey : undefined);
+      const geminiKey = process.env.GEMINI_API_KEY || (cachedMasterApiKey && (cachedMasterApiKey.startsWith('AIza') || (!cachedMasterApiKey.startsWith('gsk_') && !cachedMasterApiKey.startsWith('sk-'))) ? cachedMasterApiKey : undefined);
       if (geminiKey && isValidServiceKey(geminiKey)) {
         attempts.push({ name: 'Server Gemini Direct', run: () => runGeminiDirect(geminiKey) });
       }
@@ -1033,8 +1037,8 @@ Don't worry, your learning never stops! I am here to help you study. To help you
         attempts.push({ name: 'Server Anthropic Direct', run: () => runAnthropicDirect(anthropicKey) });
       }
 
-      // Strategy 6: OpenRouter env or cached key
-      const openRouterKey = process.env.OPENROUTER_API_KEY || cachedMasterApiKey;
+      // Strategy 6: OpenRouter env or cached key (only if sk-or- key)
+      const openRouterKey = process.env.OPENROUTER_API_KEY || (cachedMasterApiKey && cachedMasterApiKey.startsWith('sk-or-') ? cachedMasterApiKey : undefined);
       if (openRouterKey && isValidServiceKey(openRouterKey)) {
         attempts.push({ name: 'Server OpenRouter Stream', run: () => runOpenRouterStream(openRouterKey, model) });
       }
