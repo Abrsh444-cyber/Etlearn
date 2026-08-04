@@ -1041,29 +1041,33 @@ Ensure the layout utilizes clear headers, a detailed markdown text explanation, 
     <div className="space-y-6">
       
       {/* Search Header Area */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white dark:bg-[#0c0d12] border border-slate-200 dark:border-zinc-805 p-5 rounded-2xl shadow-sm">
-        <div className="space-y-1">
-          <h2 className="text-xl md:text-2xl font-serif font-black flex items-center gap-2 text-slate-900 dark:text-white">
-            <BookOpen className="w-6 h-6 text-[#078930]" />
-            {language === 'en' ? 'Ethiopian Curriculum Book Store' : 'የሞጁሎችና መጽሐፍት ማከማቻ'}
-          </h2>
-          <p className="text-xs text-slate-500 dark:text-zinc-400 font-sans">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-slate-900/90 border border-slate-800 p-6 rounded-2xl shadow-md relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="space-y-1 relative z-10">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-6 h-6 text-amber-400" />
+            <h2 className="text-xl md:text-2xl font-bold tracking-tight text-white">
+              {language === 'en' ? 'Digital Textbook & Reference Library' : 'የሞጁሎችና ዲጂታል መጻሕፍት ማከማቻ'}
+            </h2>
+          </div>
+          <p className="text-xs text-slate-400 font-sans max-w-xl">
             {language === 'en' 
-              ? 'Study Ministry Entrance references, modules, and freshman PDF textbooks backed by AI summarizers.' 
-              : 'የብሔራዊ ፈተና ማዘጋጃ ሞጁሎችን፣ የኮሌጅ መጽሐፎችን እና ጠቃሚ ፒዲኤፎችን እዚህ ያግኙ።'}
+              ? 'Access Ethiopian Ministry of Education curriculum textbooks, freshman university modules, and AI chapter summaries.' 
+              : 'የብሔራዊ ፈተና ማዘጋጃ ሞጁሎችን፣ የዩኒቨርሲቲ መጽሐፎችን እና ጠቃሚ ፒዲኤፎችን እዚህ ያግኙ።'}
           </p>
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5 relative z-10">
           <div className="relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={language === 'en' ? 'Search subject, topics...' : 'መጽሐፍ ወይም ትምህርት ፈልግ..'}
-              className="w-full sm:w-48 pl-9 pr-3 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900/60 text-xs focus:ring-1 focus:ring-emerald-500 outline-none"
+              placeholder={language === 'en' ? 'Search title, subject, unit...' : 'መጽሐፍ ወይም ትምህርት ፈልግ..'}
+              className="w-full sm:w-52 pl-9 pr-3 py-2 rounded-xl border border-slate-800 bg-slate-950 text-slate-100 text-xs focus:ring-1 focus:ring-amber-500 focus:border-amber-500 outline-none"
             />
           </div>
 
@@ -1072,26 +1076,26 @@ Ensure the layout utilizes clear headers, a detailed markdown text explanation, 
               playClickChime();
               setShowFavoritesOnly(!showFavoritesOnly);
             }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer min-h-[38px] ${
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all border cursor-pointer min-h-[38px] ${
               showFavoritesOnly 
-                ? 'bg-amber-500 border-amber-500 text-white shadow-sm'
-                : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800'
+                ? 'bg-amber-500 border-amber-500 text-slate-950 shadow-md'
+                : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
             }`}
           >
-            <Star className={`w-3.5 h-3.5 ${showFavoritesOnly ? 'fill-white text-white' : ''}`} />
-            {language === 'en' ? 'Favorites' : 'የእኔ ምርጦች'}
+            <Star className={`w-3.5 h-3.5 ${showFavoritesOnly ? 'fill-slate-950 text-slate-950' : 'text-amber-400'}`} />
+            {language === 'en' ? 'Favorites' : 'ምርጦች'}
             {favoriteBookIds.length > 0 && ` (${favoriteBookIds.length})`}
           </button>
 
-          <div className="flex bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 p-0.5 rounded-xl text-xs font-bold leading-none select-none overflow-x-auto">
+          <div className="flex bg-slate-950 border border-slate-800 p-0.5 rounded-xl text-xs font-bold leading-none select-none overflow-x-auto">
             {['All', 'Grade 12', 'Grade 12 New Curriculum', 'University'].map(g => (
               <button
                 key={g}
                 onClick={() => { playClickChime(); setSelectedGrade(g); }}
                 className={`px-3 py-2 rounded-lg text-[10px] cursor-pointer tracking-tight uppercase transition-all whitespace-nowrap min-h-[36px] ${
                   selectedGrade === g 
-                    ? 'bg-[#078930] text-white shadow-sm font-black' 
-                    : 'text-slate-500 hover:text-slate-800 dark:text-zinc-400 dark:hover:text-zinc-200'
+                    ? 'bg-amber-500 text-slate-950 font-black shadow-xs' 
+                    : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
                 {g}
@@ -1107,9 +1111,9 @@ Ensure the layout utilizes clear headers, a detailed markdown text explanation, 
         if (availableSubjects.length <= 1) return null;
 
         return (
-          <div className="sticky top-2 z-20 bg-slate-900/90 dark:bg-[#0c0d12]/90 backdrop-blur-md border border-slate-200 dark:border-zinc-800 p-2.5 rounded-2xl shadow-md overflow-x-auto scrollbar-none flex items-center gap-2 select-none">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-zinc-500 pl-2 shrink-0 flex items-center gap-1">
-              <Compass className="w-3.5 h-3.5 text-[#078930]" /> Jump To:
+          <div className="sticky top-2 z-20 bg-slate-900/95 backdrop-blur-md border border-slate-800 p-2.5 rounded-2xl shadow-lg overflow-x-auto scrollbar-none flex items-center gap-2 select-none">
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 pl-2 shrink-0 flex items-center gap-1">
+              <Compass className="w-3.5 h-3.5 text-amber-400" /> Department / Subject:
             </span>
             <button
               onClick={() => {
@@ -1119,8 +1123,8 @@ Ensure the layout utilizes clear headers, a detailed markdown text explanation, 
               }}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all shrink-0 cursor-pointer flex items-center gap-1 min-h-[36px] ${
                 activeSubjectChip === 'All'
-                  ? 'bg-[#078930] text-white shadow-sm'
-                  : 'bg-slate-100 dark:bg-zinc-850 text-slate-600 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-800'
+                  ? 'bg-amber-500 text-slate-950 shadow-xs'
+                  : 'bg-slate-950 border border-slate-800 text-slate-300 hover:border-slate-700'
               }`}
             >
               All ({filtered.length})
@@ -1152,13 +1156,13 @@ Ensure the layout utilizes clear headers, a detailed markdown text explanation, 
                   }}
                   className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 border min-h-[36px] ${
                     isActive
-                      ? 'bg-emerald-600 border-emerald-500 text-white shadow-md font-black scale-105'
-                      : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:border-emerald-500/50'
+                      ? 'bg-amber-500 border-amber-500 text-slate-950 shadow-md font-black scale-105'
+                      : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-amber-500/50'
                   }`}
                 >
                   <span>{subj}</span>
                   <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                    isActive ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400'
+                    isActive ? 'bg-slate-950/20 text-slate-950 font-bold' : 'bg-slate-900 text-slate-400'
                   }`}>
                     {count}
                   </span>

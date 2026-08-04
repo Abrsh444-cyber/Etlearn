@@ -620,7 +620,7 @@ Always end your explanations with 2 conversational, helpful revision questions f
 
   return (
     <div 
-      className="flex flex-col flex-1 min-h-0 relative bg-slate-50 dark:bg-[#050508] h-full p-2 md:p-4 rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-sm"
+      className="flex flex-col flex-1 min-h-0 relative bg-slate-900/90 h-full p-3 md:p-5 rounded-2xl border border-slate-800 shadow-md"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -633,29 +633,29 @@ Always end your explanations with 2 conversational, helpful revision questions f
         className="hidden" 
       />
 
-      {/* TOP HEADER CONTROLS - LIGHT & DARK STYLE */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-[#0c0d12] p-4 rounded-xl border border-slate-200 dark:border-zinc-800 mb-4 shadow-sm text-slate-800 dark:text-zinc-100">
+      {/* TOP HEADER CONTROLS */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-950/80 p-4 rounded-xl border border-slate-800 mb-4 shadow-sm text-slate-100">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900 flex items-center justify-center shrink-0 overflow-hidden">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0 overflow-hidden">
             <AITutorLogo size={36} />
           </div>
           <div>
             <div className="flex items-center gap-1.5 flex-wrap">
-              <h2 className="font-serif text-base font-bold text-slate-900 dark:text-white leading-tight">
+              <h2 className="text-base font-bold text-white leading-tight">
                 {language === 'en' ? 'AI Study Companion' : 'የአይ መማሪያ ተባባሪ'}
               </h2>
               {profile.isRegistered ? (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-black text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900 rounded font-sans">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded font-sans">
                   PRO MEMBER
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-black text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-900/60 rounded font-sans animate-pulse">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded font-sans animate-pulse">
                   GUEST QUOTA: {profile.unregisteredAICredits !== undefined ? profile.unregisteredAICredits : 5}/5 LEFT
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-slate-400 dark:text-zinc-500 font-medium">
-              {language === 'en' ? 'Personalized National Tutor' : 'የግል መማሪያ ረዳት'}
+            <p className="text-[11px] text-slate-400 font-medium">
+              {language === 'en' ? 'Personalized Ethiopian Curriculum Tutor' : 'የግል መማሪያ ረዳት'}
             </p>
           </div>
         </div>
@@ -665,31 +665,31 @@ Always end your explanations with 2 conversational, helpful revision questions f
           <select
             value={selectedSubject}
             onChange={(e) => setSelectedSubject(e.target.value)}
-            className="bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-zinc-200 py-2.5 px-3 outline-none cursor-pointer focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 shrink-0"
+            className="bg-slate-900 border border-slate-800 rounded-xl text-xs font-semibold text-slate-200 py-2 px-3 outline-none cursor-pointer focus:border-amber-500 shrink-0"
           >
             {enrolledSubjects.map(sub => (
-              <option key={sub} value={sub} className="bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-200">{sub}</option>
+              <option key={sub} value={sub} className="bg-slate-900 text-slate-200">{sub}</option>
             ))}
           </select>
 
-          {/* Bilingual Language Selector - Top requirement */}
-          <div className="flex bg-slate-100 dark:bg-zinc-900/40 border border-slate-200 dark:border-zinc-805 rounded-xl p-0.5">
+          {/* Bilingual Language Selector */}
+          <div className="flex bg-slate-900 border border-slate-800 rounded-xl p-0.5">
             <button
               onClick={() => { setLanguage('en'); playClickChime(); }}
-              className={`text-xs font-extrabold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 cursor-pointer ${
+              className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 cursor-pointer ${
                 language === 'en' 
-                  ? 'bg-[#078930] text-white shadow-sm' 
-                  : 'text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200'
+                  ? 'bg-amber-500 text-slate-950 font-extrabold shadow-xs' 
+                  : 'text-slate-400 hover:text-slate-200'
               }`}
             >
               EN 🇺🇸
             </button>
             <button
               onClick={() => { setLanguage('am'); playClickChime(); }}
-              className={`text-xs font-extrabold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 cursor-pointer ${
+              className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 cursor-pointer ${
                 language === 'am' 
-                  ? 'bg-[#078930] text-white shadow-sm' 
-                  : 'text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200'
+                  ? 'bg-amber-500 text-slate-950 font-extrabold shadow-xs' 
+                  : 'text-slate-400 hover:text-slate-200'
               }`}
             >
               አማ 🇪🇹
@@ -701,12 +701,12 @@ Always end your explanations with 2 conversational, helpful revision questions f
             onClick={() => { setHighThinking(!highThinking); playClickChime(); }}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
               highThinking
-                ? 'bg-amber-500/10 text-amber-600 border-amber-500/30 dark:bg-amber-500/5 dark:text-amber-400 dark:border-amber-500/20'
-                : 'bg-slate-50 border-slate-200 dark:bg-zinc-900 dark:border-zinc-800 text-slate-500 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-850'
+                ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
             }`}
             title={language === 'en' ? "Activate high reasoning mode (Gemini 3.1 Pro)" : "ከፍተኛ የማሰብ ችሎታን አግብር (Gemini 3.1 Pro)"}
           >
-            <Bot className={`w-4 h-4 ${highThinking ? 'animate-pulse text-amber-500' : ''}`} />
+            <Bot className={`w-4 h-4 ${highThinking ? 'animate-pulse text-amber-400' : ''}`} />
             <span className="hidden sm:inline">
               {language === 'en' 
                 ? (highThinking ? "🧠 High Thinking: ON" : "🧠 Thinking Mode") 
@@ -720,7 +720,7 @@ Always end your explanations with 2 conversational, helpful revision questions f
           <button
             onClick={clearHistory}
             title={language === 'en' ? "Clear Chat" : "ውይይት አጽዳ"}
-            className="text-slate-400 hover:text-red-600 p-2.5 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
+            className="text-slate-400 hover:text-amber-400 p-2.5 hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
           >
             <RefreshCw className="w-4 h-4" />
           </button>
@@ -729,26 +729,26 @@ Always end your explanations with 2 conversational, helpful revision questions f
 
       {/* Floating alert warnings or indicators */}
       {errorBanner && (
-        <div className="mb-4 bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-2.5 text-red-700 text-xs shadow-sm">
-          <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+        <div className="mb-4 bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-center gap-2.5 text-red-400 text-xs shadow-sm">
+          <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
           <span>{errorBanner}</span>
         </div>
       )}
 
       {/* Success notifier */}
       {flSuccess && (
-        <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center gap-2.5 text-emerald-800 text-xs shadow-sm">
-          <Check className="w-5 h-5 text-emerald-600 shrink-0" />
+        <div className="mb-4 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-center gap-2.5 text-amber-400 text-xs shadow-sm">
+          <Check className="w-5 h-5 text-amber-400 shrink-0" />
           <span>{flSuccess}</span>
         </div>
       )}
 
-      {/* Chat messages layout viewport (clean white layout) */}
-      <div className="flex-1 bg-white dark:bg-zinc-950 p-4 rounded-xl border border-slate-200 dark:border-zinc-800/80 shadow-inner overflow-y-auto mb-4 relative min-h-0 min-h-[300px]">
+      {/* Chat messages layout viewport */}
+      <div className="flex-1 bg-slate-950/80 p-4 rounded-xl border border-slate-800/80 shadow-inner overflow-y-auto mb-4 relative min-h-0 min-h-[300px]">
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-8 text-slate-400">
-            <MessageSquare className="w-12 h-12 mb-3 text-emerald-100/50 dark:text-emerald-900/20 shrink-0" />
-            <p className="font-serif italic text-base">
+            <MessageSquare className="w-12 h-12 mb-3 text-amber-400/40 shrink-0" />
+            <p className="text-sm text-slate-300">
               {language === 'en' ? 'Type your study query to begin...' : 'ለመጀመር የጥናት ጥያቄዎን ይጻፉ...'}
             </p>
           </div>
@@ -762,10 +762,10 @@ Always end your explanations with 2 conversational, helpful revision questions f
                 className={`flex gap-3 max-w-[85%] ${msg.role === 'user' ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}
               >
                 {/* Bubble icon */}
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 border text-[13px] font-bold shadow-sm ${
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 border text-[12px] font-bold shadow-sm ${
                   msg.role === 'user'
-                    ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/55 text-emerald-700 dark:text-emerald-400'
-                    : 'bg-amber-50 dark:bg-amber-950/20 border-amber-100 dark:border-amber-900/40 text-[#C8962E]'
+                    ? 'bg-amber-500 text-slate-950 border-amber-400 font-black'
+                    : 'bg-slate-900 border-slate-800 text-amber-400'
                 }`}>
                   {msg.role === 'user' ? 'U' : 'AI'}
                 </div>
@@ -774,8 +774,8 @@ Always end your explanations with 2 conversational, helpful revision questions f
                 <div className="flex flex-col">
                   <div className={`rounded-2xl p-4 text-sm leading-relaxed shadow-sm ${
                     msg.role === 'user'
-                      ? 'bg-[#078930] text-white rounded-tr-none'
-                      : 'bg-slate-50 dark:bg-zinc-900 text-slate-800 dark:text-zinc-150 border border-slate-200 dark:border-zinc-800/60 rounded-tl-none font-sans'
+                      ? 'bg-amber-500 text-slate-950 rounded-tr-none font-semibold'
+                      : 'bg-slate-900 text-slate-100 border border-slate-800 rounded-tl-none font-sans'
                   }`}>
                     {msg.attachment && (
                       <div className="mb-2.5">
@@ -783,11 +783,11 @@ Always end your explanations with 2 conversational, helpful revision questions f
                           <img 
                             src={`data:${msg.attachment.mimeType};base64,${msg.attachment.data}`}
                             alt="Attached Homework" 
-                            className="max-h-56 w-auto rounded-lg border border-slate-200 dark:border-zinc-800 object-contain max-w-full"
+                            className="max-h-56 w-auto rounded-lg border border-slate-800 object-contain max-w-full"
                           />
                         ) : (
-                          <div className="flex items-center gap-2 p-2 rounded bg-slate-100 dark:bg-zinc-800 text-xs text-slate-600 dark:text-zinc-300">
-                            <File className="w-4 h-4 text-[#078930]" />
+                          <div className="flex items-center gap-2 p-2 rounded bg-slate-950 border border-slate-800 text-xs text-slate-300">
+                            <File className="w-4 h-4 text-amber-400" />
                             <span className="truncate">{msg.attachment.name}</span>
                           </div>
                         )}
@@ -799,9 +799,9 @@ Always end your explanations with 2 conversational, helpful revision questions f
                   {msg.role === 'assistant' && msg.content && (
                     <button 
                       onClick={() => copyText(msg.content, index)}
-                      className="text-[10px] text-slate-400 dark:text-zinc-500 mt-1 self-start flex items-center gap-1 hover:text-emerald-700 p-1 rounded-md hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                      className="text-[10px] text-slate-400 mt-1 self-start flex items-center gap-1 hover:text-amber-400 p-1 rounded-md hover:bg-slate-800 transition-colors cursor-pointer"
                     >
-                      {copiedIndex === index ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                      {copiedIndex === index ? <Check className="w-3 h-3 text-amber-400" /> : <Copy className="w-3 h-3" />}
                       <span>{copiedIndex === index ? 'Copied' : 'Copy'}</span>
                     </button>
                   )}
@@ -811,12 +811,11 @@ Always end your explanations with 2 conversational, helpful revision questions f
 
             {isTyping && (
               <div className="flex gap-3 max-w-[85%] mr-auto items-center">
-                <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 flex items-center justify-center text-slate-500 dark:text-zinc-400 text-xs font-bold shrink-0 animate-pulse">
+                <div className="w-9 h-9 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-amber-400 text-xs font-bold shrink-0 animate-pulse">
                   AI
                 </div>
-                <div className="bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800/60 text-slate-500 dark:text-zinc-400 rounded-2xl rounded-tl-none p-3.5 flex items-center gap-2 shadow-sm">
-                  {/* Simple Thinking Spinner - requirement */}
-                  <div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin shrink-0" />
+                <div className="bg-slate-900 border border-slate-800 text-slate-300 rounded-2xl rounded-tl-none p-3.5 flex items-center gap-2 shadow-sm">
+                  <div className="w-4 h-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin shrink-0" />
                   <span className="text-xs font-sans">
                     {language === 'en' 
                       ? (highThinking ? 'Tutor is reasoning (3.1 Pro High Thinking)...' : 'Tutor is thinking...') 
@@ -833,10 +832,10 @@ Always end your explanations with 2 conversational, helpful revision questions f
 
       {/* FOOTER MESSAGE DISPATCH & SUGGESTION CHIPS CHIP LIST */}
       <div className="space-y-3 mt-auto">
-        {/* "Suggested Questions" chips - requirement */}
+        {/* "Suggested Questions" chips */}
         <div>
           <p className="text-[10.5px] text-slate-400 uppercase font-bold tracking-wider mb-1 px-1 flex items-center gap-1 select-none">
-            <Sparkles className="w-3 h-3 text-amber-500" />
+            <Sparkles className="w-3 h-3 text-amber-400" />
             {language === 'en' ? 'Suggested topics' : 'የሚመከሩ ጥያቄዎች'}
           </p>
           <div className="flex flex-wrap gap-1.5 py-1">
@@ -844,7 +843,7 @@ Always end your explanations with 2 conversational, helpful revision questions f
               <button
                 key={idx}
                 onClick={() => { playClickChime(); handleSend(chip.value); }}
-                className="text-xs bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-200 hover:text-[#078930] hover:bg-emerald-50 dark:hover:bg-emerald-950/20 border border-slate-200 dark:border-zinc-850 px-3.5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm active:scale-95 font-medium min-h-[38px]"
+                className="text-xs bg-slate-900 text-slate-200 hover:text-amber-400 hover:border-amber-500/40 border border-slate-800 px-3 py-2 rounded-xl transition-all cursor-pointer shadow-xs active:scale-95 font-medium min-h-[38px]"
               >
                 {chip.label}
               </button>
@@ -854,30 +853,30 @@ Always end your explanations with 2 conversational, helpful revision questions f
 
         {/* Input area attachments preview */}
         {attachedFile && (
-          <div className="flex items-center gap-2.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 p-2.5 rounded-xl self-start text-xs shadow-sm max-w-sm animate-fade-in">
+          <div className="flex items-center gap-2.5 bg-slate-900 border border-slate-800 p-2.5 rounded-xl self-start text-xs shadow-sm max-w-sm animate-fade-in">
             {attachedFile.previewUrl ? (
-              <img src={attachedFile.previewUrl} alt="Upload preview" className="w-9 h-9 rounded object-cover border border-slate-200 dark:border-zinc-800" />
+              <img src={attachedFile.previewUrl} alt="Upload preview" className="w-9 h-9 rounded object-cover border border-slate-800" />
             ) : (
-              <File className="w-5 h-5 text-emerald-600" />
+              <File className="w-5 h-5 text-amber-400" />
             )}
             <div className="flex-1 min-w-0">
-              <p className="truncate font-medium text-slate-800 dark:text-zinc-200">{attachedFile.name}</p>
+              <p className="truncate font-medium text-slate-200">{attachedFile.name}</p>
             </div>
             <button
               onClick={() => { setAttachedFile(null); playClickChime(); }}
-              className="p-1 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300 transition-colors cursor-pointer"
+              className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
         )}
 
-        {/* Message Input Box - always visible at bottom, never hidden */}
+        {/* Message Input Box - always visible at bottom */}
         <div className="flex gap-2">
           <button
             onClick={() => { playClickChime(); fileInputRef.current?.click(); }}
             title={language === 'en' ? "Attach study guide image or PDF" : "ማስረጃ ፋይል አያይዝ"}
-            className="w-12 h-12 min-h-[48px] bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl flex items-center justify-center text-slate-500 dark:text-zinc-400 hover:text-[#078930] hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors shrink-0 shadow-sm cursor-pointer"
+            className="w-12 h-12 min-h-[48px] bg-slate-900 border border-slate-800 rounded-xl flex items-center justify-center text-slate-400 hover:text-amber-400 hover:border-amber-500/40 transition-colors shrink-0 shadow-sm cursor-pointer"
           >
             <Paperclip className="w-5 h-5" />
           </button>
@@ -888,16 +887,16 @@ Always end your explanations with 2 conversational, helpful revision questions f
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleSend(); }}
             placeholder={language === 'en' ? `Ask anything about ${selectedSubject}...` : `ስለ ${selectedSubject} ያሰቡትን ይጠይቁ...`}
-            className="flex-1 bg-white dark:bg-zinc-900 text-slate-800 dark:text-white text-base px-4 py-3 border border-slate-200 dark:border-zinc-800 rounded-xl focus:border-[#078930] focus:ring-1 focus:ring-[#078930] outline-none shadow-sm transition-colors min-w-0 h-12 min-h-[48px]"
+            className="flex-1 bg-slate-900 text-white text-sm px-4 py-3 border border-slate-800 rounded-xl focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none shadow-sm transition-colors min-w-0 h-12 min-h-[48px]"
           />
 
           <button
             onClick={startVoiceInput}
             title="Voice Speech Input"
-            className={`w-12 h-12 min-h-[48px] bg-white dark:bg-zinc-900 border rounded-xl flex items-center justify-center transition-colors shrink-0 shadow-sm cursor-pointer ${
+            className={`w-12 h-12 min-h-[48px] bg-slate-900 border rounded-xl flex items-center justify-center transition-colors shrink-0 shadow-sm cursor-pointer ${
               listening 
-                ? 'text-red-600 border-red-300 bg-red-50 dark:bg-red-950/20 animate-pulse' 
-                : 'text-slate-500 dark:text-zinc-400 border-slate-200 dark:border-zinc-800 hover:text-[#078930] hover:bg-slate-50 dark:hover:bg-zinc-800'
+                ? 'text-red-400 border-red-500/40 bg-red-500/10 animate-pulse' 
+                : 'text-slate-400 border-slate-800 hover:text-amber-400 hover:border-amber-500/40'
             }`}
           >
             <Mic className="w-5 h-5" />
@@ -906,7 +905,7 @@ Always end your explanations with 2 conversational, helpful revision questions f
           <button
             onClick={() => handleSend()}
             disabled={(!inputValue.trim() && !attachedFile) || isTyping}
-            className="h-12 min-h-[48px] px-5 bg-[#078930] text-white hover:bg-emerald-700 font-serif font-extrabold text-sm rounded-xl flex items-center justify-center disabled:opacity-45 disabled:cursor-not-allowed shadow transition-all hover:scale-102 shrink-0 cursor-pointer"
+            className="h-12 min-h-[48px] px-5 bg-amber-500 text-slate-950 hover:bg-amber-600 font-bold text-sm rounded-xl flex items-center justify-center disabled:opacity-45 disabled:cursor-not-allowed shadow transition-all hover:scale-102 shrink-0 cursor-pointer"
           >
             <Send className="w-5 h-5" />
           </button>

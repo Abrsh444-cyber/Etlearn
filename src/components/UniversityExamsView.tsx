@@ -1567,34 +1567,34 @@ Guide me on how to approach this. Give me the primary formula but let me do the 
       </div>
 
       {/* Tab Navigation for Practice Sheets, Curriculum Exam Compiler, and External National EUEE Hub */}
-      <div className="flex flex-wrap bg-slate-100 dark:bg-zinc-900/95 border border-slate-200 dark:border-zinc-800 p-1 rounded-2xl max-w-2xl select-none font-sans gap-1">
+      <div className="flex flex-wrap bg-slate-950 border border-slate-800 p-1 rounded-2xl max-w-2xl select-none font-sans gap-1">
         <button
           onClick={() => { playClickChime(); setActiveTab('practice'); }}
-          className={`flex-1 min-w-[120px] py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer text-center ${
+          className={`flex-1 min-w-[120px] py-2 text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer text-center ${
             activeTab === 'practice'
-              ? 'bg-indigo-600 text-white shadow-sm'
-              : 'text-slate-500 dark:text-zinc-400 hover:text-slate-850 dark:hover:text-zinc-200'
+              ? 'bg-amber-500 text-slate-950 font-black shadow-md'
+              : 'text-slate-400 hover:text-slate-200'
           }`}
         >
           {language === 'en' ? 'Practice Sheets' : 'ተግባራዊ ፈተናዎች'}
         </button>
         <button
           onClick={() => { playClickChime(); setActiveTab('ai-custom'); }}
-          className={`flex-1 min-w-[150px] py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 ${
+          className={`flex-1 min-w-[150px] py-2 text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 ${
             activeTab === 'ai-custom'
-              ? 'bg-indigo-600 text-white shadow-sm'
-              : 'text-slate-500 dark:text-zinc-400 hover:text-slate-850 dark:hover:text-zinc-200'
+              ? 'bg-amber-500 text-slate-950 font-black shadow-md'
+              : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          <BookMarked className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+          <BookMarked className="w-3.5 h-3.5 text-slate-950" />
           <span>{language === 'en' ? 'Board Exam Compiler' : 'የብሔራዊ ፈተና ማጠናከሪያ'}</span>
         </button>
         <button
           onClick={() => { playClickChime(); setActiveTab('external'); }}
-          className={`flex-1 min-w-[150px] py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 ${
+          className={`flex-1 min-w-[150px] py-2 text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 ${
             activeTab === 'external'
-              ? 'bg-indigo-600 text-white shadow-sm'
-              : 'text-slate-500 dark:text-zinc-400 hover:text-slate-850 dark:hover:text-zinc-200'
+              ? 'bg-amber-500 text-slate-950 font-black shadow-md'
+              : 'text-slate-400 hover:text-slate-200'
           }`}
         >
           <span>🌐</span>
@@ -1607,31 +1607,31 @@ Guide me on how to approach this. Give me the primary formula but let me do the 
         
         {/* Left column: list of past university exam papers (4 cols) */}
         <div className="lg:col-span-4 space-y-4">
-          <div className="bg-white dark:bg-[#0c0d12] border border-slate-200 dark:border-zinc-805 p-4 rounded-2xl sticky top-2 z-20 shadow-md space-y-3">
+          <div className="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl sticky top-2 z-20 shadow-md space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
-                <Filter className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300 flex items-center gap-1.5">
+                <Filter className="w-3.5 h-3.5 text-amber-400" />
                 {language === 'en' ? 'Select Available Papers:' : 'ያሉትን ፈተናዎች ይምረጡ፡'}
               </h3>
-              <span className="text-[10px] font-mono font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-full">
+              <span className="text-[10px] font-mono font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
                 {filteredSheets.length} {filteredSheets.length === 1 ? 'paper' : 'papers'}
               </span>
             </div>
 
             {/* Live Search Bar */}
             <div className="relative">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500" />
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 value={paperSearchQuery}
                 onChange={(e) => setPaperSearchQuery(e.target.value)}
                 placeholder={language === 'en' ? 'Search subject, course code, university...' : 'በትምህርት አይነት፣ ዩኒቨርሲቲ ይፈልጉ...'}
-                className="w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl pl-8 pr-8 py-2 text-xs font-medium text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:border-indigo-500 min-h-[40px]"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-8 py-2 text-xs font-medium text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 min-h-[40px]"
               />
               {paperSearchQuery && (
                 <button
                   onClick={() => setPaperSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 p-1 cursor-pointer"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1 cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -1639,33 +1639,33 @@ Guide me on how to approach this. Give me the primary formula but let me do the 
             </div>
 
             {/* Level Tabs: All / Grade 12 / University */}
-            <div className="grid grid-cols-3 gap-1 p-1 bg-slate-100 dark:bg-zinc-900 rounded-xl text-center text-[10.5px] select-none border border-slate-200/50 dark:border-zinc-800">
+            <div className="grid grid-cols-3 gap-1 p-1 bg-slate-950 rounded-xl text-center text-[10.5px] select-none border border-slate-800">
               <button
                 onClick={() => handleCategoryChange('all')}
-                className={`py-2 px-1 rounded-lg font-extrabold transition-all cursor-pointer min-h-[38px] ${
+                className={`py-2 px-1 rounded-lg font-bold transition-all cursor-pointer min-h-[38px] ${
                   examCategory === 'all'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-850'
+                    ? 'bg-amber-500 text-slate-950 font-black shadow-xs'
+                    : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
                 {language === 'en' ? 'All' : 'ሁሉም'}
               </button>
               <button
                 onClick={() => handleCategoryChange('g12')}
-                className={`py-2 px-1 rounded-lg font-extrabold transition-all cursor-pointer min-h-[38px] ${
+                className={`py-2 px-1 rounded-lg font-bold transition-all cursor-pointer min-h-[38px] ${
                   examCategory === 'g12'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-850'
+                    ? 'bg-amber-500 text-slate-950 font-black shadow-xs'
+                    : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
                 {language === 'en' ? 'Grade 12' : '12ኛ ክፍል'}
               </button>
               <button
                 onClick={() => handleCategoryChange('uni')}
-                className={`py-2 px-1 rounded-lg font-extrabold transition-all cursor-pointer min-h-[38px] ${
+                className={`py-2 px-1 rounded-lg font-bold transition-all cursor-pointer min-h-[38px] ${
                   examCategory === 'uni'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-850'
+                    ? 'bg-amber-500 text-slate-950 font-black shadow-xs'
+                    : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
                 {language === 'en' ? 'University' : 'ዩኒቨርሲቲ'}

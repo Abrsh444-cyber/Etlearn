@@ -971,10 +971,10 @@ export default function StudentProfileView({
           {/* Main profile form or view card */}
           <div className="bg-[#111111]/90 rounded-2xl border border-zinc-900 p-6 space-y-6">
             
-            <div className="flex justify-between items-center border-b border-zinc-900 pb-4">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-4">
               <div className="flex items-center gap-2">
-                <User className="w-5 h-5 text-[#C8962E]" />
-                <h3 className="font-serif text-base font-bold text-[#F0EDE8]">
+                <User className="w-5 h-5 text-amber-400" />
+                <h3 className="font-bold text-base text-white">
                   {isEditing 
                     ? (language === 'en' ? "Modify Profile Specifications" : "የተማሪ መገለጫ ማስተካከያ") 
                     : (language === 'en' ? "Student Academic Registration" : "የአካዳሚክ ምዝገባ መረጃዎች")
@@ -985,7 +985,7 @@ export default function StudentProfileView({
               {!isEditing && (
                 <button
                   onClick={handleStartEdit}
-                  className="px-3.5 py-1.5 bg-[#C8962E] hover:bg-[#b08123] text-black font-serif font-black text-xs uppercase tracking-wider rounded-lg transition-all cursor-pointer flex items-center gap-1.5"
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-md"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
                   <span>{language === 'en' ? "Edit profile" : "መገለጫ አስተካክል"}</span>
