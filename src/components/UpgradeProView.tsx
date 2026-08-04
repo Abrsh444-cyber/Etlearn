@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Check, Shield, Clock, HelpCircle, Phone, CreditCard, Send, Sparkles, CheckCircle, ExternalLink, HelpCircle as HelpIcon, Star,
-  Zap, Lock, BookOpen, FileText, Smartphone, AlertCircle, ArrowRight, RefreshCw, ShieldCheck
+  Zap, Lock, BookOpen, FileText, Smartphone, AlertCircle, ArrowRight, RefreshCw, ShieldCheck, Upload, Image as ImageIcon, Trash2, Scale
 } from 'lucide-react';
 import { StudentProfile, SubscriptionTier, PaymentProvider, PaymentRecord } from '../types';
 import { playClickChime, playSuccessChime, playFailureChime } from '../utils/audio';
 import { safeStorage } from '../utils/safeStorage';
 import { addPaymentRecordLocal, getPaymentHistoryLocal } from '../utils/monetization';
+import TermsModal from './TermsModal';
 
 interface UpgradeProViewProps {
   profile: StudentProfile;
@@ -28,10 +29,33 @@ export default function UpgradeProView({
   
   // Payment Form States
   const [paymentMethod, setPaymentMethod] = useState<PaymentProvider>('telebirr');
-  const [phoneInput, setPhoneInput] = useState('');
-  const [senderName, setSenderName] = useState('');
-  const [txnRef, setTxnRef] = useState('');
+  const [phoneInput, setPhoneInput] = useState(profile.proPaymentPhone || profile.phone || '');
+  const [senderName, setSenderName] = useState(profile.senderName || profile.name || '');
+  const [txnRef, setTxnRef] = useState(profile.proPaymentTxn || '');
+  const [receiptImage, setReceiptImage] = useState<string | undefined>(profile.proReceiptImage);
+  const [agreedToTerms, setAgreedToTerms] = useState<boolean>(profile.agreedToTerms || false);
+  const [showTermsModal, setShowTermsModal] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Handle receipt image file select
+  const handleReceiptImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 8 * 1024 * 1024) {
+      alert(language === 'en' ? 'Receipt image file must be smaller than 8MB.' : 'የደረሰኝ ፎቶ መጠን ከ 8MB ያነሰ መሆን አለበት።');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setReceiptImage(reader.result);
+        playSuccessChime();
+      }
+    };
+    reader.readAsDataURL(file);
+  };
   
   // Calculate price based on selected tier
   const getTierPrice = (tier: SubscriptionTier) => {
@@ -49,6 +73,14 @@ export default function UpgradeProView({
     e.preventDefault();
     if (!senderName.trim() || !txnRef.trim()) {
       alert(language === 'en' ? 'Please fill in Sender Name and Transaction Reference.' : 'እባክዎ መለያ ስምና የትራንዛክሽን ቁጥሩን በትክክል ያስገቡ።');
+      return;
+    }
+
+    if (!agreedToTerms) {
+      playFailureChime();
+      alert(language === 'en' 
+        ? 'You must accept the EthioLearn Pro Terms & Academic Rules before submitting your receipt.' 
+        : 'ደረሰኝዎን ከማስገባትዎ በፊት እባክዎ የኢትዮ-ለርን ፕሮ የአገልግሎት ውል እና ደንቦችን ይቀበሉ።');
       return;
     }
     
@@ -79,6 +111,8 @@ export default function UpgradeProView({
       providerTxnId: txnRef.trim(),
       senderName: senderName.trim(),
       senderPhone: phoneInput.trim(),
+      receiptImage: receiptImage,
+      agreedToTerms: agreedToTerms,
       status: 'pending',
       createdAt: new Date().toISOString()
     };
@@ -98,6 +132,9 @@ export default function UpgradeProView({
       senderName: senderName.trim(),
       proPaymentPhone: phoneInput.trim(),
       paymentMethod: paymentMethod,
+      proReceiptImage: receiptImage,
+      agreedToTerms: true,
+      agreedToTermsDate: startDate,
       purchasedBundles: selectedTier === 'subject_bundle' 
         ? Array.from(new Set([...(profile.purchasedBundles || []), selectedSubjectBundle]))
         : profile.purchasedBundles
@@ -514,13 +551,89 @@ export default function UpgradeProView({
                 />
               </div>
 
+              {/* Receipt Image / Screenshot Upload */}
+              <div>
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1 flex items-center justify-between">
+                  <span>{language === 'en' ? 'Attach Payment Receipt / Screenshot' : 'የክፍያ ማረጋገጫ ደረሰኝ ፎቶ'}</span>
+                  <span className="text-[10px] text-amber-400 font-normal">{language === 'en' ? '(Recommended)' : '(ይመረጣል)'}</span>
+                </label>
+
+                {receiptImage ? (
+                  <div className="relative p-2 bg-slate-900 border border-amber-500/40 rounded-xl flex items-center gap-3">
+                    <img 
+                      src={receiptImage} 
+                      alt="Payment Receipt" 
+                      className="w-14 h-14 object-cover rounded-lg border border-slate-700 shrink-0" 
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-emerald-400 flex items-center gap-1">
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        {language === 'en' ? 'Receipt Screenshot Attached' : 'የደረሰኝ ፎቶ ተያይዟል'}
+                      </p>
+                      <p className="text-[10px] text-slate-400 truncate">Image ready for admin verification</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setReceiptImage(undefined)}
+                      className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg cursor-pointer transition-colors"
+                      title="Remove receipt"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-700 hover:border-amber-400 rounded-xl bg-slate-900/60 hover:bg-slate-900 transition-all cursor-pointer text-center group">
+                    <Upload className="w-5 h-5 text-slate-400 group-hover:text-amber-400 mb-1 transition-colors" />
+                    <span className="text-xs font-bold text-slate-300 group-hover:text-amber-300">
+                      {language === 'en' ? 'Click or tap to upload receipt image' : 'የደስረኝ ፎቶ ለመጫን እዚህ ይጫኑ'}
+                    </span>
+                    <span className="text-[10px] text-slate-500 mt-0.5">JPG, PNG, WEBP (Max 8MB)</span>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleReceiptImageChange} 
+                      className="hidden" 
+                    />
+                  </label>
+                )}
+              </div>
+
+              {/* Terms and Academic Integrity Agreement Checkbox */}
+              <div className="pt-2 border-t border-slate-800 space-y-2">
+                <label className="flex items-start gap-2.5 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={agreedToTerms}
+                    onChange={(e) => setAgreedToTerms(e.target.checked)}
+                    className="mt-0.5 rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-amber-400 cursor-pointer w-4 h-4"
+                  />
+                  <span className="text-xs text-slate-300 leading-tight">
+                    {language === 'en' 
+                      ? 'I agree to the ' 
+                      : 'በኢትዮ-ለርን '}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setShowTermsModal(true);
+                      }}
+                      className="text-amber-400 underline font-bold hover:text-amber-300 inline-flex items-center gap-0.5"
+                    >
+                      <Scale className="w-3 h-3" />
+                      {language === 'en' ? 'EthioLearn Pro Terms & Academic Rules' : 'የአገልግሎት ውል እና የጥናት ደንቦች'}
+                    </button>
+                    {language === 'en' ? '.' : ' እስማማለሁ።'}
+                  </span>
+                </label>
+              </div>
+
               <button
                 type="submit"
                 disabled={isSubmitting}
                 className="w-full py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-bold rounded-xl text-xs uppercase tracking-wider cursor-pointer shadow-lg active:scale-98 transition-all flex items-center justify-center gap-2"
               >
                 <Send className="w-4 h-4" />
-                {language === 'en' ? 'Submit for Verification' : 'ክፍያውን አስገባ'}
+                {language === 'en' ? 'Submit Receipt & Reference' : 'ደረሰኝ እና ማረጋገጫ ያስገቡ'}
               </button>
             </form>
           </div>
@@ -548,13 +661,26 @@ export default function UpgradeProView({
             </h4>
             
             {profile.proStatus === 'pending' ? (
-              <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300 space-y-2">
+              <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300 space-y-3">
                 <p className="font-mono">Txn Ref: <b>{profile.proPaymentTxn}</b></p>
                 <p>
                   {language === 'en'
                     ? "Our admin team is checking the Telebirr/CBE bank ledger. Approvals take ~15-30 mins."
                     : "የአስተዳዳሪ ቡድናችን የሒሳብ መዝገብ በመፈተሽ ላይ ነው። ብዙውን ጊዜ 15-30 ደቂቃ ይወስዳል።"}
                 </p>
+
+                {(profile.proReceiptImage || receiptImage) && (
+                  <div className="pt-2 border-t border-amber-500/20 flex flex-col items-center gap-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
+                      {language === 'en' ? 'Submitted Payment Receipt:' : 'የተላከ የክፍያ ደረሰኝ፡'}
+                    </p>
+                    <img 
+                      src={profile.proReceiptImage || receiptImage} 
+                      alt="Submitted Receipt" 
+                      className="max-h-48 object-contain rounded-xl border border-amber-500/30 shadow-md bg-slate-950 p-1" 
+                    />
+                  </div>
+                )}
               </div>
             ) : (
               <p className="text-xs text-slate-400">
@@ -578,6 +704,17 @@ export default function UpgradeProView({
           </div>
         </div>
       )}
+
+      {/* Terms & Academic Rules Modal */}
+      <TermsModal
+        isOpen={showTermsModal}
+        onClose={() => setShowTermsModal(false)}
+        language={language}
+        onAcceptAndClose={() => {
+          setAgreedToTerms(true);
+          setShowTermsModal(false);
+        }}
+      />
 
     </div>
   );

@@ -30,6 +30,8 @@ export interface PaymentRecord {
   providerTxnId: string;
   senderName: string;
   senderPhone?: string;
+  receiptImage?: string; // Base64 data URL or image preview URL of receipt
+  agreedToTerms?: boolean;
   status: PaymentStatus;
   createdAt: string;
 }
@@ -74,6 +76,9 @@ export interface StudentProfile {
   senderName?: string;
   proPaymentPhone?: string;
   paymentMethod?: PaymentProvider;
+  proReceiptImage?: string; // Base64 data string or image URL of payment receipt
+  agreedToTerms?: boolean;
+  agreedToTermsDate?: string;
 }
 
 export interface Flashcard {
