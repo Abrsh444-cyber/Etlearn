@@ -9,7 +9,7 @@ import {
   Edit3, Save, X, Clock, AlertCircle, Database, Check, ShieldAlert, KeyRound,
   Copy, RefreshCw, CloudLightning, ChevronDown, ChevronUp, CheckCircle,
   FileText, HelpCircle, ShieldCheck, LogOut, Sparkles, CreditCard,
-  BarChart3, Settings
+  BarChart3, Settings, Send
 } from 'lucide-react';
 import { StudentProfile, AccountInfo } from '../types';
 import { playClickChime, playSuccessChime, playFailureChime } from '../utils/audio';
@@ -492,6 +492,12 @@ export default function StudentProfileView({
                 }`}>
                   {activeProfileData.isPro ? "PRO MEMBER" : "STANDARD"}
                 </span>
+                {(activeProfileData.telegramUsername || activeProfileData.telegramId) && (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-sky-500/20 text-sky-400 border border-sky-500/30 flex items-center gap-1">
+                    <Send className="w-2.5 h-2.5" />
+                    <span>Telegram Linked</span>
+                  </span>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-1 text-xs text-slate-300">

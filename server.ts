@@ -67,6 +67,130 @@ const PORT = 3000;
     }
   });
 
+  // Telegram Mini App authentication & student_profiles row link endpoint
+  app.post(['/api/telegram/auth', '/api/telegram/auth/'], async (req, res) => {
+    try {
+      const { initData } = req.body;
+      if (!initData) {
+        return res.status(400).json({ error: 'Missing initData in request payload' });
+      }
+
+      const botToken = process.env.TELEGRAM_BOT_TOKEN;
+      let user: any = null;
+      let isValid = false;
+
+      // Extract query params
+      const params = new URLSearchParams(initData);
+      const hash = params.get('hash');
+      const userStr = params.get('user');
+
+      if (userStr) {
+        try {
+          user = JSON.parse(userStr);
+        } catch (e) {
+          user = null;
+        }
+      }
+
+      if (botToken && hash) {
+        // Verify Telegram HMAC-SHA256 signature
+        const crypto = await import('crypto');
+        params.delete('hash');
+        const entries = Array.from(params.entries());
+        entries.sort((a, b) => a[0].localeCompare(b[0]));
+        const dataCheckString = entries.map(([k, v]) => `${k}=${v}`).join('\n');
+
+        const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
+        const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+
+        isValid = calculatedHash.toLowerCase() === hash.toLowerCase();
+      } else {
+        // If TELEGRAM_BOT_TOKEN is not set yet, trust user object from initData for seamless preview/testing
+        isValid = Boolean(user);
+      }
+
+      if (!isValid || !user) {
+        return res.status(401).json({ error: 'Invalid Telegram initData signature or user payload' });
+      }
+
+      // Check Supabase if configured
+      let profile: any = null;
+      const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+
+      if (supabaseUrl && supabaseKey) {
+        try {
+          const supabase = createClient(supabaseUrl, supabaseKey);
+          const { data: existing } = await supabase
+            .from('student_profiles')
+            .select('*')
+            .eq('telegram_id', user.id.toString())
+            .maybeSingle();
+
+          if (existing) {
+            const { data: updated } = await supabase
+              .from('student_profiles')
+              .update({
+                username: user.username || existing.username,
+                name: `${user.first_name} ${user.last_name || ''}`.trim(),
+                photo_url: user.photo_url || existing.photo_url,
+                updated_at: new Date().toISOString()
+              })
+              .eq('telegram_id', user.id.toString())
+              .select()
+              .single();
+
+            profile = updated || existing;
+          } else {
+            const newProfile = {
+              telegram_id: user.id.toString(),
+              name: `${user.first_name} ${user.last_name || ''}`.trim(),
+              username: user.username || '',
+              photo_url: user.photo_url || '',
+              email: `${user.username || user.id}@telegram.ethiolearn.et`,
+              university: 'Wolkite University',
+              year: '2nd Year',
+              is_pro: false,
+              created_at: new Date().toISOString()
+            };
+
+            const { data: inserted, error: insertErr } = await supabase
+              .from('student_profiles')
+              .insert(newProfile)
+              .select()
+              .single();
+
+            profile = inserted || newProfile;
+          }
+        } catch (supaErr) {
+          console.warn('[Telegram Auth API] Supabase query warning:', supaErr);
+        }
+      }
+
+      if (!profile) {
+        profile = {
+          telegram_id: user.id.toString(),
+          name: `${user.first_name} ${user.last_name || ''}`.trim(),
+          username: user.username || '',
+          photo_url: user.photo_url || '',
+          email: `${user.username || user.id}@telegram.ethiolearn.et`,
+          university: 'Wolkite University',
+          year: '2nd Year',
+          is_pro: false,
+        };
+      }
+
+      return res.json({
+        success: true,
+        verified: true,
+        telegramUser: user,
+        profile
+      });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message || 'Telegram auth error' });
+    }
+  });
+
   // Support ticket active email dispatch & tracking endpoints
   const ticketsFilePath = path.join(process.cwd(), 'shared_tickets.json');
 

@@ -41,6 +41,14 @@ import { initAuth, googleSignIn, googleSignInRedirect, logoutGoogle, exportAnaly
 import { User as FirebaseUser } from 'firebase/auth';
 import { initSupabaseConfig, getSupabase } from './utils/supabaseClient';
 import { safeStorage } from './utils/safeStorage';
+import { 
+  getTelegramWebApp, 
+  isTelegramWebApp, 
+  initTelegramWebApp, 
+  getTelegramUser, 
+  verifyAndSyncTelegramAuth, 
+  triggerHaptic 
+} from './utils/telegram';
 
 // Helper functions for real study streak calculation based on actual calendar days
 function recordStudyActivity() {
@@ -346,6 +354,97 @@ export default function App() {
     setStreak(realStreak);
     safeStorage.setItem('ethiolearn_pro_streak', String(realStreak));
   }, []);
+
+  // Telegram Mini App initialization & auto-auth profile link
+  useEffect(() => {
+    initTelegramWebApp();
+    
+    if (isTelegramWebApp()) {
+      const tg = getTelegramWebApp();
+      const tgUser = getTelegramUser();
+      
+      if (tg?.initData) {
+        verifyAndSyncTelegramAuth(tg.initData).then((res) => {
+          if (res?.success && res.profile) {
+            setProfile((prev) => {
+              const updated: StudentProfile = {
+                name: prev?.name || res.profile.name || (tgUser ? `${tgUser.first_name} ${tgUser.last_name || ''}`.trim() : 'Ethiopian Student'),
+                email: prev?.email || res.profile.email || `${tgUser?.username || tgUser?.id}@telegram.ethiolearn.et`,
+                university: prev?.university || res.profile.university || 'Wolkite University',
+                year: prev?.year || res.profile.year || '2nd Year',
+                subjects: prev?.subjects || [
+                  "Emerging Technologies", "Introduction to Economics", "General Biology", "Communicative English",
+                  "Moral and Civic Education", "Mathematics", "Inclusive Education", "Geography",
+                  "Logic and Critical Thinking", "History", "Chemistry", "Aptitude", "General Physics",
+                  "Entrepreneurship", "Social Anthropology", "C++ Programming", "Civics", "Agriculture",
+                  "Business", "Moral and Civics", "Emerging Tech", "Applied Math"
+                ],
+                claudeApiKey: prev?.claudeApiKey || '',
+                dailyGoalHours: prev?.dailyGoalHours || 3,
+                theme: prev?.theme || 'light',
+                language: prev?.language || language || 'en',
+                isRegistered: true,
+                isPro: prev?.isPro || res.profile.is_pro || false,
+                telegramId: tgUser?.id.toString() || res.profile.telegram_id,
+                telegramUsername: tgUser?.username || res.profile.username
+              };
+              safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(updated));
+              return updated;
+            });
+            console.log('[Telegram Mini App] Auto-authenticated & linked student profile via Telegram initData');
+          }
+        }).catch((err) => {
+          console.warn('[Telegram Mini App] Auto-auth verification notice:', err);
+        });
+      }
+    }
+  }, []);
+
+  // Telegram Mini App BackButton & MainButton state synchronization
+  useEffect(() => {
+    const tg = getTelegramWebApp();
+    if (!tg) return;
+
+    // Handle Telegram BackButton
+    if (tg.BackButton) {
+      if (currentPage !== 'home') {
+        tg.BackButton.show();
+        const handleTelegramBack = () => {
+          triggerHaptic('light');
+          playClickChime();
+          setCurrentPage('home');
+        };
+        tg.BackButton.onClick(handleTelegramBack);
+        return () => {
+          tg.BackButton.offClick(handleTelegramBack);
+        };
+      } else {
+        tg.BackButton.hide();
+      }
+    }
+
+    // Handle Telegram MainButton on specific pages
+    if (tg.MainButton) {
+      if (currentPage === 'upgrade') {
+        tg.MainButton.setText(language === 'en' ? 'UPGRADE TO PRO (200 BIRR)' : 'ወደ ፕሮ አባልነት አሳድግ (200 ብር)');
+        tg.MainButton.show();
+        const handleTelegramMainBtn = () => {
+          triggerHaptic('medium');
+          playClickChime();
+          const submitBtn = document.querySelector('button[type="submit"]') as HTMLButtonElement;
+          if (submitBtn) {
+            submitBtn.click();
+          }
+        };
+        tg.MainButton.onClick(handleTelegramMainBtn);
+        return () => {
+          tg.MainButton.offClick(handleTelegramMainBtn);
+        };
+      } else {
+        tg.MainButton.hide();
+      }
+    }
+  }, [currentPage, language]);
 
   // Synchronize master API Key to the cloud container if available in active profile
   useEffect(() => {

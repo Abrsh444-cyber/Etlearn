@@ -79,6 +79,8 @@ export interface StudentProfile {
   proReceiptImage?: string; // Base64 data string or image URL of payment receipt
   agreedToTerms?: boolean;
   agreedToTermsDate?: string;
+  telegramId?: string;
+  telegramUsername?: string;
 }
 
 export interface Flashcard {
