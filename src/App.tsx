@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Home as HomeIcon, Bot, Trophy, Award, Sparkles, Calendar, Sun, Moon, User as UserIcon, BookOpen, CheckCircle,
-  Share, X
+  Share, X, ShieldCheck
 } from 'lucide-react';
 
 import { StudentProfile, CustomNote, Flashcard } from './types';
@@ -25,6 +25,7 @@ import EthioLearnLogo from './components/EthioLearnLogo';
 import SupportChatBubble from './components/SupportChatBubble';
 import ExamNotesHubView from './components/ExamNotesHubView';
 import InAppViewerModal from './components/InAppViewerModal';
+import AdminDashboardView from './components/AdminDashboardView';
 
 import { 
   testFirestoreConnection, 
@@ -218,6 +219,7 @@ export default function App() {
 
   // Toast systems
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
 
   // Supabase books sync state
   const [supabaseBooks, setSupabaseBooks] = useState<any[]>([]);
@@ -1006,6 +1008,16 @@ export default function App() {
 
 
 
+            {/* Admin Dashboard Shield Button */}
+            <button
+              onClick={() => { playClickChime(); setIsAdminOpen(true); }}
+              className="p-2.5 border border-amber-500/30 bg-amber-500/10 rounded-xl hover:bg-amber-500/20 text-amber-500 cursor-pointer transition-all flex items-center gap-1"
+              title="Admin Control Dashboard"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span className="hidden lg:inline text-[10px] font-black uppercase tracking-wider">Admin</span>
+            </button>
+
             {profile.isPro && (
               <div 
                 onClick={() => { playClickChime(); setCurrentPage('upgrade'); }}
@@ -1351,6 +1363,16 @@ export default function App() {
             setInAppViewerUrl(null);
             setInAppViewerTitle('');
           }}
+        />
+      )}
+
+      {/* Admin Control Dashboard Modal Overlay */}
+      {isAdminOpen && (
+        <AdminDashboardView
+          currentProfile={profile}
+          language={language}
+          onClose={() => setIsAdminOpen(false)}
+          onUpdateProfile={handleUpdateProfile}
         />
       )}
 

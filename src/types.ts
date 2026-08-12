@@ -81,6 +81,28 @@ export interface StudentProfile {
   agreedToTermsDate?: string;
   telegramId?: string;
   telegramUsername?: string;
+  referralCode?: string;
+  referredBy?: string;
+  userRole?: 'student' | 'instructor' | 'admin' | 'super_admin';
+}
+
+export interface CouponCode {
+  code: string;
+  discountPercentage: number;
+  fixedDiscountETB?: number;
+  maxUses: number;
+  usedCount: number;
+  expiresAt: string;
+  isActive: boolean;
+}
+
+export interface PlatformAnnouncement {
+  id: string;
+  title: string;
+  message: string;
+  date: string;
+  badgeText?: string;
+  isImportant?: boolean;
 }
 
 export interface Flashcard {

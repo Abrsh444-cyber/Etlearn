@@ -394,3 +394,62 @@ Do NOT write markdown wrap blocks or conversational responses. Output the clean 
     });
   });
 }
+
+// Generate smart lesson summary & formula sheet
+export async function generateLessonSummaryAI(
+  subject: string,
+  rawText: string,
+  apiKey?: string
+): Promise<string> {
+  const promptMessage = `Summarize the following study notes for subject "${subject}":
+"""
+${rawText}
+"""
+
+Provide a structured, highly scannable output in clean markdown:
+1. 📌 **Executive Summary**: 2-3 core sentences.
+2. 🔑 **Key Terms & Definitions**: Bulleted list.
+3. 📐 **Core Formulas / Key Equations** (if applicable): Formatted clearly.
+4. 💡 **Top 3 Exam Tips & Common Pitfalls**: Practical study advice for Ethiopian university/national exams.`;
+
+  const messages: ChatMessage[] = [{ role: 'user', content: promptMessage }];
+  const system = "You are an expert academic tutor. Provide clear, structured, encouraging summaries in markdown.";
+
+  return new Promise((resolve, reject) => {
+    submitClaudeChat(messages, system, apiKey || '', {
+      onChunk: () => {},
+      onComplete: (text) => resolve(text),
+      onError: (err) => reject(err)
+    });
+  });
+}
+
+// Generate personalized study plan
+export async function generateStudyPlanAI(
+  subjects: string[],
+  examDate: string,
+  dailyHours: number,
+  apiKey?: string
+): Promise<string> {
+  const promptMessage = `Create a high-impact personalized study plan for an Ethiopian student preparing for exams on ${examDate}.
+Enrolled subjects: ${subjects.join(', ')}.
+Available daily study target: ${dailyHours} hours per day.
+
+Structure the study plan in clean markdown with:
+1. 🎯 **Weekly Milestone Strategy**: Subject distribution schedule per day.
+2. ⏰ **Daily Time Blocks**: Sample breakdown for a ${dailyHours}-hour study session.
+3. 🧠 **Revision & Spaced Repetition Advice**: Guidance on flashcard decks and past exams.
+4. 🇪🇹 **Ethiopian Academic Milestones**: Motivational advice tailored for freshman or national exam candidates.`;
+
+  const messages: ChatMessage[] = [{ role: 'user', content: promptMessage }];
+  const system = "You are an educational study counselor. Provide realistic, inspiring study schedules in markdown.";
+
+  return new Promise((resolve, reject) => {
+    submitClaudeChat(messages, system, apiKey || '', {
+      onChunk: () => {},
+      onComplete: (text) => resolve(text),
+      onError: (err) => reject(err)
+    });
+  });
+}
+

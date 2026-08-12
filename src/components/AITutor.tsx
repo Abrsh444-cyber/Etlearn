@@ -10,6 +10,7 @@ import AITutorLogo from './AITutorLogo';
 import { StudentProfile, Flashcard } from '../types';
 import { safeStorage } from '../utils/safeStorage';
 import PaywallModal from './PaywallModal';
+import AIStudyToolsModal from './AIStudyToolsModal';
 import { getDailyAIUsageCount, incrementDailyAIUsage, checkSubscriptionStatus, FREE_DAILY_AI_LIMIT } from '../utils/monetization';
 
 interface AITutorProps {
@@ -247,7 +248,7 @@ const LOCAL_FALLBACK_QUIZ: { [subject: string]: any[] } = {
 
 export default function AITutor({ 
   apiKey, 
-  enrolledSubjects, 
+  enrolledSubjects = [], 
   decksState, 
   onSaveDecksState, 
   onStudyAction,
@@ -255,8 +256,9 @@ export default function AITutor({
   onUpdateProfile,
   onOpenUpgrade
 }: AITutorProps) {
-  const [selectedSubject, setSelectedSubject] = useState(enrolledSubjects[0] || "Emerging Technologies");
+  const [selectedSubject, setSelectedSubject] = useState((enrolledSubjects && enrolledSubjects[0]) || "Emerging Technologies");
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
+  const [isStudyToolsOpen, setIsStudyToolsOpen] = useState(false);
   
   // Persistent language mapping
   const [language, setLanguage] = useState<'en' | 'am'>(() => {
@@ -717,6 +719,18 @@ Always end your explanations with 2 conversational, helpful revision questions f
             </span>
           </button>
 
+          {/* AI Tools Suite Button */}
+          <button
+            onClick={() => { setIsStudyToolsOpen(true); playClickChime(); }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-amber-500 text-slate-950 hover:bg-amber-600 shadow-sm transition-all cursor-pointer"
+            title={language === 'en' ? "Launch AI Quiz & Summary Tools" : "የኤአይ የጥናት መሳሪያዎች"}
+          >
+            <Sparkles className="w-4 h-4" />
+            <span className="hidden sm:inline">
+              {language === 'en' ? "AI Tools Suite" : "የኤአይ መሳሪያዎች"}
+            </span>
+          </button>
+
           <button
             onClick={clearHistory}
             title={language === 'en' ? "Clear Chat" : "ውይይት አጽዳ"}
@@ -923,6 +937,15 @@ Always end your explanations with 2 conversational, helpful revision questions f
         language={language}
         questionsUsed={getDailyAIUsageCount(profile.email || profile.name || 'guest')}
         maxQuestions={FREE_DAILY_AI_LIMIT}
+      />
+
+      {/* AI Study Tools Suite Modal */}
+      <AIStudyToolsModal
+        isOpen={isStudyToolsOpen}
+        onClose={() => setIsStudyToolsOpen(false)}
+        language={language}
+        userApiKey={apiKey}
+        enrolledSubjects={enrolledSubjects}
       />
     </div>
   );
