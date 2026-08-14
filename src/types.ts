@@ -103,6 +103,57 @@ export interface PlatformAnnouncement {
   date: string;
   badgeText?: string;
   isImportant?: boolean;
+  status?: 'draft' | 'published' | 'archived';
+  createdAt?: string;
+}
+
+export type CourseStatus = 'draft' | 'published' | 'archived';
+
+export interface CourseRecord {
+  id: string;
+  title: string;
+  description: string;
+  subject: string;
+  level: 'Grade 12' | 'University' | 'Grade 12 New Curriculum' | 'Common Courses';
+  status: CourseStatus;
+  lessonsCount: number;
+  goalDays: number;
+  instructorId?: string;
+  instructorName?: string;
+  thumbnailUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LessonRecord {
+  id: string;
+  courseId: string;
+  title: string;
+  chapterNumber: number;
+  content: string;
+  duration: string;
+  status: CourseStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminDashboardStats {
+  totalStudents: number;
+  publishedCourses: number;
+  draftCourses: number;
+  totalLessons: number;
+  totalRevenueETB: number;
+  pendingPaymentsCount: number;
+  totalPaymentsCount: number;
+  activeAnnouncementsCount: number;
+  activeCouponsCount: number;
+  recentActivity: {
+    id: string;
+    type: 'user_registered' | 'course_published' | 'course_created' | 'payment_received' | 'announcement_posted';
+    title: string;
+    description: string;
+    timestamp: string;
+  }[];
 }
 
 export interface Flashcard {

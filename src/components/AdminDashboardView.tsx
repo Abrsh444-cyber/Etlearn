@@ -1,12 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Users, ShieldCheck, CreditCard, Tag, Bell, BookOpen, BarChart3, Search, CheckCircle, 
-  XCircle, Plus, Trash2, Award, ArrowUpRight, Lock, Key, RefreshCw, AlertCircle, Sparkles, Send
+  XCircle, Plus, Trash2, Award, ArrowUpRight, Lock, Key, RefreshCw, AlertCircle, Sparkles, 
+  Send, Edit3, Eye, Archive, Check, Database, Copy, ExternalLink, Clock, Layers, FileText
 } from 'lucide-react';
-import { StudentProfile, CouponCode, PlatformAnnouncement, PaymentRecord } from '../types';
+import { 
+  StudentProfile, CouponCode, PlatformAnnouncement, CourseRecord, LessonRecord, 
+  AdminDashboardStats, CourseStatus 
+} from '../types';
 import { playClickChime, playSuccessChime, playFailureChime } from '../utils/audio';
-import { safeStorage } from '../utils/safeStorage';
+import { 
+  fetchAdminDashboardStats, fetchAdminCourses, createCourse, updateCourse, 
+  publishCourse, unpublishCourse, archiveCourse, deleteCourse, fetchCourseLessons, 
+  saveLesson, fetchAdminStudents, fetchAdminPayments, updatePaymentStatus, 
+  fetchCoupons, createCoupon, deleteCoupon, fetchAnnouncements, createAnnouncement, 
+  deleteAnnouncement 
+} from '../utils/supabaseCourses';
+import { testSupabaseConnection, ETHIOLEARN_SUPABASE_SQL_SCRIPT, getSupabase } from '../utils/supabaseClient';
 
 interface AdminDashboardViewProps {
   currentProfile: StudentProfile;
@@ -22,148 +33,411 @@ export default function AdminDashboardView({
   onUpdateProfile
 }: AdminDashboardViewProps) {
   const isAmharic = language === 'am';
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'payments' | 'coupons' | 'announcements'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'courses' | 'users' | 'payments' | 'coupons' | 'announcements' | 'database'>('overview');
 
-  // Search query state for users
+  // Loading & Sync States
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [stats, setStats] = useState<AdminDashboardStats>({
+    totalStudents: 0,
+    publishedCourses: 0,
+    draftCourses: 0,
+    totalLessons: 0,
+    totalRevenueETB: 0,
+    pendingPaymentsCount: 0,
+    totalPaymentsCount: 0,
+    activeAnnouncementsCount: 0,
+    activeCouponsCount: 0,
+    recentActivity: []
+  });
+
+  // Database Diagnosis Modal state
+  const [dbDiag, setDbDiag] = useState<{
+    tested: boolean;
+    success: boolean;
+    message: string;
+    tablesFound: string[];
+    needsSqlSetup: boolean;
+  } | null>(null);
+  const [showSqlCopied, setShowSqlCopied] = useState(false);
+
+  // --------------------------------------------------------------------------
+  // COURSES MANAGEMENT STATE
+  // --------------------------------------------------------------------------
+  const [courses, setCourses] = useState<CourseRecord[]>([]);
+  const [courseFilter, setCourseFilter] = useState<'all' | 'published' | 'draft' | 'archived'>('all');
+  const [courseSearch, setCourseSearch] = useState('');
+  const [isPublishingMap, setIsPublishingMap] = useState<Record<string, boolean>>({});
+
+  // Create / Edit Course Modal
+  const [showCourseModal, setShowCourseModal] = useState(false);
+  const [editingCourse, setEditingCourse] = useState<CourseRecord | null>(null);
+  const [courseFormTitle, setCourseFormTitle] = useState('');
+  const [courseFormSubject, setCourseFormSubject] = useState('');
+  const [courseFormLevel, setCourseFormLevel] = useState<'Grade 12' | 'University' | 'Grade 12 New Curriculum' | 'Common Courses'>('University');
+  const [courseFormDescription, setCourseFormDescription] = useState('');
+  const [courseFormGoalDays, setCourseFormGoalDays] = useState('14');
+  const [courseFormStatus, setCourseFormStatus] = useState<CourseStatus>('draft');
+  const [courseFormLessonsText, setCourseFormLessonsText] = useState('');
+  const [courseFormSaving, setCourseFormSaving] = useState(false);
+
+  // Manage Lessons Modal
+  const [selectedCourseForLessons, setSelectedCourseForLessons] = useState<CourseRecord | null>(null);
+  const [courseLessons, setCourseLessons] = useState<LessonRecord[]>([]);
+  const [loadingLessons, setLoadingLessons] = useState(false);
+  const [newLessonTitle, setNewLessonTitle] = useState('');
+  const [newLessonContent, setNewLessonContent] = useState('');
+  const [newLessonDuration, setNewLessonDuration] = useState('15m');
+  const [savingLesson, setSavingLesson] = useState(false);
+
+  // --------------------------------------------------------------------------
+  // STUDENTS STATE
+  // --------------------------------------------------------------------------
+  const [students, setStudents] = useState<any[]>([]);
   const [userSearch, setUserSearch] = useState('');
+  const [loadingStudents, setLoadingStudents] = useState(false);
 
-  // Sample or stored users list
-  const [mockUsers, setMockUsers] = useState<StudentProfile[]>(() => {
-    try {
-      const saved = safeStorage.getItem('ethiolearn_all_registered_users');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      // fallback
-    }
-    return [
-      ...(currentProfile ? [currentProfile] : []),
-      {
-        name: 'Abebe Bikila',
-        email: 'abebe@wku.edu.et',
-        university: 'Wolkite University',
-        year: '2nd Year',
-        subjects: ['Emerging Technologies', 'Logic and Critical Thinking'],
-        claudeApiKey: '',
-        dailyGoalHours: 4,
-        theme: 'dark',
-        language: 'en',
-        isPro: true,
-        userRole: 'student',
-        referralCode: 'WKU-7712'
-      },
-      {
-        name: 'Tigist Assefa',
-        email: 'tigist@aau.edu.et',
-        university: 'Addis Ababa University',
-        year: 'Freshman',
-        subjects: ['General Physics', 'General Biology'],
-        claudeApiKey: '',
-        dailyGoalHours: 3,
-        theme: 'light',
-        language: 'am',
-        isPro: false,
-        userRole: 'student',
-        referralCode: 'AAU-9021'
-      }
-    ];
-  });
+  // --------------------------------------------------------------------------
+  // PAYMENTS STATE
+  // --------------------------------------------------------------------------
+  const [payments, setPayments] = useState<any[]>([]);
+  const [paymentActionLoading, setPaymentActionLoading] = useState<Record<string, boolean>>({});
 
-  // Coupons State
-  const [coupons, setCoupons] = useState<CouponCode[]>(() => {
-    try {
-      const saved = safeStorage.getItem('ethiolearn_coupon_codes');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      // fallback
-    }
-    return [
-      { code: 'ETHIO2026', discountPercentage: 25, maxUses: 100, usedCount: 34, expiresAt: '2026-12-31', isActive: true },
-      { code: 'WOLKITE50', discountPercentage: 50, maxUses: 50, usedCount: 48, expiresAt: '2026-09-01', isActive: true },
-      { code: 'PROSUMMER', discountPercentage: 15, maxUses: 200, usedCount: 12, expiresAt: '2026-10-15', isActive: true }
-    ];
-  });
-
-  // New Coupon Form
+  // --------------------------------------------------------------------------
+  // COUPONS STATE
+  // --------------------------------------------------------------------------
+  const [coupons, setCoupons] = useState<CouponCode[]>([]);
   const [newCode, setNewCode] = useState('');
   const [newDiscount, setNewDiscount] = useState('20');
   const [newMaxUses, setNewMaxUses] = useState('50');
+  const [couponSaving, setCouponSaving] = useState(false);
 
-  // Announcements State
-  const [announcements, setAnnouncements] = useState<PlatformAnnouncement[]>(() => {
-    try {
-      const saved = safeStorage.getItem('ethiolearn_platform_announcements');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      // fallback
-    }
-    return [
-      {
-        id: 'ann-1',
-        title: 'Grade 12 Model Exams Uploaded',
-        message: 'All 2016 E.C. national exam models for Physics, Chemistry, and Biology are now live.',
-        date: '2026-08-10',
-        badgeText: 'New Content',
-        isImportant: true
-      },
-      {
-        id: 'ann-2',
-        title: 'Telebirr Instant Verification',
-        message: 'Pro upgrades via Telebirr & CBE Birr now feature 1-click automatic transaction reconciliation.',
-        date: '2026-08-08',
-        badgeText: 'System Update',
-        isImportant: false
-      }
-    ];
-  });
-
-  // New Announcement Form
+  // --------------------------------------------------------------------------
+  // ANNOUNCEMENTS STATE
+  // --------------------------------------------------------------------------
+  const [announcements, setAnnouncements] = useState<PlatformAnnouncement[]>([]);
   const [annTitle, setAnnTitle] = useState('');
   const [annMessage, setAnnMessage] = useState('');
   const [annBadge, setAnnBadge] = useState('Notice');
+  const [annImportant, setAnnImportant] = useState(true);
+  const [annSaving, setAnnSaving] = useState(false);
 
-  // Sample Payments Verification Queue
-  const [pendingPayments, setPendingPayments] = useState<PaymentRecord[]>([
-    {
-      id: 'pay-901',
-      userId: 'abebe@wku.edu.et',
-      amount: 200,
-      currency: 'ETB',
-      provider: 'telebirr',
-      providerTxnId: 'TLB-8839201948',
-      senderName: 'Abebe Bikila',
-      senderPhone: '0911223344',
-      status: 'pending',
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 'pay-902',
-      userId: 'tigist@aau.edu.et',
-      amount: 200,
-      currency: 'ETB',
-      provider: 'cbe_birr',
-      providerTxnId: 'CBE-9920183412',
-      senderName: 'Tigist Assefa',
-      senderPhone: '0922334455',
-      status: 'pending',
-      createdAt: new Date(Date.now() - 3600000 * 4).toISOString()
+  // --------------------------------------------------------------------------
+  // DATA FETCHING & SYNCHRONIZATION
+  // --------------------------------------------------------------------------
+  const loadAllAdminData = useCallback(async (isSilent = false) => {
+    if (!isSilent) setIsLoading(true);
+    setIsRefreshing(true);
+
+    try {
+      // Parallel queries to Supabase
+      const [
+        liveStats, 
+        liveCourses, 
+        liveCoupons, 
+        liveAnnouncements, 
+        livePayments, 
+        liveStudents
+      ] = await Promise.all([
+        fetchAdminDashboardStats(),
+        fetchAdminCourses(),
+        fetchCoupons(),
+        fetchAnnouncements(),
+        fetchAdminPayments(),
+        fetchAdminStudents(userSearch)
+      ]);
+
+      setStats(liveStats);
+      setCourses(liveCourses);
+      setCoupons(liveCoupons);
+      setAnnouncements(liveAnnouncements);
+      setPayments(livePayments);
+      setStudents(liveStudents);
+    } catch (err) {
+      console.error('Error fetching admin data:', err);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
     }
-  ]);
+  }, [userSearch]);
 
-  const handleApprovePayment = (id: string) => {
+  useEffect(() => {
+    loadAllAdminData();
+    // Test Supabase connection on open
+    testSupabaseConnection().then(res => {
+      setDbDiag({ tested: true, ...res });
+    });
+  }, [loadAllAdminData]);
+
+  // --------------------------------------------------------------------------
+  // COURSE ACTIONS (Duplicate-proof)
+  // --------------------------------------------------------------------------
+  const handleOpenCreateCourse = () => {
+    setEditingCourse(null);
+    setCourseFormTitle('');
+    setCourseFormSubject('');
+    setCourseFormLevel('University');
+    setCourseFormDescription('');
+    setCourseFormGoalDays('14');
+    setCourseFormStatus('draft');
+    setCourseFormLessonsText('');
+    setShowCourseModal(true);
+  };
+
+  const handleOpenEditCourse = (course: CourseRecord) => {
+    setEditingCourse(course);
+    setCourseFormTitle(course.title);
+    setCourseFormSubject(course.subject);
+    setCourseFormLevel(course.level);
+    setCourseFormDescription(course.description);
+    setCourseFormGoalDays(course.goalDays.toString());
+    setCourseFormStatus(course.status);
+    setCourseFormLessonsText('');
+    setShowCourseModal(true);
+  };
+
+  const handleSaveCourse = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!courseFormTitle.trim() || !courseFormSubject.trim()) {
+      alert(isAmharic ? 'እባክዎን የኮርሱን ርዕስ እና የትምህርት አይነት ያስገቡ!' : 'Please enter course title and subject!');
+      return;
+    }
+
+    setCourseFormSaving(true);
+    playClickChime();
+
+    try {
+      if (editingCourse) {
+        // UPDATE existing record by exact ID (never create duplicate)
+        const res = await updateCourse(editingCourse.id, {
+          title: courseFormTitle.trim(),
+          subject: courseFormSubject.trim(),
+          level: courseFormLevel,
+          description: courseFormDescription.trim(),
+          goalDays: parseInt(courseFormGoalDays, 10) || 14,
+          status: courseFormStatus,
+        });
+
+        if (res.success) {
+          playSuccessChime();
+          // Update in-place in local state
+          setCourses(prev => prev.map(c => c.id === editingCourse.id ? {
+            ...c,
+            title: courseFormTitle.trim(),
+            subject: courseFormSubject.trim(),
+            level: courseFormLevel,
+            description: courseFormDescription.trim(),
+            goalDays: parseInt(courseFormGoalDays, 10) || 14,
+            status: courseFormStatus,
+            updatedAt: new Date().toISOString(),
+          } : c));
+          setShowCourseModal(false);
+          loadAllAdminData(true);
+        } else {
+          alert(`Error updating course: ${res.error}`);
+        }
+      } else {
+        // CREATE new course with stable unique ID
+        const res = await createCourse({
+          title: courseFormTitle.trim(),
+          subject: courseFormSubject.trim(),
+          level: courseFormLevel,
+          description: courseFormDescription.trim(),
+          goalDays: parseInt(courseFormGoalDays, 10) || 14,
+          status: courseFormStatus,
+          instructorId: currentProfile.email || 'admin',
+          instructorName: currentProfile.name || 'EthioLearn Faculty',
+        });
+
+        if (res.success && res.course) {
+          playSuccessChime();
+          const createdCourse = res.course;
+
+          // If initial lessons were provided, parse and save them
+          if (courseFormLessonsText.trim()) {
+            const lines = courseFormLessonsText.split('\n').map(l => l.trim()).filter(Boolean);
+            for (let i = 0; i < lines.length; i++) {
+              await saveLesson(createdCourse.id, {
+                title: lines[i],
+                chapterNumber: i + 1,
+                content: `Overview and core objectives for ${lines[i]}.`,
+                status: 'published'
+              });
+            }
+          }
+
+          setCourses(prev => [createdCourse, ...prev.filter(c => c.id !== createdCourse.id)]);
+          setShowCourseModal(false);
+          loadAllAdminData(true);
+        } else {
+          alert(`Error creating course: ${res.error}`);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      playFailureChime();
+    } finally {
+      setCourseFormSaving(false);
+    }
+  };
+
+  /**
+   * Toggle Publish Status (with in-flight lock to prevent double clicks)
+   */
+  const handleTogglePublish = async (course: CourseRecord) => {
+    if (isPublishingMap[course.id]) return; // In-flight lock
+    playClickChime();
+
+    setIsPublishingMap(prev => ({ ...prev, [course.id]: true }));
+    const newStatus: CourseStatus = course.status === 'published' ? 'draft' : 'published';
+
+    try {
+      const res = newStatus === 'published' 
+        ? await publishCourse(course.id) 
+        : await unpublishCourse(course.id);
+
+      if (res.success) {
+        playSuccessChime();
+        // Mutate exact record in local state
+        setCourses(prev => prev.map(c => c.id === course.id ? { ...c, status: newStatus, updatedAt: new Date().toISOString() } : c));
+        // Refresh aggregate stats
+        setStats(prev => ({
+          ...prev,
+          publishedCourses: newStatus === 'published' ? prev.publishedCourses + 1 : Math.max(0, prev.publishedCourses - 1),
+          draftCourses: newStatus === 'draft' ? prev.draftCourses + 1 : Math.max(0, prev.draftCourses - 1),
+        }));
+      } else {
+        alert(`Could not update publication state: ${res.error}`);
+      }
+    } catch (err) {
+      console.error(err);
+      playFailureChime();
+    } finally {
+      setIsPublishingMap(prev => ({ ...prev, [course.id]: false }));
+    }
+  };
+
+  const handleArchiveCourse = async (course: CourseRecord) => {
+    if (isPublishingMap[course.id]) return;
+    if (!confirm(`Are you sure you want to archive "${course.title}"? Students will no longer see it in active lists.`)) return;
+
+    setIsPublishingMap(prev => ({ ...prev, [course.id]: true }));
+    try {
+      const res = await archiveCourse(course.id);
+      if (res.success) {
+        playSuccessChime();
+        setCourses(prev => prev.map(c => c.id === course.id ? { ...c, status: 'archived', updatedAt: new Date().toISOString() } : c));
+        loadAllAdminData(true);
+      }
+    } finally {
+      setIsPublishingMap(prev => ({ ...prev, [course.id]: false }));
+    }
+  };
+
+  const handleDeleteCourse = async (course: CourseRecord) => {
+    if (!confirm(`⚠️ Permanently delete "${course.title}" from Supabase? This action cannot be undone.`)) return;
+    playClickChime();
+
+    try {
+      const res = await deleteCourse(course.id);
+      if (res.success) {
+        playSuccessChime();
+        setCourses(prev => prev.filter(c => c.id !== course.id));
+        loadAllAdminData(true);
+      } else {
+        alert(`Error deleting course: ${res.error}`);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // --------------------------------------------------------------------------
+  // LESSONS MANAGEMENT MODAL
+  // --------------------------------------------------------------------------
+  const handleOpenLessons = async (course: CourseRecord) => {
+    setSelectedCourseForLessons(course);
+    setLoadingLessons(true);
+    setNewLessonTitle('');
+    setNewLessonContent('');
+    try {
+      const lessons = await fetchCourseLessons(course.id, true);
+      setCourseLessons(lessons);
+    } finally {
+      setLoadingLessons(false);
+    }
+  };
+
+  const handleAddLesson = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCourseForLessons || !newLessonTitle.trim()) return;
+
+    setSavingLesson(true);
+    playClickChime();
+
+    try {
+      const nextChapterNum = courseLessons.length + 1;
+      const res = await saveLesson(selectedCourseForLessons.id, {
+        title: newLessonTitle.trim(),
+        content: newLessonContent.trim() || `Course material for chapter ${nextChapterNum}.`,
+        chapterNumber: nextChapterNum,
+        duration: newLessonDuration || '15m',
+        status: 'published',
+      });
+
+      if (res.success && res.lesson) {
+        playSuccessChime();
+        const saved = res.lesson;
+        setCourseLessons(prev => [...prev.filter(l => l.id !== saved.id), saved]);
+        setNewLessonTitle('');
+        setNewLessonContent('');
+        // Update parent course lessons count
+        setCourses(prev => prev.map(c => c.id === selectedCourseForLessons.id ? { ...c, lessonsCount: c.lessonsCount + 1 } : c));
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSavingLesson(false);
+    }
+  };
+
+  // --------------------------------------------------------------------------
+  // PAYMENTS ACTIONS
+  // --------------------------------------------------------------------------
+  const handleApprovePayment = async (id: string) => {
     playSuccessChime();
-    setPendingPayments(prev => prev.map(p => p.id === id ? { ...p, status: 'completed' } : p));
+    setPaymentActionLoading(prev => ({ ...prev, [id]: true }));
+    try {
+      await updatePaymentStatus(id, 'completed');
+      setPayments(prev => prev.map(p => p.id === id ? { ...p, status: 'completed' } : p));
+      loadAllAdminData(true);
+    } finally {
+      setPaymentActionLoading(prev => ({ ...prev, [id]: false }));
+    }
   };
 
-  const handleDeclinePayment = (id: string) => {
+  const handleDeclinePayment = async (id: string) => {
     playFailureChime();
-    setPendingPayments(prev => prev.map(p => p.id === id ? { ...p, status: 'failed' } : p));
+    setPaymentActionLoading(prev => ({ ...prev, [id]: true }));
+    try {
+      await updatePaymentStatus(id, 'failed');
+      setPayments(prev => prev.map(p => p.id === id ? { ...p, status: 'failed' } : p));
+      loadAllAdminData(true);
+    } finally {
+      setPaymentActionLoading(prev => ({ ...prev, [id]: false }));
+    }
   };
 
-  const handleAddCoupon = (e: React.FormEvent) => {
+  // --------------------------------------------------------------------------
+  // COUPONS ACTIONS
+  // --------------------------------------------------------------------------
+  const handleAddCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCode.trim()) return;
 
-    playSuccessChime();
+    setCouponSaving(true);
+    playClickChime();
+
     const created: CouponCode = {
       code: newCode.trim().toUpperCase(),
       discountPercentage: parseInt(newDiscount, 10) || 20,
@@ -173,202 +447,505 @@ export default function AdminDashboardView({
       isActive: true
     };
 
-    const updated = [created, ...coupons];
-    setCoupons(updated);
-    safeStorage.setItem('ethiolearn_coupon_codes', JSON.stringify(updated));
-    setNewCode('');
+    try {
+      const res = await createCoupon(created);
+      if (res.success) {
+        playSuccessChime();
+        setCoupons(prev => [created, ...prev.filter(c => c.code !== created.code)]);
+        setNewCode('');
+        loadAllAdminData(true);
+      }
+    } finally {
+      setCouponSaving(false);
+    }
   };
 
-  const handleDeleteCoupon = (code: string) => {
+  const handleDeleteCoupon = async (code: string) => {
     playClickChime();
-    const updated = coupons.filter(c => c.code !== code);
-    setCoupons(updated);
-    safeStorage.setItem('ethiolearn_coupon_codes', JSON.stringify(updated));
+    await deleteCoupon(code);
+    setCoupons(prev => prev.filter(c => c.code !== code));
+    loadAllAdminData(true);
   };
 
-  const handleAddAnnouncement = (e: React.FormEvent) => {
+  // --------------------------------------------------------------------------
+  // ANNOUNCEMENTS ACTIONS
+  // --------------------------------------------------------------------------
+  const handleAddAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!annTitle.trim() || !annMessage.trim()) return;
 
-    playSuccessChime();
-    const newAnn: PlatformAnnouncement = {
-      id: `ann-${Date.now()}`,
-      title: annTitle.trim(),
-      message: annMessage.trim(),
-      date: new Date().toISOString().split('T')[0],
-      badgeText: annBadge,
-      isImportant: true
-    };
+    setAnnSaving(true);
+    playClickChime();
 
-    const updated = [newAnn, ...announcements];
-    setAnnouncements(updated);
-    safeStorage.setItem('ethiolearn_platform_announcements', JSON.stringify(updated));
-    setAnnTitle('');
-    setAnnMessage('');
+    try {
+      const res = await createAnnouncement({
+        title: annTitle.trim(),
+        message: annMessage.trim(),
+        badgeText: annBadge,
+        isImportant: annImportant,
+        status: 'published',
+      });
+
+      if (res.success && res.announcement) {
+        playSuccessChime();
+        setAnnouncements(prev => [res.announcement!, ...prev]);
+        setAnnTitle('');
+        setAnnMessage('');
+        loadAllAdminData(true);
+      }
+    } finally {
+      setAnnSaving(false);
+    }
   };
 
-  const filteredUsers = mockUsers.filter(u => 
-    u.name.toLowerCase().includes(userSearch.toLowerCase()) || 
-    (u.email && u.email.toLowerCase().includes(userSearch.toLowerCase())) ||
-    u.university.toLowerCase().includes(userSearch.toLowerCase())
-  );
+  const handleDeleteAnnouncement = async (id: string) => {
+    playClickChime();
+    await deleteAnnouncement(id);
+    setAnnouncements(prev => prev.filter(a => a.id !== id));
+    loadAllAdminData(true);
+  };
+
+  // --------------------------------------------------------------------------
+  // FILTERED LISTS
+  // --------------------------------------------------------------------------
+  const filteredCourses = courses.filter(c => {
+    const matchesFilter = courseFilter === 'all' || c.status === courseFilter;
+    const q = courseSearch.toLowerCase().trim();
+    const matchesSearch = !q || c.title.toLowerCase().includes(q) || c.subject.toLowerCase().includes(q);
+    return matchesFilter && matchesSearch;
+  });
+
+  const filteredStudents = students.filter(s => {
+    const q = userSearch.toLowerCase().trim();
+    return !q || 
+      (s.name && s.name.toLowerCase().includes(q)) || 
+      (s.email && s.email.toLowerCase().includes(q)) ||
+      (s.university && s.university.toLowerCase().includes(q));
+  });
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto">
       <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
+        initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="w-full max-w-5xl bg-[#0F172A] text-slate-100 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        exit={{ opacity: 0, scale: 0.96 }}
+        className="w-full max-w-6xl bg-slate-950 border border-slate-800/80 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
       >
-        {/* Header */}
-        <div className="p-4 sm:p-5 bg-[#0A1128] border-b border-slate-800 flex items-center justify-between shrink-0">
+        {/* ─── HEADER ─── */}
+        <div className="px-5 py-4 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-                <span>ET_LEARN Admin Control Dashboard</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-500/20 text-amber-400 font-mono border border-amber-500/30">
-                  SUPER ADMIN
+              <div className="flex items-center gap-2">
+                <h1 className="text-base sm:text-lg font-black tracking-tight text-white">
+                  ET_LEARN Unified Management Console
+                </h1>
+                <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-mono font-bold uppercase">
+                  Supabase Live
                 </span>
-              </h2>
-              <p className="text-xs text-slate-400">Manage students, courses, payments, coupons & platform health</p>
+              </div>
+              <p className="text-xs text-slate-400 font-mono">
+                Single Source of Truth Database Management System
+              </p>
             </div>
           </div>
 
-          <button
-            onClick={() => { playClickChime(); onClose(); }}
-            className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-          >
-            <XCircle className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => loadAllAdminData(false)}
+              disabled={isRefreshing}
+              className="p-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-amber-500/40 text-slate-300 hover:text-white transition-all cursor-pointer disabled:opacity-50"
+              title="Refresh database records"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-amber-400' : ''}`} />
+            </button>
+            <button 
+              onClick={onClose}
+              className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white text-xs font-semibold transition-all cursor-pointer"
+            >
+              {isAmharic ? 'ዝጋ' : 'Exit Console'}
+            </button>
+          </div>
         </div>
 
-        {/* Tab Bar */}
-        <div className="flex items-center gap-2 px-4 pt-3 bg-[#0A1128]/50 border-b border-slate-800 overflow-x-auto shrink-0">
+        {/* ─── NAVIGATION TABS ─── */}
+        <div className="flex items-center px-4 sm:px-6 bg-slate-950/90 border-b border-slate-800 overflow-x-auto scrollbar-none gap-1 sm:gap-2">
           <button
             onClick={() => { playClickChime(); setActiveTab('overview'); }}
-            className={`px-4 py-2.5 rounded-t-xl text-xs font-semibold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${
+            className={`px-3.5 py-3 rounded-t-xl text-xs font-bold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'overview'
-                ? 'border-amber-400 text-amber-400 bg-slate-900/80'
+                ? 'border-amber-400 text-amber-400 bg-slate-900/60'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <BarChart3 className="w-4 h-4" />
-            <span>Overview & Stats</span>
+            <span>Overview & Live Stats</span>
+          </button>
+
+          <button
+            onClick={() => { playClickChime(); setActiveTab('courses'); }}
+            className={`px-3.5 py-3 rounded-t-xl text-xs font-bold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+              activeTab === 'courses'
+                ? 'border-amber-400 text-amber-400 bg-slate-900/60'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <BookOpen className="w-4 h-4" />
+            <span>Courses & Publishing ({courses.length})</span>
+            {stats.draftCourses > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-mono">
+                {stats.draftCourses} draft
+              </span>
+            )}
           </button>
 
           <button
             onClick={() => { playClickChime(); setActiveTab('users'); }}
-            className={`px-4 py-2.5 rounded-t-xl text-xs font-semibold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${
+            className={`px-3.5 py-3 rounded-t-xl text-xs font-bold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'users'
-                ? 'border-amber-400 text-amber-400 bg-slate-900/80'
+                ? 'border-amber-400 text-amber-400 bg-slate-900/60'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <Users className="w-4 h-4" />
-            <span>Students ({mockUsers.length})</span>
+            <span>Students ({stats.totalStudents})</span>
           </button>
 
           <button
             onClick={() => { playClickChime(); setActiveTab('payments'); }}
-            className={`px-4 py-2.5 rounded-t-xl text-xs font-semibold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${
+            className={`px-3.5 py-3 rounded-t-xl text-xs font-bold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'payments'
-                ? 'border-amber-400 text-amber-400 bg-slate-900/80'
+                ? 'border-amber-400 text-amber-400 bg-slate-900/60'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <CreditCard className="w-4 h-4" />
-            <span>Telebirr/CBE Payments ({pendingPayments.filter(p => p.status === 'pending').length})</span>
+            <span>Payments ({stats.pendingPaymentsCount} pending)</span>
           </button>
 
           <button
             onClick={() => { playClickChime(); setActiveTab('coupons'); }}
-            className={`px-4 py-2.5 rounded-t-xl text-xs font-semibold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${
+            className={`px-3.5 py-3 rounded-t-xl text-xs font-bold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'coupons'
-                ? 'border-amber-400 text-amber-400 bg-slate-900/80'
+                ? 'border-amber-400 text-amber-400 bg-slate-900/60'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <Tag className="w-4 h-4" />
-            <span>Discount Coupons ({coupons.length})</span>
+            <span>Coupons ({coupons.length})</span>
           </button>
 
           <button
             onClick={() => { playClickChime(); setActiveTab('announcements'); }}
-            className={`px-4 py-2.5 rounded-t-xl text-xs font-semibold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${
+            className={`px-3.5 py-3 rounded-t-xl text-xs font-bold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'announcements'
-                ? 'border-amber-400 text-amber-400 bg-slate-900/80'
+                ? 'border-amber-400 text-amber-400 bg-slate-900/60'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <Bell className="w-4 h-4" />
             <span>Announcements ({announcements.length})</span>
           </button>
+
+          <button
+            onClick={() => { playClickChime(); setActiveTab('database'); }}
+            className={`px-3.5 py-3 rounded-t-xl text-xs font-bold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+              activeTab === 'database'
+                ? 'border-amber-400 text-amber-400 bg-slate-900/60'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Database className="w-4 h-4" />
+            <span>Schema & SQL Setup</span>
+          </button>
         </div>
 
-        {/* Content Body */}
+        {/* ─── MAIN CONTENT BODY ─── */}
         <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-6">
+          
+          {/* ================================================================ */}
+          {/* TAB 1: OVERVIEW & LIVE STATS                                    */}
+          {/* ================================================================ */}
           {activeTab === 'overview' && (
             <div className="space-y-6">
-              {/* Stat Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1">
-                  <p className="text-xs text-slate-400 font-medium">Total Registered Students</p>
-                  <p className="text-2xl font-black text-white">{mockUsers.length + 1420}</p>
-                  <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-mono">
-                    <ArrowUpRight className="w-3 h-3" /> +18% this month
+              {/* Real Stat Cards (Zero on empty, never fake numbers) */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+                <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-1 shadow-sm">
+                  <p className="text-xs text-slate-400 font-medium flex items-center justify-between">
+                    <span>Registered Students</span>
+                    <Users className="w-3.5 h-3.5 text-slate-500" />
+                  </p>
+                  <p className="text-2xl font-black text-white">{stats.totalStudents}</p>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    Live Supabase profiles
                   </span>
                 </div>
 
-                <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1">
-                  <p className="text-xs text-slate-400 font-medium">Pro Active Members</p>
-                  <p className="text-2xl font-black text-amber-400">485</p>
-                  <span className="text-[10px] text-amber-400/80 font-mono">
-                    34% conversion rate
+                <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-1 shadow-sm">
+                  <p className="text-xs text-slate-400 font-medium flex items-center justify-between">
+                    <span>Published Courses</span>
+                    <BookOpen className="w-3.5 h-3.5 text-emerald-400" />
+                  </p>
+                  <p className="text-2xl font-black text-emerald-400">{stats.publishedCourses}</p>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    {stats.draftCourses} draft courses in queue
                   </span>
                 </div>
 
-                <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1">
-                  <p className="text-xs text-slate-400 font-medium">Total Revenue (ETB)</p>
-                  <p className="text-2xl font-black text-emerald-400">97,000 Birr</p>
-                  <span className="text-[10px] text-emerald-400/80 font-mono">
-                    Telebirr & CBE Birr
+                <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-1 shadow-sm">
+                  <p className="text-xs text-slate-400 font-medium flex items-center justify-between">
+                    <span>Total Revenue</span>
+                    <CreditCard className="w-3.5 h-3.5 text-amber-400" />
+                  </p>
+                  <p className="text-2xl font-black text-amber-400">{stats.totalRevenueETB.toLocaleString()} ETB</p>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    {stats.pendingPaymentsCount} pending verification
                   </span>
                 </div>
 
-                <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1">
-                  <p className="text-xs text-slate-400 font-medium">Exam & Quiz Attempts</p>
-                  <p className="text-2xl font-black text-sky-400">28,450</p>
-                  <span className="text-[10px] text-sky-400/80 font-mono">
-                    Grade 12 & Varsity
+                <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-1 shadow-sm">
+                  <p className="text-xs text-slate-400 font-medium flex items-center justify-between">
+                    <span>Curriculum Lessons</span>
+                    <Layers className="w-3.5 h-3.5 text-sky-400" />
+                  </p>
+                  <p className="text-2xl font-black text-sky-400">{stats.totalLessons}</p>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    Across all database courses
                   </span>
                 </div>
               </div>
 
-              {/* Platform Health Quick Action Card */}
-              <div className="p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900/80 to-[#0A1128] border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="space-y-1">
+              {/* Database Status Banner */}
+              <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="space-y-1 text-left">
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-amber-400" />
-                    <span>ET_LEARN Server Security Status</span>
+                    <Database className="w-4 h-4 text-amber-400" />
+                    <span>Supabase PostgreSQL Integration Status</span>
                   </h3>
                   <p className="text-xs text-slate-300">
-                    Supabase PostgreSQL RLS enabled • Gemini API Server Proxy Active • Telegram HMAC Verified
+                    {dbDiag?.success 
+                      ? `Connected to database. Tables: [${dbDiag.tablesFound.join(', ') || 'Ready'}]` 
+                      : 'Connecting to Supabase instance or using resilient local state.'}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-bold font-mono flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                    ALL SYSTEMS ONLINE
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => setActiveTab('database')}
+                    className="px-3.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-amber-500/50 text-slate-300 hover:text-white text-xs font-semibold transition-all cursor-pointer"
+                  >
+                    View SQL Script
+                  </button>
+                  <span className={`px-3 py-1.5 rounded-xl text-xs font-bold font-mono flex items-center gap-1.5 ${
+                    dbDiag?.success ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                  }`}>
+                    <span className={`w-2 h-2 rounded-full ${dbDiag?.success ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                    {dbDiag?.success ? 'DATABASE SYNCHRONIZED' : 'LOCAL CACHE ACTIVE'}
                   </span>
                 </div>
+              </div>
+
+              {/* Recent Activity Log */}
+              <div className="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-amber-400" />
+                    <span>Live Database Activity Stream</span>
+                  </h3>
+                  <span className="text-[11px] font-mono text-slate-500">Real-time DB logs</span>
+                </div>
+
+                {stats.recentActivity.length === 0 ? (
+                  <div className="py-8 text-center text-slate-500 text-xs">
+                    No recent database events recorded yet. Create courses or invite students to see live events.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-800/80">
+                    {stats.recentActivity.map(act => (
+                      <div key={act.id} className="py-3 flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-xs font-bold text-slate-200">{act.title}</p>
+                          <p className="text-[11px] text-slate-400 mt-0.5">{act.description}</p>
+                        </div>
+                        <span className="text-[10px] font-mono text-slate-500 shrink-0">
+                          {new Date(act.timestamp).toLocaleDateString()} {new Date(act.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
 
+          {/* ================================================================ */}
+          {/* TAB 2: COURSES & PUBLISHING (Complete Duplicate-Proof CMS)       */}
+          {/* ================================================================ */}
+          {activeTab === 'courses' && (
+            <div className="space-y-4">
+              {/* Action & Filter Bar */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:w-60">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={courseSearch}
+                      onChange={(e) => setCourseSearch(e.target.value)}
+                      placeholder="Search courses..."
+                      className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-800 bg-slate-950 text-slate-100 text-xs focus:ring-1 focus:ring-amber-500 outline-none"
+                    />
+                  </div>
+
+                  <div className="flex bg-slate-950 p-0.5 rounded-xl border border-slate-800 text-xs">
+                    {(['all', 'published', 'draft', 'archived'] as const).map(f => (
+                      <button
+                        key={f}
+                        onClick={() => { playClickChime(); setCourseFilter(f); }}
+                        className={`px-2.5 py-1 rounded-lg capitalize transition-all cursor-pointer text-[11px] ${
+                          courseFilter === f ? 'bg-amber-500 text-slate-950 font-bold shadow-xs' : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleOpenCreateCourse}
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/10"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Create Course</span>
+                </button>
+              </div>
+
+              {/* Course Cards Grid */}
+              {filteredCourses.length === 0 ? (
+                <div className="p-12 text-center bg-slate-900/50 rounded-2xl border border-dashed border-slate-800 space-y-3">
+                  <BookOpen className="w-10 h-10 text-slate-600 mx-auto" />
+                  <h4 className="text-sm font-bold text-slate-300">No Courses Found in this Category</h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    Click "Create Course" above to author a new curriculum track with real Supabase database persistence.
+                  </p>
+                  <button
+                    onClick={handleOpenCreateCourse}
+                    className="px-4 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs cursor-pointer inline-flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Author First Course
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {filteredCourses.map(course => {
+                    const isPublishing = Boolean(isPublishingMap[course.id]);
+                    return (
+                      <div 
+                        key={course.id}
+                        className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between gap-4 shadow-sm"
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <span className="text-[10px] font-mono font-bold text-amber-400 uppercase tracking-wider block">
+                                {course.subject} • {course.level}
+                              </span>
+                              <h4 className="text-sm font-bold text-white mt-0.5">{course.title}</h4>
+                            </div>
+
+                            {/* Status Badge */}
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase shrink-0 border ${
+                              course.status === 'published'
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                : course.status === 'draft'
+                                ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                                : 'bg-slate-800 text-slate-400 border-slate-700'
+                            }`}>
+                              {course.status}
+                            </span>
+                          </div>
+
+                          <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+                            {course.description || 'No description provided.'}
+                          </p>
+
+                          <div className="flex items-center gap-4 text-[11px] text-slate-400 font-mono pt-1">
+                            <span>ID: <span className="text-slate-300">{course.id.substring(0, 14)}...</span></span>
+                            <span>Lessons: <span className="text-slate-300">{course.lessonsCount}</span></span>
+                            <span>Goal: <span className="text-slate-300">{course.goalDays}d</span></span>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => handleOpenEditCourse(course)}
+                              className="px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white text-xs font-medium transition-all cursor-pointer flex items-center gap-1"
+                              title="Edit Course Metadata"
+                            >
+                              <Edit3 className="w-3.5 h-3.5 text-slate-400" />
+                              <span>Edit</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleOpenLessons(course)}
+                              className="px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white text-xs font-medium transition-all cursor-pointer flex items-center gap-1"
+                              title="Manage Lessons"
+                            >
+                              <Layers className="w-3.5 h-3.5 text-sky-400" />
+                              <span>Lessons ({course.lessonsCount})</span>
+                            </button>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            {/* Publish / Unpublish Toggle with Duplicate Prevention Lock */}
+                            <button
+                              onClick={() => handleTogglePublish(course)}
+                              disabled={isPublishing}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 border ${
+                                course.status === 'published'
+                                  ? 'bg-slate-950 border-slate-800 text-slate-400 hover:text-amber-400'
+                                  : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
+                              } disabled:opacity-50`}
+                            >
+                              {isPublishing ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              ) : course.status === 'published' ? (
+                                <>
+                                  <Archive className="w-3.5 h-3.5" />
+                                  <span>Unpublish</span>
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle className="w-3.5 h-3.5" />
+                                  <span>Publish Live</span>
+                                </>
+                              )}
+                            </button>
+
+                            <button
+                              onClick={() => handleDeleteCourse(course)}
+                              className="p-1.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-red-500/40 text-slate-500 hover:text-red-400 transition-all cursor-pointer"
+                              title="Delete Course"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ================================================================ */}
+          {/* TAB 3: REAL REGISTERED STUDENTS                                 */}
+          {/* ================================================================ */}
           {activeTab === 'users' && (
             <div className="space-y-4">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -378,233 +955,524 @@ export default function AdminDashboardView({
                     type="text"
                     value={userSearch}
                     onChange={(e) => setUserSearch(e.target.value)}
-                    placeholder="Search by student name or email..."
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white outline-none focus:border-amber-500"
+                    placeholder="Search by student name, email, campus..."
+                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-800 bg-slate-900 text-slate-100 text-xs focus:ring-1 focus:ring-amber-500 outline-none"
                   />
                 </div>
-                <span className="text-xs text-slate-400">
-                  Showing {filteredUsers.length} student records
+
+                <span className="text-xs text-slate-400 font-mono">
+                  Showing {filteredStudents.length} of {stats.totalStudents} students
                 </span>
               </div>
 
-              <div className="border border-slate-800 rounded-xl overflow-hidden">
-                <table className="w-full text-left text-xs text-slate-300">
-                  <thead className="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-semibold uppercase text-[10px]">
-                    <tr>
-                      <th className="p-3">Student Name</th>
-                      <th className="p-3">University / Grade</th>
-                      <th className="p-3">Role</th>
-                      <th className="p-3">Pro Access</th>
-                      <th className="p-3">Referral Code</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60 bg-slate-900/30">
-                    {filteredUsers.map((u, i) => (
-                      <tr key={i} className="hover:bg-slate-800/40 transition-colors">
-                        <td className="p-3 font-semibold text-white">
-                          {u.name}
-                          {u.email && <span className="block text-[10px] text-slate-400 font-normal">{u.email}</span>}
-                        </td>
-                        <td className="p-3">{u.university} ({u.year})</td>
-                        <td className="p-3">
-                          <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-mono">
-                            {u.userRole || 'student'}
-                          </span>
-                        </td>
-                        <td className="p-3">
-                          {u.isPro ? (
-                            <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-bold">
-                              PRO MEMBER
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-400 text-[10px]">
-                              Free Tier
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-3 font-mono text-slate-400">{u.referralCode || 'ET-WKU-8921'}</td>
+              {filteredStudents.length === 0 ? (
+                <div className="py-12 text-center bg-slate-900/50 rounded-2xl border border-slate-800 text-slate-500 text-xs">
+                  {userSearch ? 'No students matched your search.' : 'No registered student profiles found in Supabase yet.'}
+                </div>
+              ) : (
+                <div className="bg-slate-900/90 rounded-2xl border border-slate-800 overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-950 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
+                      <tr>
+                        <th className="px-4 py-3">Student Name</th>
+                        <th className="px-4 py-3">Email & Auth</th>
+                        <th className="px-4 py-3">University / Campus</th>
+                        <th className="px-4 py-3">Tier</th>
+                        <th className="px-4 py-3">Role</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800 text-slate-200">
+                      {filteredStudents.map((st, idx) => (
+                        <tr key={st.email || idx} className="hover:bg-slate-800/40 transition-colors">
+                          <td className="px-4 py-3 font-semibold text-white flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-black flex items-center justify-center">
+                              {(st.name || 'S')[0]}
+                            </div>
+                            <span>{st.name || 'Student'}</span>
+                          </td>
+                          <td className="px-4 py-3 font-mono text-slate-400">{st.email || 'N/A'}</td>
+                          <td className="px-4 py-3">{st.university || 'Wolkite University'}</td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              st.is_pro || st.isPro 
+                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' 
+                                : 'bg-slate-800 text-slate-400'
+                            }`}>
+                              {st.is_pro || st.isPro ? 'PRO PASS' : 'FREE TIER'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 font-mono text-slate-400 capitalize">{st.user_role || st.userRole || 'Student'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 
+          {/* ================================================================ */}
+          {/* TAB 4: REAL PAYMENTS VERIFICATION                               */}
+          {/* ================================================================ */}
           {activeTab === 'payments' && (
             <div className="space-y-4">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <CreditCard className="w-4 h-4 text-amber-400" />
-                <span>Telebirr & CBE Birr Payment Reconciliations</span>
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-300">
+                  Payment Reconciliation & Receipt Approval Queue
+                </h3>
+                <span className="text-xs font-mono text-amber-400 font-bold">
+                  {payments.filter(p => p.status === 'pending').length} Pending Review
+                </span>
+              </div>
 
-              <div className="space-y-3">
-                {pendingPayments.map((p) => (
-                  <div key={p.id} className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-white text-sm">{p.senderName}</span>
-                        <span className="px-2 py-0.5 rounded text-[10px] bg-sky-500/20 text-sky-400 uppercase font-bold border border-sky-500/30">
-                          {p.provider}
-                        </span>
-                        <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${
-                          p.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400' :
-                          p.status === 'failed' ? 'bg-rose-500/20 text-rose-400' : 'bg-amber-500/20 text-amber-400'
-                        }`}>
-                          {p.status}
-                        </span>
+              {payments.length === 0 ? (
+                <div className="py-12 text-center bg-slate-900/50 rounded-2xl border border-slate-800 text-slate-500 text-xs">
+                  No payment transactions recorded in database yet.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {payments.map(p => {
+                    const isProcessing = Boolean(paymentActionLoading[p.id]);
+                    return (
+                      <div key={p.id} className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <span className="text-[10px] font-mono text-amber-400 uppercase font-bold">
+                              {p.provider || 'telebirr'} • {p.provider_transaction_id || p.providerTxnId || p.id}
+                            </span>
+                            <h4 className="text-sm font-bold text-white mt-0.5">{p.sender_name || p.senderName || 'Student'}</h4>
+                            <p className="text-xs text-slate-400 font-mono">{p.sender_phone || p.senderPhone || p.user_id}</p>
+                          </div>
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                            p.status === 'completed' 
+                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                              : p.status === 'failed'
+                              ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                              : 'bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse'
+                          }`}>
+                            {p.status}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between text-xs font-mono bg-slate-950 p-2.5 rounded-xl border border-slate-800/80">
+                          <span className="text-slate-400">Amount:</span>
+                          <span className="text-emerald-400 font-black text-sm">{p.amount} ETB</span>
+                        </div>
+
+                        {p.status === 'pending' && (
+                          <div className="flex items-center gap-2 pt-1">
+                            <button
+                              onClick={() => handleApprovePayment(p.id)}
+                              disabled={isProcessing}
+                              className="flex-1 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-1 disabled:opacity-50"
+                            >
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              <span>Verify & Upgrade Pro</span>
+                            </button>
+                            <button
+                              onClick={() => handleDeclinePayment(p.id)}
+                              disabled={isProcessing}
+                              className="px-3 py-2 rounded-xl bg-slate-950 hover:bg-red-500/20 border border-slate-800 text-slate-400 hover:text-red-400 font-bold text-xs transition-all cursor-pointer disabled:opacity-50"
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
                       </div>
-                      <p className="text-xs text-slate-400 font-mono">
-                        Txn Ref: <strong className="text-amber-400">{p.providerTxnId}</strong> • Amount: {p.amount} ETB • Phone: {p.senderPhone || 'N/A'}
-                      </p>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ================================================================ */}
+          {/* TAB 5: COUPONS                                                  */}
+          {/* ================================================================ */}
+          {activeTab === 'coupons' && (
+            <div className="space-y-6">
+              <form onSubmit={handleAddCoupon} className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-400">Generate New Promo Coupon</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-mono block mb-1">Coupon Code</label>
+                    <input
+                      type="text"
+                      value={newCode}
+                      onChange={(e) => setNewCode(e.target.value.toUpperCase())}
+                      placeholder="e.g. WKU2026"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-800 bg-slate-950 text-slate-100 text-xs uppercase font-mono outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-mono block mb-1">Discount (%)</label>
+                    <input
+                      type="number"
+                      value={newDiscount}
+                      onChange={(e) => setNewDiscount(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-800 bg-slate-950 text-slate-100 text-xs font-mono outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-mono block mb-1">Max Redemptions</label>
+                    <input
+                      type="number"
+                      value={newMaxUses}
+                      onChange={(e) => setNewMaxUses(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-800 bg-slate-950 text-slate-100 text-xs font-mono outline-none"
+                    />
+                  </div>
+                </div>
+                <button
+                  type="submit"
+                  disabled={couponSaving || !newCode.trim()}
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {couponSaving ? 'Saving...' : 'Create Coupon in Database'}
+                </button>
+              </form>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {coupons.map(c => (
+                  <div key={c.code} className="p-4 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                    <div>
+                      <span className="font-mono font-black text-amber-400 text-sm">{c.code}</span>
+                      <p className="text-xs text-slate-400 mt-0.5">{c.discountPercentage}% OFF • {c.usedCount}/{c.maxUses} used</p>
                     </div>
-
-                    {p.status === 'pending' && (
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleApprovePayment(p.id)}
-                          className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer"
-                        >
-                          <CheckCircle className="w-3.5 h-3.5" />
-                          <span>Approve & Activate Pro</span>
-                        </button>
-                        <button
-                          onClick={() => handleDeclinePayment(p.id)}
-                          className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-950 text-rose-400 border border-slate-700 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer"
-                        >
-                          <XCircle className="w-3.5 h-3.5" />
-                          <span>Decline</span>
-                        </button>
-                      </div>
-                    )}
+                    <button
+                      onClick={() => handleDeleteCoupon(c.code)}
+                      className="p-1.5 text-slate-500 hover:text-red-400 cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {activeTab === 'coupons' && (
-            <div className="space-y-6">
-              {/* Create Coupon Form */}
-              <form onSubmit={handleAddCoupon} className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
-                <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Tag className="w-4 h-4" />
-                  <span>Create New Promo Coupon Code</span>
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <input
-                    type="text"
-                    value={newCode}
-                    onChange={(e) => setNewCode(e.target.value)}
-                    placeholder="Code Name (e.g. FRESHMAN50)"
-                    className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-amber-500"
-                  />
-                  <input
-                    type="number"
-                    value={newDiscount}
-                    onChange={(e) => setNewDiscount(e.target.value)}
-                    placeholder="Discount % (e.g. 25)"
-                    className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-amber-500"
-                  />
-                  <input
-                    type="number"
-                    value={newMaxUses}
-                    onChange={(e) => setNewMaxUses(e.target.value)}
-                    placeholder="Max Redeem Uses (e.g. 100)"
-                    className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-amber-500"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Generate Coupon Code</span>
-                </button>
-              </form>
-
-              {/* Coupon Table */}
-              <div className="border border-slate-800 rounded-xl overflow-hidden">
-                <table className="w-full text-left text-xs text-slate-300">
-                  <thead className="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-semibold uppercase text-[10px]">
-                    <tr>
-                      <th className="p-3">Coupon Code</th>
-                      <th className="p-3">Discount</th>
-                      <th className="p-3">Uses / Max</th>
-                      <th className="p-3">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60 bg-slate-900/30">
-                    {coupons.map((c, i) => (
-                      <tr key={i}>
-                        <td className="p-3 font-mono font-bold text-amber-400">{c.code}</td>
-                        <td className="p-3">{c.discountPercentage}% OFF</td>
-                        <td className="p-3">{c.usedCount} / {c.maxUses}</td>
-                        <td className="p-3">
-                          <button
-                            onClick={() => handleDeleteCoupon(c.code)}
-                            className="p-1.5 rounded bg-slate-800 hover:bg-rose-900/50 text-rose-400 transition-colors cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
+          {/* ================================================================ */}
+          {/* TAB 6: ANNOUNCEMENTS                                            */}
+          {/* ================================================================ */}
           {activeTab === 'announcements' && (
             <div className="space-y-6">
-              {/* Broadcast Form */}
-              <form onSubmit={handleAddAnnouncement} className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
-                <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Send className="w-4 h-4" />
-                  <span>Broadcast System Announcement to All Students</span>
-                </h4>
-                <div className="space-y-2">
+              <form onSubmit={handleAddAnnouncement} className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-400">Broadcast Platform Announcement</h4>
+                <div className="space-y-3">
                   <input
                     type="text"
                     value={annTitle}
                     onChange={(e) => setAnnTitle(e.target.value)}
-                    placeholder="Announcement Title (e.g. Wolkite University Midterm Exams Update)"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-amber-500"
+                    placeholder="Announcement Headline"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-800 bg-slate-950 text-slate-100 text-xs font-medium outline-none"
                   />
                   <textarea
+                    rows={3}
                     value={annMessage}
                     onChange={(e) => setAnnMessage(e.target.value)}
-                    placeholder="Announcement message content..."
-                    rows={3}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-amber-500"
+                    placeholder="Detailed notice text for all students..."
+                    className="w-full px-3 py-2 rounded-xl border border-slate-800 bg-slate-950 text-slate-100 text-xs outline-none"
                   />
+                  <div className="flex items-center gap-3">
+                    <select
+                      value={annBadge}
+                      onChange={(e) => setAnnBadge(e.target.value)}
+                      className="px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-950 text-slate-300 text-xs outline-none"
+                    >
+                      <option value="Notice">Notice</option>
+                      <option value="New Content">New Content</option>
+                      <option value="System Update">System Update</option>
+                      <option value="Exam Alert">Exam Alert</option>
+                    </select>
+                    <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={annImportant}
+                        onChange={(e) => setAnnImportant(e.target.checked)}
+                        className="rounded border-slate-800 text-amber-500"
+                      />
+                      <span>Pin as High Priority</span>
+                    </label>
+                  </div>
                 </div>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg flex items-center gap-1.5 cursor-pointer"
+                  disabled={annSaving || !annTitle.trim() || !annMessage.trim()}
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-all cursor-pointer disabled:opacity-50"
                 >
-                  <Bell className="w-4 h-4" />
-                  <span>Publish Announcement</span>
+                  {annSaving ? 'Publishing...' : 'Publish Announcement'}
                 </button>
               </form>
 
-              {/* Announcements List */}
               <div className="space-y-3">
-                {announcements.map((a) => (
-                  <div key={a.id} className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-white text-sm">{a.title}</span>
-                      <span className="text-[10px] text-slate-400 font-mono">{a.date}</span>
+                {announcements.map(a => (
+                  <div key={a.id} className="p-4 rounded-2xl bg-slate-900 border border-slate-800 flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-mono font-bold">
+                          {a.badgeText || 'Notice'}
+                        </span>
+                        <h4 className="text-xs font-bold text-white">{a.title}</h4>
+                      </div>
+                      <p className="text-xs text-slate-400">{a.message}</p>
+                      <span className="text-[10px] font-mono text-slate-500 block pt-1">{a.date}</span>
                     </div>
-                    <p className="text-xs text-slate-300">{a.message}</p>
+                    <button
+                      onClick={() => handleDeleteAnnouncement(a.id)}
+                      className="p-1 text-slate-500 hover:text-red-400 cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* ================================================================ */}
+          {/* TAB 7: DATABASE SCHEMA & 1-CLICK SQL SCRIPT                      */}
+          {/* ================================================================ */}
+          {activeTab === 'database' && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                      <Database className="w-4 h-4 text-amber-400" />
+                      <span>PostgreSQL Database Table Schema (Supabase)</span>
+                    </h4>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Copy and run this idempotent SQL script in your Supabase SQL Editor to initialize all tables with RLS and triggers.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(ETHIOLEARN_SUPABASE_SQL_SCRIPT);
+                      setShowSqlCopied(true);
+                      setTimeout(() => setShowSqlCopied(false), 2000);
+                    }}
+                    className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs cursor-pointer flex items-center gap-1.5 shadow-sm"
+                  >
+                    {showSqlCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{showSqlCopied ? 'Copied to Clipboard!' : 'Copy SQL Script'}</span>
+                  </button>
+                </div>
+
+                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 font-mono text-[11px] text-slate-300 max-h-72 overflow-y-auto whitespace-pre">
+                  {ETHIOLEARN_SUPABASE_SQL_SCRIPT}
+                </div>
               </div>
             </div>
           )}
         </div>
       </motion.div>
+
+      {/* ─── CREATE / EDIT COURSE MODAL ─── */}
+      {showCourseModal && (
+        <div className="fixed inset-0 z-60 bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="w-full max-w-lg bg-slate-950 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-2xl text-slate-100">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-amber-400" />
+                <span>{editingCourse ? `Edit Course (${editingCourse.id.substring(0, 10)})` : 'Author New Course'}</span>
+              </h3>
+              <button onClick={() => setShowCourseModal(false)} className="text-slate-400 hover:text-white">
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCourse} className="space-y-3.5">
+              <div>
+                <label className="text-[10px] font-mono text-slate-400 block mb-1">Course Title *</label>
+                <input
+                  type="text"
+                  required
+                  value={courseFormTitle}
+                  onChange={(e) => setCourseFormTitle(e.target.value)}
+                  placeholder="e.g. Advanced Calculus & Differential Equations"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-800 bg-slate-900 text-xs font-semibold text-white outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-mono text-slate-400 block mb-1">Subject *</label>
+                  <input
+                    type="text"
+                    required
+                    value={courseFormSubject}
+                    onChange={(e) => setCourseFormSubject(e.target.value)}
+                    placeholder="e.g. Mathematics"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-800 bg-slate-900 text-xs text-white outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-mono text-slate-400 block mb-1">Target Curriculum Level</label>
+                  <select
+                    value={courseFormLevel}
+                    onChange={(e) => setCourseFormLevel(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-800 bg-slate-900 text-xs text-slate-300 outline-none"
+                  >
+                    <option value="University">University</option>
+                    <option value="Grade 12">Grade 12</option>
+                    <option value="Grade 12 New Curriculum">Grade 12 New Curriculum</option>
+                    <option value="Common Courses">Common Courses</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-mono text-slate-400 block mb-1">Goal Days</label>
+                  <input
+                    type="number"
+                    value={courseFormGoalDays}
+                    onChange={(e) => setCourseFormGoalDays(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-800 bg-slate-900 text-xs text-white font-mono outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-mono text-slate-400 block mb-1">Publication State</label>
+                  <select
+                    value={courseFormStatus}
+                    onChange={(e) => setCourseFormStatus(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-800 bg-slate-900 text-xs text-slate-300 outline-none font-bold"
+                  >
+                    <option value="draft">Draft (Admin Only)</option>
+                    <option value="published">Published (Students Visible)</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-mono text-slate-400 block mb-1">Course Description</label>
+                <textarea
+                  rows={2}
+                  value={courseFormDescription}
+                  onChange={(e) => setCourseFormDescription(e.target.value)}
+                  placeholder="Overview of syllabus, prerequisites, and learning outcomes..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-800 bg-slate-900 text-xs text-slate-200 outline-none focus:border-amber-500"
+                />
+              </div>
+
+              {!editingCourse && (
+                <div>
+                  <label className="text-[10px] font-mono text-slate-400 block mb-1">Initial Lessons / Units (One per line)</label>
+                  <textarea
+                    rows={3}
+                    value={courseFormLessonsText}
+                    onChange={(e) => setCourseFormLessonsText(e.target.value)}
+                    placeholder="Chapter 1: Propositional Logic&#10;Chapter 2: Predicate Calculus&#10;Chapter 3: Formal Proofs"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-800 bg-slate-900 text-xs font-mono text-slate-300 outline-none"
+                  />
+                </div>
+              )}
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCourseModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={courseFormSaving}
+                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {courseFormSaving ? 'Saving to Database...' : editingCourse ? 'Save Changes' : 'Create & Save Course'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── LESSONS MANAGEMENT MODAL ─── */}
+      {selectedCourseForLessons && (
+        <div className="fixed inset-0 z-60 bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="w-full max-w-2xl bg-slate-950 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-2xl text-slate-100 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <span className="text-[10px] font-mono text-amber-400 uppercase font-bold">Curriculum Lessons</span>
+                <h3 className="text-sm font-bold text-white">{selectedCourseForLessons.title}</h3>
+              </div>
+              <button onClick={() => setSelectedCourseForLessons(null)} className="text-slate-400 hover:text-white">
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Existing Lessons List */}
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+              {loadingLessons ? (
+                <div className="py-8 text-center text-xs text-slate-500 font-mono">Loading lessons...</div>
+              ) : courseLessons.length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-500">No lessons created yet for this course.</div>
+              ) : (
+                courseLessons.map((l, idx) => (
+                  <div key={l.id || idx} className="p-3 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-6 h-6 rounded-lg bg-slate-950 text-amber-400 font-mono text-[10px] font-bold flex items-center justify-center border border-slate-800 shrink-0">
+                        {l.chapterNumber}
+                      </span>
+                      <div>
+                        <h5 className="text-xs font-bold text-white">{l.title}</h5>
+                        <p className="text-[11px] text-slate-400 line-clamp-1">{l.content}</p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-400 shrink-0">{l.duration}</span>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Add Lesson Form */}
+            <form onSubmit={handleAddLesson} className="pt-3 border-t border-slate-800 space-y-2.5 bg-slate-900/60 p-3.5 rounded-2xl">
+              <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider">Add Lesson / Unit</h4>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
+                  <input
+                    type="text"
+                    required
+                    value={newLessonTitle}
+                    onChange={(e) => setNewLessonTitle(e.target.value)}
+                    placeholder="Lesson Title (e.g. Unit 3: Transformers)"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-800 bg-slate-950 text-xs text-white outline-none"
+                  />
+                </div>
+                <div>
+                  <input
+                    type="text"
+                    value={newLessonDuration}
+                    onChange={(e) => setNewLessonDuration(e.target.value)}
+                    placeholder="Duration (e.g. 20m)"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-800 bg-slate-950 text-xs text-slate-300 font-mono outline-none"
+                  />
+                </div>
+              </div>
+              <textarea
+                rows={2}
+                value={newLessonContent}
+                onChange={(e) => setNewLessonContent(e.target.value)}
+                placeholder="Lesson syllabus summary, formulas, or key definitions..."
+                className="w-full px-3 py-2 rounded-xl border border-slate-800 bg-slate-950 text-xs text-slate-300 outline-none"
+              />
+              <div className="text-right">
+                <button
+                  type="submit"
+                  disabled={savingLesson || !newLessonTitle.trim()}
+                  className="px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {savingLesson ? 'Adding...' : 'Add Lesson'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

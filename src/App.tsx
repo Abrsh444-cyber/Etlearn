@@ -944,10 +944,10 @@ export default function App() {
               <EthioLearnLogo size={42} showCardBackground={true} iconOnly={true} className="hover:rotate-6 duration-300 transition-all shrink-0" />
               <div className="leading-none text-left">
                 <div className="flex items-center">
-                  <span className="font-serif font-black text-slate-900 dark:text-white text-lg tracking-tight">EthioLearn</span>
-                  <span className="text-[#078930] text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900 ml-1.5 font-sans">PRO</span>
+                  <span className="font-serif font-black text-slate-900 dark:text-white text-lg tracking-tight">ET_LEARN</span>
+                  <span className="text-[#F59E0B] text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-500 ml-1.5 font-sans">PRO</span>
                 </div>
-                <span className="text-[10px] text-slate-400 dark:text-zinc-500 font-semibold">{profile.university}</span>
+                <span className="text-[10px] text-slate-400 dark:text-zinc-400 font-semibold">{profile.university || 'Learn Smarter. Prepare Better.'}</span>
               </div>
             </div>
 

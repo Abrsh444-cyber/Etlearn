@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Bot, BookOpen, Play, GraduationCap, FileText, Bell, Star, Clock, CheckCircle, Flame, Calendar,
-  Target, CheckSquare, Square, TrendingUp, ArrowRight, ShieldCheck, X, ChevronRight, Bookmark
+  Target, CheckSquare, Square, TrendingUp, ArrowRight, ShieldCheck, X, ChevronRight, Bookmark, Award
 } from 'lucide-react';
-import { StudentProfile } from '../types';
+import { StudentProfile, CourseRecord, PlatformAnnouncement } from '../types';
 import { playClickChime, playSuccessChime } from '../utils/audio';
 import { safeStorage } from '../utils/safeStorage';
 import { getEthiopianDate, toGeezNumeral, ETHIOPIAN_HOLIDAYS } from '../utils/ethiopianCalendar';
+import { fetchPublishedCourses, fetchAnnouncements } from '../utils/supabaseCourses';
 
 interface HomeDashboardProps {
   profile: StudentProfile;
@@ -15,16 +16,6 @@ interface HomeDashboardProps {
   onUpdateGrade: (grade: string) => void;
   streakCount: number;
   studyHoursCount: number;
-}
-
-interface RecommendedCourse {
-  id: string;
-  title: string;
-  description: string;
-  level: 'Grade 12' | 'University';
-  lessonsCount: number;
-  goalDays: number;
-  subject: string;
 }
 
 interface DailyTask {
@@ -144,6 +135,51 @@ export default function HomeDashboard({
     }
   ]);
 
+  // Real Database Courses from Supabase (Single Source of Truth)
+  const activeLevel = profile.year === 'University' ? 'University' : 'Grade 12';
+  const [publishedCourses, setPublishedCourses] = useState<CourseRecord[]>([]);
+  const [loadingCourses, setLoadingCourses] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    setLoadingCourses(true);
+    fetchPublishedCourses(activeLevel)
+      .then(courses => {
+        if (isMounted) {
+          setPublishedCourses(courses);
+          setLoadingCourses(false);
+        }
+      })
+      .catch(err => {
+        console.error('Failed to load published courses:', err);
+        if (isMounted) setLoadingCourses(false);
+      });
+
+    // Also fetch live announcements from database
+    fetchAnnouncements(true).then(dbAnnouncements => {
+      if (isMounted && dbAnnouncements.length > 0) {
+        const mapped: NotificationItem[] = dbAnnouncements.map(a => ({
+          id: a.id,
+          titleEn: a.title,
+          titleAm: a.title,
+          descEn: a.message,
+          descAm: a.message,
+          timeEn: a.date,
+          timeAm: a.date,
+          read: false
+        }));
+        setNotifications(prev => {
+          // Merge without duplicating existing IDs
+          const existingIds = new Set(prev.map(p => p.id));
+          const newOnes = mapped.filter(m => !existingIds.has(m.id));
+          return [...newOnes, ...prev];
+        });
+      }
+    });
+
+    return () => { isMounted = false; };
+  }, [activeLevel]);
+
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const toggleCourseFavorite = (courseId: string, e: React.MouseEvent) => {
@@ -163,47 +199,6 @@ export default function HomeDashboard({
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
 
-  const RECOMMENDED_COURSES: RecommendedCourse[] = [
-    {
-      id: 'emerging_tech_uni',
-      title: 'Emerging Technologies & Modern Systems',
-      description: 'Cloud architectures, AI foundations, Big Data, and IoT applications.',
-      level: 'University',
-      lessonsCount: 18,
-      goalDays: 25,
-      subject: 'Emerging Tech'
-    },
-    {
-      id: 'logic_critical_uni',
-      title: 'Logic & Critical Reasoning',
-      description: 'Analytical reasoning, fallacy detection, and formal logic structures.',
-      level: 'University',
-      lessonsCount: 15,
-      goalDays: 22,
-      subject: 'Logic'
-    },
-    {
-      id: 'math_prep_12',
-      title: 'Mathematics National Exam Blueprint',
-      description: 'Calculus, sequences, and algebra tailored for Grade 12 entrants.',
-      level: 'Grade 12',
-      lessonsCount: 16,
-      goalDays: 30,
-      subject: 'Mathematics'
-    },
-    {
-      id: 'econ_intro_12',
-      title: 'Principles of Economics',
-      description: 'Microeconomics, supply-demand mechanics, and national economic indicators.',
-      level: 'Grade 12',
-      lessonsCount: 12,
-      goalDays: 20,
-      subject: 'Economics'
-    }
-  ];
-
-  const activeLevel = profile.year === 'University' ? 'University' : 'Grade 12';
-  const filteredCourses = RECOMMENDED_COURSES.filter(c => c.level === activeLevel);
   const completedTasksCount = dailyTasks.filter(t => t.completed).length;
   const progressPercent = Math.min(100, Math.round((studyHoursCount / targetHours) * 100));
 
@@ -220,47 +215,51 @@ export default function HomeDashboard({
           )}
         </div>
 
-        {/* Notifications Dropdown */}
-        <div className="relative ml-auto">
+        {/* Notification Bell */}
+        <div className="relative">
           <button
             onClick={() => { playClickChime(); setShowNotifications(!showNotifications); }}
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-200 transition-all cursor-pointer text-xs font-medium shadow-sm"
-            aria-label="Notifications"
+            className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-amber-400 transition-colors relative cursor-pointer"
+            title="Notifications"
           >
-            <Bell className="w-3.5 h-3.5 text-amber-400" />
-            <span>{isAmharic ? 'ማስታወቂያዎች' : 'Updates'}</span>
+            <Bell className="w-4 h-4" />
             {unreadCount > 0 && (
-              <span className="w-2 h-2 bg-amber-500 rounded-full" />
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-slate-950 rounded-full text-[9px] font-black flex items-center justify-center">
+                {unreadCount}
+              </span>
             )}
           </button>
 
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-4 z-50 text-xs">
-              <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
-                <span className="font-semibold text-white">Notifications</span>
-                <button 
-                  onClick={markAllNotificationsAsRead}
-                  className="text-[10px] text-amber-400 hover:underline cursor-pointer"
-                >
-                  Mark all read
-                </button>
+            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl p-4 z-50 space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span className="text-xs font-bold text-white uppercase tracking-wider">
+                  {isAmharic ? 'ማስታወቂያዎች' : 'Platform Announcements'}
+                </span>
+                {unreadCount > 0 && (
+                  <button
+                    onClick={markAllNotificationsAsRead}
+                    className="text-[10px] text-amber-400 hover:underline cursor-pointer"
+                  >
+                    {isAmharic ? 'ሁሉንም አንብብ' : 'Mark all read'}
+                  </button>
+                )}
               </div>
-              <div className="space-y-2 max-h-60 overflow-y-auto">
+
+              <div className="max-h-64 overflow-y-auto space-y-2">
                 {notifications.map(n => (
-                  <div 
+                  <div
                     key={n.id}
-                    onClick={() => setSelectedNotification(n)}
-                    className={`p-2.5 rounded-xl border transition-colors cursor-pointer ${
-                      n.read 
-                        ? 'bg-slate-950/40 border-slate-800/60 text-slate-400' 
-                        : 'bg-amber-500/10 border-amber-500/20 text-slate-100'
+                    onClick={() => { setSelectedNotification(n); setShowNotifications(false); }}
+                    className={`p-2.5 rounded-xl border text-xs cursor-pointer transition-colors ${
+                      n.read ? 'bg-slate-900/40 border-slate-800/60 text-slate-400' : 'bg-slate-900 border-amber-500/30 text-white'
                     }`}
                   >
-                    <div className="flex justify-between items-start gap-1">
-                      <span className="font-medium text-slate-100">{isAmharic ? n.titleAm : n.titleEn}</span>
-                      <span className="text-[9px] text-slate-400 font-mono">{isAmharic ? n.timeAm : n.timeEn}</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-[11px] text-amber-400">{isAmharic ? n.titleAm : n.titleEn}</span>
+                      <span className="text-[9px] text-slate-500">{isAmharic ? n.timeAm : n.timeEn}</span>
                     </div>
-                    <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">{isAmharic ? n.descAm : n.descEn}</p>
+                    <p className="text-[11px] text-slate-400 line-clamp-1">{isAmharic ? n.descAm : n.descEn}</p>
                   </div>
                 ))}
               </div>
@@ -269,74 +268,78 @@ export default function HomeDashboard({
         </div>
       </div>
 
-      {/* ─── 2. PRIMARY FOCUS HERO (Restrained Single Focal Point) ─── */}
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        
-        {/* Main Greeting & Primary Action Card */}
-        <div className="lg:col-span-2 bg-slate-900/90 border border-slate-800 p-6 sm:p-7 rounded-2xl shadow-md flex flex-col justify-between relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
-          
-          <div className="relative z-10">
-            <span className="text-[11px] font-semibold text-amber-400 uppercase tracking-wider">
-              {isAmharic ? 'የዛሬው የጥናት ትኩረት' : "Today's Focus"}
-            </span>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mt-1">
-              {isAmharic ? `ሰላም፥ ${profile.name || 'ተማሪ'}` : `Welcome back, ${profile.name || 'Student'}`}
+      {/* ─── 2. HERO GREETING & STUDY GOAL ─── */}
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Welcome Card */}
+        <div className="lg:col-span-2 p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-[#0A1128] border border-slate-800/80 shadow-md flex flex-col justify-between space-y-4">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-mono uppercase font-bold">
+                {profile.university || 'Wolkite University'} • {profile.year || 'Freshman'}
+              </span>
+              <span className="text-[10px] text-slate-400 font-mono">
+                {ethDate.monthName} {ethDate.day} ({geezDayNumeral}), {ethDate.year} ዓ.ም.
+              </span>
+            </div>
+
+            <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+              {isAmharic ? `እንኳን ደህና መጣህ፣ ${profile.name}!` : `Welcome back, ${profile.name}!`}
             </h1>
-            <p className="text-xs sm:text-sm text-slate-400 mt-1.5 leading-relaxed max-w-xl">
+            <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl leading-relaxed">
               {isAmharic 
-                ? 'በቅርቡ የጀመሩትን ትምህርት በመቀጠል የዛሬውን የጥናት ግብዎን ያጠናቅቁ።'
-                : 'Pick up where you left off in your active module to reach your daily study goal.'}
+                ? 'የዛሬውን የጥናት እቅድዎን ይቀጥሉ፤ አስጎብኚ AI ለእርስዎ ጥያቄዎች ዝግጁ ነው።' 
+                : 'Accelerate your coursework mastery. Asgobnyi AI and exam models are synced to your syllabus.'}
             </p>
           </div>
 
-          {/* Active Subject Continuation Strip */}
-          <div className="mt-6 pt-5 border-t border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center font-bold text-sm shrink-0">
-                {lastActiveSubject.substring(0, 2).toUpperCase()}
-              </div>
-              <div>
-                <span className="text-xs font-semibold text-white block">{lastActiveSubject}</span>
-                <span className="text-[11px] text-slate-400">Active Course • Semester 1</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <button
-                onClick={() => { playClickChime(); onNavigate('notes'); }}
-                className="flex-1 sm:flex-none h-10 px-5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold transition-all cursor-pointer shadow-md flex items-center justify-center gap-1.5"
-              >
-                <span>{isAmharic ? 'ትምህርት ቀጥል' : 'Continue Lesson'}</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => { playClickChime(); onNavigate('quiz'); }}
-                className="flex-1 sm:flex-none h-10 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition-colors cursor-pointer"
-              >
-                {isAmharic ? 'ፈተና' : 'Take Quiz'}
-              </button>
-            </div>
+          <div className="flex flex-wrap items-center gap-2.5 pt-2">
+            <button
+              onClick={() => { playClickChime(); onNavigate('tutor'); }}
+              className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-amber-500/10"
+            >
+              <Bot className="w-4 h-4" />
+              <span>{isAmharic ? 'አስጎብኚን ጠይቅ' : 'Ask Asgobnyi AI'}</span>
+            </button>
+            <button
+              onClick={() => { playClickChime(); onNavigate('quiz'); }}
+              className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <Play className="w-3.5 h-3.5 text-amber-400" />
+              <span>{isAmharic ? 'ፈተና ጀምር' : 'Start Practice Quiz'}</span>
+            </button>
           </div>
         </div>
 
-        {/* Daily Goal & Streak Panel */}
-        <div className="bg-slate-900/90 border border-slate-800 p-6 rounded-2xl shadow-md flex flex-col justify-between">
+        {/* Daily Goal Card */}
+        <div className="p-5 sm:p-6 rounded-3xl bg-slate-900/90 border border-slate-800/80 shadow-md flex flex-col justify-between space-y-4">
           <div>
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                {isAmharic ? 'የዕለቱ ግብ' : 'Daily Goal'}
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Target className="w-3.5 h-3.5 text-amber-400" />
+                <span>{isAmharic ? 'የእለት ጥናት ግብ' : 'Daily Goal'}</span>
               </span>
-              <div className="flex items-center gap-1 bg-slate-950 px-2 py-0.5 rounded-lg border border-slate-800 text-xs font-mono">
-                <button onClick={() => updateTargetHours(-0.5)} className="text-slate-400 hover:text-white px-1 cursor-pointer">-</button>
-                <span className="text-slate-200">{targetHours}h</span>
-                <button onClick={() => updateTargetHours(0.5)} className="text-slate-400 hover:text-white px-1 cursor-pointer">+</button>
+
+              <div className="flex items-center gap-1 bg-slate-950 px-2 py-0.5 rounded-lg border border-slate-800">
+                <button
+                  onClick={() => updateTargetHours(-0.5)}
+                  className="text-slate-400 hover:text-white text-xs font-bold px-1 cursor-pointer"
+                >
+                  -
+                </button>
+                <span className="text-[11px] font-mono text-amber-400 font-bold">{targetHours}h</span>
+                <button
+                  onClick={() => updateTargetHours(0.5)}
+                  className="text-slate-400 hover:text-white text-xs font-bold px-1 cursor-pointer"
+                >
+                  +
+                </button>
               </div>
             </div>
 
-            <div className="space-y-2 my-3">
-              <div className="flex items-baseline justify-between">
-                <span className="text-2xl font-bold font-mono text-white tracking-tight">
+            {/* Goal Progress Bar */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-white">
                   {studyHoursCount} <span className="text-xs font-normal text-slate-400">/ {targetHours} hrs</span>
                 </span>
                 <span className="text-xs font-mono text-amber-400 font-semibold">{progressPercent}%</span>
@@ -419,13 +422,27 @@ export default function HomeDashboard({
             <GraduationCap className="w-5 h-5 text-amber-400 group-hover:scale-110 transition-transform" />
             <div>
               <span className="block text-xs font-bold text-slate-100 group-hover:text-amber-400 transition-colors">
-                {isAmharic ? 'የዩኒቨርሲቲ ፈተናዎች' : 'Uni Exams'}
+                {isAmharic ? 'የዩኒቨርሲቲ ሃብ' : 'University Hub'}
               </span>
-              <span className="block text-[10px] text-slate-400 mt-0.5">Model Papers</span>
+              <span className="block text-[10px] text-slate-400 mt-0.5">Past mid & finals</span>
             </div>
           </button>
 
-          {/* Textbooks / Bookstore */}
+          {/* National Exam Prep */}
+          <button
+            onClick={() => { playClickChime(); onNavigate('examprep'); }}
+            className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-amber-500/50 transition-all cursor-pointer text-left group flex flex-col justify-between h-28 shadow-sm hover:shadow-md"
+          >
+            <Award className="w-5 h-5 text-amber-400 group-hover:scale-110 transition-transform" />
+            <div>
+              <span className="block text-xs font-bold text-slate-100 group-hover:text-amber-400 transition-colors">
+                {isAmharic ? 'ብሔራዊ ፈተና' : 'National Exam'}
+              </span>
+              <span className="block text-[10px] text-slate-400 mt-0.5">Grade 12 blueprint</span>
+            </div>
+          </button>
+
+          {/* Digital Bookstore */}
           <button
             onClick={() => { playClickChime(); onNavigate('bookstore'); }}
             className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-amber-500/50 transition-all cursor-pointer text-left group flex flex-col justify-between h-28 shadow-sm hover:shadow-md"
@@ -433,40 +450,25 @@ export default function HomeDashboard({
             <BookOpen className="w-5 h-5 text-amber-400 group-hover:scale-110 transition-transform" />
             <div>
               <span className="block text-xs font-bold text-slate-100 group-hover:text-amber-400 transition-colors">
-                {isAmharic ? 'ዲጂታል መጻሕፍት' : 'Book Store'}
+                {isAmharic ? 'መጻሕፍት ቤት' : 'Book Store'}
               </span>
-              <span className="block text-[10px] text-slate-400 mt-0.5">PDF Textbooks</span>
-            </div>
-          </button>
-
-          {/* Analytics */}
-          <button
-            onClick={() => { playClickChime(); onNavigate('profile'); }}
-            className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-amber-500/50 transition-all cursor-pointer text-left group flex flex-col justify-between h-28 shadow-sm hover:shadow-md"
-          >
-            <TrendingUp className="w-5 h-5 text-amber-400 group-hover:scale-110 transition-transform" />
-            <div>
-              <span className="block text-xs font-bold text-slate-100 group-hover:text-amber-400 transition-colors">
-                {isAmharic ? 'የጥናት እድገት' : 'Analytics'}
-              </span>
-              <span className="block text-[10px] text-slate-400 mt-0.5">Progress Reports</span>
+              <span className="block text-[10px] text-slate-400 mt-0.5">Digital textbooks</span>
             </div>
           </button>
         </div>
       </section>
 
-      {/* ─── 4. DAILY CHECKLIST & CURRICULUM TRACK SPLIT ─── */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        
-        {/* Daily Study Checklist */}
+      {/* ─── 4. DAILY TASKS & LIVE CURRICULUM TRACK ─── */}
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Daily Tasks Checklist */}
         <div className="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl shadow-md flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-3.5">
               <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                {isAmharic ? 'የዛሬ የጥናት ስራዎች' : "Today's Tasks"}
+                {isAmharic ? 'የእለት የጥናት ተግባራት' : 'Daily Study Checklist'}
               </h3>
-              <span className="text-[10px] font-mono text-amber-400 font-medium">
-                {completedTasksCount}/{dailyTasks.length} Completed
+              <span className="text-[11px] font-mono text-amber-400 font-semibold">
+                {completedTasksCount} / {dailyTasks.length} {isAmharic ? 'ተጠናቋል' : 'done'}
               </span>
             </div>
 
@@ -506,7 +508,7 @@ export default function HomeDashboard({
           </div>
         </div>
 
-        {/* Recommended Curriculum Track */}
+        {/* Live Published Curriculum Track (from Supabase Database) */}
         <div className="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl shadow-md flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-3.5">
@@ -535,31 +537,43 @@ export default function HomeDashboard({
               </div>
             </div>
 
-            <div className="space-y-2">
-              {filteredCourses.slice(0, 2).map((course) => {
-                const isBookmarked = favoritedCourses.includes(course.id);
-                return (
-                  <div
-                    key={course.id}
-                    onClick={() => { playClickChime(); onNavigate('bookstore'); }}
-                    className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 hover:border-amber-500/40 transition-colors cursor-pointer flex items-start justify-between gap-3 group"
-                  >
-                    <div>
-                      <span className="text-[10px] font-mono text-amber-400 block mb-0.5">{course.subject}</span>
-                      <h4 className="text-xs font-bold text-slate-100 group-hover:text-amber-400 transition-colors">{course.title}</h4>
-                      <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">{course.description}</p>
-                    </div>
-
-                    <button
-                      onClick={(e) => toggleCourseFavorite(course.id, e)}
-                      className="text-slate-500 hover:text-amber-400 transition-colors p-1"
+            {loadingCourses ? (
+              <div className="space-y-2 py-4">
+                <div className="h-14 bg-slate-950/60 animate-pulse rounded-xl border border-slate-800" />
+                <div className="h-14 bg-slate-950/60 animate-pulse rounded-xl border border-slate-800" />
+              </div>
+            ) : publishedCourses.length === 0 ? (
+              <div className="py-6 text-center text-xs text-slate-500 space-y-1">
+                <BookOpen className="w-6 h-6 text-slate-600 mx-auto" />
+                <p>No published courses available for {activeLevel} yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {publishedCourses.slice(0, 3).map((course) => {
+                  const isBookmarked = favoritedCourses.includes(course.id);
+                  return (
+                    <div
+                      key={course.id}
+                      onClick={() => { playClickChime(); onNavigate('bookstore'); }}
+                      className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 hover:border-amber-500/40 transition-colors cursor-pointer flex items-start justify-between gap-3 group"
                     >
-                      <Star className={`w-3.5 h-3.5 ${isBookmarked ? 'fill-amber-400 text-amber-400' : ''}`} />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+                      <div>
+                        <span className="text-[10px] font-mono text-amber-400 block mb-0.5">{course.subject}</span>
+                        <h4 className="text-xs font-bold text-slate-100 group-hover:text-amber-400 transition-colors">{course.title}</h4>
+                        <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">{course.description || 'Comprehensive curriculum module with practice questions.'}</p>
+                      </div>
+
+                      <button
+                        onClick={(e) => toggleCourseFavorite(course.id, e)}
+                        className="text-slate-500 hover:text-amber-400 transition-colors p-1 cursor-pointer"
+                      >
+                        <Star className={`w-3.5 h-3.5 ${isBookmarked ? 'fill-amber-400 text-amber-400' : ''}`} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="mt-4 pt-3 border-t border-slate-800 text-right">
@@ -577,10 +591,10 @@ export default function HomeDashboard({
       {/* Detail Modal Pop-up for Notifications */}
       {selectedNotification && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl relative text-slate-800 dark:text-slate-100">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl relative text-slate-100">
             <button
               onClick={() => setSelectedNotification(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 dark:hover:text-white p-1 rounded-lg bg-slate-100 dark:bg-zinc-800"
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg bg-slate-800"
             >
               <X className="w-4 h-4" />
             </button>
@@ -588,18 +602,18 @@ export default function HomeDashboard({
             <span className="text-[10px] font-mono text-slate-400 block mb-1">
               {isAmharic ? selectedNotification.timeAm : selectedNotification.timeEn}
             </span>
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-2">
+            <h3 className="text-sm font-semibold text-white mb-2">
               {isAmharic ? selectedNotification.titleAm : selectedNotification.titleEn}
             </h3>
-            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+            <p className="text-xs text-slate-300 leading-relaxed">
               {isAmharic ? selectedNotification.descAm : selectedNotification.descEn}
             </p>
 
             <button
               onClick={() => setSelectedNotification(null)}
-              className="mt-5 w-full py-2 rounded-xl bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-xs text-slate-700 dark:text-slate-200 font-medium transition-colors cursor-pointer"
+              className="mt-5 w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 font-medium transition-colors cursor-pointer"
             >
-              Close
+              {isAmharic ? 'እሺ' : 'Close Notice'}
             </button>
           </div>
         </div>

@@ -7,24 +7,105 @@ export const ETHIOLEARN_SUPABASE_SQL_SCRIPT = `-- EthioLearn 1-Click Supabase Da
 -- Copy and paste this directly into your Supabase SQL Editor (https://supabase.com/dashboard/project/_/sql)
 
 -- 1. Create ethiolearn_sync table for full cloud study backup
-CREATE TABLE IF NOT EXISTS ethiolearn_sync (
+CREATE TABLE IF NOT EXISTS public.ethiolearn_sync (
   email TEXT PRIMARY KEY,
   data JSONB NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 2. Create student_profiles table for profile metrics
-CREATE TABLE IF NOT EXISTS student_profiles (
+CREATE TABLE IF NOT EXISTS public.student_profiles (
   email TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  university TEXT DEFAULT 'Wolkite University',
+  year TEXT DEFAULT 'Freshman',
+  subjects JSONB DEFAULT '[]'::jsonb,
+  is_pro BOOLEAN NOT NULL DEFAULT FALSE,
+  user_role TEXT NOT NULL DEFAULT 'student',
+  referral_code TEXT,
   profile_data JSONB,
   notes_data JSONB,
   study_sessions JSONB,
   performance_data JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3. Create books table for dynamic digital textbooks
-CREATE TABLE IF NOT EXISTS books (
+-- 3. Create courses table (Single Source of Truth for Published & Draft Courses)
+CREATE TABLE IF NOT EXISTS public.courses (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT,
+  subject TEXT NOT NULL,
+  level TEXT NOT NULL DEFAULT 'University',
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'archived')),
+  lessons_count INT NOT NULL DEFAULT 0,
+  goal_days INT NOT NULL DEFAULT 14,
+  instructor_id TEXT,
+  instructor_name TEXT,
+  thumbnail_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 4. Create lessons table (Unique lessons per course)
+CREATE TABLE IF NOT EXISTS public.lessons (
+  id TEXT PRIMARY KEY,
+  course_id TEXT NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  chapter_number INT NOT NULL DEFAULT 1,
+  content TEXT,
+  duration TEXT DEFAULT '15m',
+  status TEXT NOT NULL DEFAULT 'published' CHECK (status IN ('draft', 'published', 'archived')),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT unique_course_lesson_chapter UNIQUE (course_id, chapter_number)
+);
+
+-- 5. Create coupons table
+CREATE TABLE IF NOT EXISTS public.coupons (
+  code TEXT PRIMARY KEY,
+  discount_percentage INT NOT NULL DEFAULT 20,
+  fixed_discount_etb NUMERIC(10, 2) DEFAULT 0,
+  max_uses INT NOT NULL DEFAULT 100,
+  used_count INT NOT NULL DEFAULT 0,
+  expires_at TIMESTAMPTZ,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 6. Create announcements table
+CREATE TABLE IF NOT EXISTS public.announcements (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  badge_text TEXT DEFAULT 'Notice',
+  is_important BOOLEAN NOT NULL DEFAULT FALSE,
+  status TEXT NOT NULL DEFAULT 'published' CHECK (status IN ('draft', 'published', 'archived')),
+  date DATE NOT NULL DEFAULT CURRENT_DATE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 7. Create payments table
+CREATE TABLE IF NOT EXISTS public.payments (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  amount NUMERIC(10, 2) NOT NULL,
+  currency VARCHAR(3) NOT NULL DEFAULT 'ETB',
+  provider TEXT NOT NULL DEFAULT 'telebirr',
+  provider_transaction_id TEXT UNIQUE NOT NULL,
+  sender_name TEXT NOT NULL,
+  sender_phone TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  receipt_url TEXT,
+  raw_webhook_payload JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 8. Create books table for dynamic digital textbooks
+CREATE TABLE IF NOT EXISTS public.books (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
   subject TEXT NOT NULL,
@@ -35,14 +116,24 @@ CREATE TABLE IF NOT EXISTS books (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. Enable public read/write access for anonymous key
-ALTER TABLE ethiolearn_sync DISABLE ROW LEVEL SECURITY;
-ALTER TABLE student_profiles DISABLE ROW LEVEL SECURITY;
-ALTER TABLE books DISABLE ROW LEVEL SECURITY;
+-- 9. Enable public read/write access for anonymous & authenticated key
+ALTER TABLE public.ethiolearn_sync DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.student_profiles DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.courses DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.lessons DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.coupons DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.announcements DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payments DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.books DISABLE ROW LEVEL SECURITY;
 
-GRANT ALL ON ethiolearn_sync TO anon, authenticated;
-GRANT ALL ON student_profiles TO anon, authenticated;
-GRANT ALL ON books TO anon, authenticated;
+GRANT ALL ON public.ethiolearn_sync TO anon, authenticated;
+GRANT ALL ON public.student_profiles TO anon, authenticated;
+GRANT ALL ON public.courses TO anon, authenticated;
+GRANT ALL ON public.lessons TO anon, authenticated;
+GRANT ALL ON public.coupons TO anon, authenticated;
+GRANT ALL ON public.announcements TO anon, authenticated;
+GRANT ALL ON public.payments TO anon, authenticated;
+GRANT ALL ON public.books TO anon, authenticated;
 `;
 
 /**
@@ -239,10 +330,16 @@ export async function testSupabaseConnection(overrideUrl?: string, overrideKey?:
 
   const tablesFound: string[] = [];
 
-  // Check table ethiolearn_sync
+  // Check table courses
   try {
-    const { error: syncErr } = await client.from('ethiolearn_sync').select('email').limit(1);
-    if (!syncErr) tablesFound.push('ethiolearn_sync');
+    const { error: coursesErr } = await client.from('courses').select('id').limit(1);
+    if (!coursesErr) tablesFound.push('courses');
+  } catch (e) {}
+
+  // Check table lessons
+  try {
+    const { error: lessonsErr } = await client.from('lessons').select('id').limit(1);
+    if (!lessonsErr) tablesFound.push('lessons');
   } catch (e) {}
 
   // Check table student_profiles
@@ -251,16 +348,34 @@ export async function testSupabaseConnection(overrideUrl?: string, overrideKey?:
     if (!profErr) tablesFound.push('student_profiles');
   } catch (e) {}
 
+  // Check table payments
+  try {
+    const { error: payErr } = await client.from('payments').select('id').limit(1);
+    if (!payErr) tablesFound.push('payments');
+  } catch (e) {}
+
+  // Check table announcements
+  try {
+    const { error: annErr } = await client.from('announcements').select('id').limit(1);
+    if (!annErr) tablesFound.push('announcements');
+  } catch (e) {}
+
+  // Check table coupons
+  try {
+    const { error: coupErr } = await client.from('coupons').select('code').limit(1);
+    if (!coupErr) tablesFound.push('coupons');
+  } catch (e) {}
+
+  // Check table ethiolearn_sync
+  try {
+    const { error: syncErr } = await client.from('ethiolearn_sync').select('email').limit(1);
+    if (!syncErr) tablesFound.push('ethiolearn_sync');
+  } catch (e) {}
+
   // Check table books
   try {
     const { error: booksErr } = await client.from('books').select('id').limit(1);
     if (!booksErr) tablesFound.push('books');
-  } catch (e) {}
-
-  // Also check grade12_books
-  try {
-    const { error: g12Err } = await client.from('grade12_books').select('id').limit(1);
-    if (!g12Err) tablesFound.push('grade12_books');
   } catch (e) {}
 
   if (tablesFound.length > 0) {
