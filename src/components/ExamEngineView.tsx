@@ -502,7 +502,7 @@ export default function ExamEngineView({
               </h1>
               <p className="text-xs md:text-sm text-slate-300 mt-1 max-w-2xl leading-relaxed">
                 {language === 'am'
-                  ? 'የ12ኛ ክፍል የማትሪክ እና የዩኒቨርሲቲ ሚድ/ፋይናል ፈተናዎችን በጊዜ ገደብ ውሰድ፣ ፈጣን ውጤት እና ከአስጎብኚ ጋር የተሳሰረ የስህተት ማብራሪያ አግኝ።'
+                  ? 'የ12ኛ ክፍል የማትሪክ እና የዩኒቨርሲቲ ሚድ/ፋይናል ፈተናዎችን በጊዜ ገደብ ውሰድ፣ ፈጣን ውጤት እና ከAI Teacher ጋር የተሳሰረ የስህተት ማብራሪያ አግኝ።'
                   : 'Take real timed exams with interactive question navigation, automated grading, and instant AI mistake remediation.'}
               </p>
             </div>
@@ -956,7 +956,7 @@ export default function ExamEngineView({
 
               <p className="text-xs md:text-sm text-slate-300 max-w-2xl">
                 {language === 'am'
-                  ? 'ከዚህ በታች ያሉትን እያንዳንዱን ጥያቄዎች እና ዝርዝር ማብራሪያዎችን ይገምግሙ። የአስጎብኚን የልዩ ትምህርት ድጋፍ ማግኘት ይችላሉ።'
+                  ? 'ከዚህ በታች ያሉትን እያንዳንዱን ጥያቄዎች እና ዝርዝር ማብራሪያዎችን ይገምግሙ። የAI Teacher የልዩ ትምህርት ድጋፍ ማግኘት ይችላሉ።'
                   : 'Review the step-by-step solutions below or ask AI Teacher to explain the concepts you missed.'}
               </p>
             </div>
@@ -1021,7 +1021,7 @@ export default function ExamEngineView({
               className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 text-xs font-extrabold flex items-center gap-2 transition shadow-lg shadow-amber-500/20"
             >
               <Bot className="w-4 h-4" />
-              <span>{language === 'am' ? 'ስህተቶቼን አስጎብኚ ያብራራልኝ' : 'Ask AI to Explain Mistakes'}</span>
+              <span>{language === 'am' ? 'ስህተቶቼን AI Teacher ያብራራልኝ' : 'Ask AI to Explain Mistakes'}</span>
             </button>
           )}
         </div>

@@ -142,7 +142,7 @@ export const onboardingFlowTranslations = {
     loginLink: "Already have an account? Sign In",
     
     // Screen 1: Welcome
-    screen1Bubble: "ሰላም! እኔ አስጎብኚ ነኝ 👋 / Hi! I'm አስጎብኚ, your study buddy",
+    screen1Bubble: "ሰላም! እኔ AI Teacher ነኝ 👋 / Hi! I'm your AI Teacher & study buddy",
     screen1Headline: "EthioLearn Pro",
     screen1Tagline: "AI-Powered Educational Platform for Ethiopian University Students",
     
@@ -164,7 +164,7 @@ export const onboardingFlowTranslations = {
     // Screen 5: Try AI Tutor
     screen5BubbleInitial: "Go ahead! Ask me a study question to see me in action.",
     screen5BubbleResponse: "See? That's me at work. Want unlimited access?",
-    screen5Headline: "Interact with አስጎብኚ",
+    screen5Headline: "Interact with your AI Teacher",
     screen5Sub: "Experience our high-speed, bilingual academic AI with no registration required.",
     chatPlaceholder: "Ask me anything about your courses..."
   },
@@ -178,7 +178,7 @@ export const onboardingFlowTranslations = {
     loginLink: "ቀድሞውኑ መለያ አለዎት? ይግቡ",
     
     // Screen 1: Welcome
-    screen1Bubble: "ሰላም! እኔ አስጎብኚ ነኝ 👋 / Hi! I'm አስጎብኚ, your study buddy",
+    screen1Bubble: "ሰላም! እኔ AI Teacher ነኝ 👋 / Hi! I'm your AI Teacher & study buddy",
     screen1Headline: "ኢትዮለርን ፕሮ",
     screen1Tagline: "ለኢትዮጵያ ዩኒቨርሲቲ ተማሪዎች በAI የተደገፈ የትምህርት መድረክ",
     
@@ -200,7 +200,7 @@ export const onboardingFlowTranslations = {
     // Screen 5: Try AI Tutor
     screen5BubbleInitial: "ይቀጥሉ! በስራ ላይ እኔን ለማየት የጥናት ጥያቄ ይጠይቁኝ።",
     screen5BubbleResponse: "አዩት አይደል? እኔ በስራ ላይ ነኝ። ያልተገደበ አገልግሎት ይፈልጋሉ?",
-    screen5Headline: "ከአስጎብኚ ጋር ይነጋገሩ",
+    screen5Headline: "ከAI Teacher ጋር ይነጋገሩ",
     screen5Sub: "ምንም ምዝገባ ሳይኖርብዎት ፈጣን የሁለት ቋንቋ የጥናት AI ረዳታችንን ይሞክሩ።",
     chatPlaceholder: "ስለ ኮርሶችዎ ማንኛውንም ነገር ይጠይቁኝ..."
   }
@@ -350,7 +350,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
         : "Addis Ababa University (AAU) is the oldest and largest university in Ethiopia, a leading center for research, history, and medicine since 1950! 🏛️🦁";
     }
     return lang === 'am'
-      ? "ይህ በጣም ግሩም የጥናት ጥያቄ ነው! አስጎብኚ ነኝ፣ ጥያቄዎችን ለመፍታት፣ ምዕራፎችን ለማጠቃለል እና ፈተናዎችዎን ለማለፍ እረዳዎታለሁ። አብረን እናጥና! 🚀📚"
+      ? "ይህ በጣም ግሩም የጥናት ጥያቄ ነው! AI Teacher ነኝ፣ ጥያቄዎችን ለመፍታት፣ ምዕራፎችን ለማጠቃለል እና ፈተናዎችዎን ለማለፍ እረዳዎታለሁ። አብረን እናጥና! 🚀📚"
       : "That is a great academic question! As your study buddy, I'm here to help you solve equations, summarize chapters, and ace your exams in both Amharic and English. Let's study together! 🚀📚";
   };
 
@@ -380,7 +380,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
       const { submitClaudeChat } = await import('../utils/ai');
       await submitClaudeChat(
         updated as any,
-        "You are አስጎብኚ (Asgobanyi), a friendly bilingual study partner robot for Ethiopian university students. Keep your response brief, encouraging, and exactly 2-3 sentences. Always relate back to helping them in their academic courses. Response can be in Amharic or English.",
+        "You are AI Teacher, a friendly bilingual study partner robot for Ethiopian university students. Keep your response brief, encouraging, and exactly 2-3 sentences. Always relate back to helping them in their academic courses. Response can be in Amharic or English.",
         claudeApiKey || "no-key",
         {
           onChunk: () => {},
@@ -1553,7 +1553,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                         <EthioLearnLogo size={90} showCardBackground={false} className="relative transform hover:scale-105 transition-transform duration-300" />
                       </div>
                       
-                      {/* Mascot አስጎብኚ waves */}
+                      {/* Mascot AI Teacher waves */}
                       <div className="flex justify-center my-3">
                         <Asgobanyi action="wave" size={120} />
                       </div>
@@ -1780,7 +1780,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                             <div className="my-auto text-center space-y-2.5 px-2 flex flex-col justify-center items-center">
                               <span className="text-base animate-bounce">💬</span>
                               <p className="text-[9.5px] text-zinc-400 leading-normal max-w-[220px] font-sans">
-                                {preferredLanguage === 'am' ? 'ባለ ሁለት ቋንቋ ጥያቄዎችን ለመጠየቅ ከታች ካሉት አማራጮች አንዱን ይምረጡ ወይም ይፃፉ።' : 'Ask a study question to test አስጎብኚ right now!'}
+                                {preferredLanguage === 'am' ? 'ባለ ሁለት ቋንቋ ጥያቄዎችን ለመጠየቅ ከታች ካሉት አማራጮች አንዱን ይምረጡ ወይም ይፃፉ።' : 'Ask a study question to test AI Teacher right now!'}
                               </p>
                               
                               {/* Quick Questions */}
@@ -1826,7 +1826,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                               {onboardingIsTyping && (
                                 <div className="flex items-center gap-1 bg-zinc-900/50 border border-zinc-850/50 rounded-xl px-2.5 py-1 self-start text-[9px] text-zinc-500 font-mono italic">
                                   <RefreshCw className="w-2.5 h-2.5 animate-spin text-[#C8962E]" />
-                                  <span>{preferredLanguage === 'am' ? 'አስጎብኚ በማመንጨት ላይ...' : 'Asgobanyi is thinking...'}</span>
+                                  <span>{preferredLanguage === 'am' ? 'AI Teacher በማመንጨት ላይ...' : 'AI Teacher is thinking...'}</span>
                                 </div>
                               )}
                             </div>

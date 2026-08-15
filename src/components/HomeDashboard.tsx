@@ -543,8 +543,8 @@ export default function HomeDashboard({
               </h1>
               <p className="text-sm text-slate-300 mt-1 leading-relaxed">
                 {isAmharic 
-                  ? 'የጥናት ጉዞዎን ይቀጥሉ። የኮርስ ሞጁሎች፣ አስጎብኚ AI እና የፈተና ሞዴሎች ዝግጁ ናቸው።' 
-                  : 'Continue your learning journey. Your curriculum modules, AI tutor, and practice exams are synced.'}
+                  ? 'የጥናት ጉዞዎን ይቀጥሉ። የኮርስ ሞጁሎች፣ AI መምህር እና የፈተና ሞዴሎች ዝግጁ ናቸው።' 
+                  : 'Continue your learning journey. Your curriculum modules, AI teacher, and practice exams are synced.'}
               </p>
             </div>
 
@@ -591,7 +591,7 @@ export default function HomeDashboard({
               className="px-5 py-3 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-750 text-slate-200 font-semibold text-sm transition-all cursor-pointer flex items-center justify-center gap-2 hover:border-amber-500/40 active:scale-[0.98]"
             >
               <Bot className="w-4 h-4 text-amber-400" />
-              <span>{isAmharic ? 'አስጎብኚ AIን ጠይቅ' : 'Ask AI Teacher'}</span>
+              <span>{isAmharic ? 'AI መምህርን ጠይቅ' : 'Ask AI Teacher'}</span>
             </button>
           </div>
         </div>
@@ -954,7 +954,7 @@ export default function HomeDashboard({
           </div>
         </div>
 
-        {/* Right Column: AI Teacher Section ("አስጎብኚ - Asgobanyi") */}
+        {/* Right Column: AI Teacher Section */}
         <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between space-y-4">
           <div className="space-y-3">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
@@ -964,7 +964,7 @@ export default function HomeDashboard({
                 </div>
                 <div>
                   <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                    {isAmharic ? 'አስጎብኚ AI መምህር' : 'Ask your AI Teacher'}
+                    {isAmharic ? 'AI መምህርን ይጠይቁ' : 'Ask your AI Teacher'}
                   </h3>
                   <span className="text-[10px] text-slate-400 block">
                     {isAmharic ? 'ዛሬ ምን ማጥናት ይፈልጋሉ?' : 'What are you studying today?'}
@@ -1295,7 +1295,7 @@ export default function HomeDashboard({
             </div>
             <div>
               <span className="block text-xs font-bold text-slate-100 group-hover:text-amber-400 transition-colors">
-                {isAmharic ? 'አስጎብኚ AI' : 'AI Teacher'}
+                {isAmharic ? 'AI መምህር' : 'AI Teacher'}
               </span>
               <span className="block text-[10px] text-slate-400 truncate">Q&A & Explanations</span>
             </div>

@@ -259,7 +259,7 @@ export default function CourseExperienceView({
             </h1>
             <p className="text-sm text-slate-300 mt-1 max-w-2xl">
               {language === 'am'
-                ? 'በኢትዮጵያ ከፍተኛ ትምህርት ስርአተ-ትምህርት የተዘጋጁ ጥራት ያላቸው ምዕራፎች፣ ማስታወሻዎች እና ከአስጎብኚ AI ጋር የተሳሰረ የመማሪያ መድረክ።'
+                ? 'በኢትዮጵያ ከፍተኛ ትምህርት ስርአተ-ትምህርት የተዘጋጁ ጥራት ያላቸው ምዕራፎች፣ ማስታወሻዎች እና ከAI Teacher ጋር የተሳሰረ የመማሪያ መድረክ።'
                 : 'Curriculum-aligned modular courses with chapter breakdowns, downloadable summaries, and context-aware AI Tutoring.'}
             </p>
           </div>
@@ -277,7 +277,7 @@ export default function CourseExperienceView({
               className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 text-sm font-bold flex items-center gap-2 transition shadow-lg shadow-amber-500/20"
             >
               <Bot className="w-4 h-4" />
-              {language === 'am' ? 'አስጎብኚን አናግር' : 'Ask AI Tutor'}
+              {language === 'am' ? 'AI Teacherን አናግር' : 'Ask AI Tutor'}
             </button>
           </div>
         </div>
@@ -471,7 +471,7 @@ export default function CourseExperienceView({
           >
             <Bot className="w-4 h-4" />
             <span className="hidden sm:inline">
-              {language === 'am' ? 'ስለዚህ ምዕራፍ አስጎብኚን ጠይቅ' : 'Ask AI Teacher'}
+              {language === 'am' ? 'ስለዚህ ምዕራፍ AI Teacherን ጠይቅ' : 'Ask AI Teacher'}
             </span>
           </button>
           <button
@@ -675,7 +675,7 @@ export default function CourseExperienceView({
                 {[
                   { id: 'content', label: language === 'am' ? 'የምዕራፉ ማስታወሻ' : 'Lesson Content', icon: BookOpen },
                   { id: 'resources', label: language === 'am' ? 'ማውረጃ ማስታወሻዎች' : 'Resources & PDFs', icon: FileText },
-                  { id: 'summary', label: language === 'am' ? 'የአስጎብኚ ማጠቃለያ' : 'AI Study Tools', icon: Bot }
+                  { id: 'summary', label: language === 'am' ? 'የAI መምህር ማጠቃለያ' : 'AI Study Tools', icon: Bot }
                 ].map((tab) => {
                   const Icon = tab.icon;
                   return (
@@ -716,7 +716,7 @@ export default function CourseExperienceView({
                       </div>
                       <div>
                         <h4 className="text-sm font-bold text-white">
-                          {language === 'am' ? 'ይህንን ርዕስ ከአስጎብኚ ጋር ተለማመድ' : 'Master this topic with AI Teacher'}
+                          {language === 'am' ? 'ይህንን ርዕስ ከAI Teacher ጋር ተለማመድ' : 'Master this topic with AI Teacher'}
                         </h4>
                         <p className="text-xs text-slate-300">
                           {language === 'am'
@@ -732,7 +732,7 @@ export default function CourseExperienceView({
                         className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition shadow-lg shadow-amber-500/20"
                       >
                         <Sparkles className="w-3.5 h-3.5" />
-                        {language === 'am' ? 'አስጎብኚን ጠይቅ' : 'Ask AI'}
+                        {language === 'am' ? 'AI Teacherን ጠይቅ' : 'Ask AI'}
                       </button>
                       <button
                         onClick={handleQuizOnLesson}
@@ -789,7 +789,7 @@ export default function CourseExperienceView({
                       <FileText className="w-8 h-8 text-slate-500 mx-auto mb-2" />
                       <p className="text-xs text-slate-400">
                         {language === 'am'
-                          ? 'የዚህ ምዕራፍ ፒዲኤፍ ማስታወሻዎች በቅርቡ ይጨመራሉ። በአስጎብኚ AI ማጠቃለያ መጠቀም ይችላሉ።'
+                          ? 'የዚህ ምዕራፍ ፒዲኤፍ ማስታወሻዎች በቅርቡ ይጨመራሉ። በAI Teacher ማጠቃለያ መጠቀም ይችላሉ።'
                           : 'Standard textbook notes are included in the lesson content above. Use AI Study Tools for custom summaries.'}
                       </p>
                     </div>
@@ -806,11 +806,11 @@ export default function CourseExperienceView({
                         <Bot className="w-4 h-4" />
                       </div>
                       <h4 className="text-sm font-bold text-white">
-                        {language === 'am' ? 'የአስጎብኚ ጥልቅ ማብራሪያ' : 'Socratic Step-by-Step Teaching'}
+                        {language === 'am' ? 'የAI Teacher ጥልቅ ማብራሪያ' : 'Socratic Step-by-Step Teaching'}
                       </h4>
                       <p className="text-xs text-slate-300 leading-relaxed">
                         {language === 'am'
-                          ? 'ይህንን ምዕራፍ በምሳሌዎች፣ በአማርኛ እና በእንግሊዝኛ ከአስጎብኚ ጋር ተማር።'
+                          ? 'ይህንን ምዕራፍ በምሳሌዎች፣ በአማርኛ እና በእንግሊዝኛ ከAI Teacher ጋር ተማር።'
                           : 'Receive a concept-by-concept deep breakdown with Ethiopian academic examples.'}
                       </p>
                       <button

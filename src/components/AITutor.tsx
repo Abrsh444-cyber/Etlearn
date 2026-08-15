@@ -416,7 +416,7 @@ export default function AITutor({
 - Pinpoint the exact conceptual misconception that led to the wrong choice.
 - Teach the core rule clearly and give a quick mnemonic or memory tip so they will never miss this concept again on official exams.`;
     } else {
-      modeInstruction = `MODE: COLLABORATIVE STUDY BUDDY ("አስጎብኚ ውይይት")
+      modeInstruction = `MODE: COLLABORATIVE STUDY BUDDY ("AI የጥናት ውይይት")
 - Friendly, direct Q&A, math step-by-step problem solver, and summarizer.`;
     }
 
@@ -427,7 +427,7 @@ ACTIVE COURSE CONTEXT:
 ${context.lessonContent ? `- Lesson Summary/Content Excerpt:\n${context.lessonContent.slice(0, 1500)}` : ''}
 ` : '';
 
-    return `You are EthioLearn Pro's AI Master Teacher ("አስጎብኚ") — a warm, highly pedagogical academic mentor for Ethiopian students.
+    return `You are EthioLearn Pro's AI Master Teacher — a warm, highly pedagogical academic mentor for Ethiopian students.
 ${modeInstruction}
 
 CRITICAL RULES:
@@ -734,7 +734,7 @@ ${contextDetails}`;
           <div>
             <div className="flex items-center gap-1.5 flex-wrap">
               <h2 className="text-base font-bold text-white leading-tight">
-                {language === 'en' ? 'AI Master Teacher' : 'የአይ መምህርና አስጎብኚ'}
+                {language === 'en' ? 'AI Master Teacher' : 'AI መምህር'}
               </h2>
               {profile.isRegistered ? (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded font-sans">
@@ -875,7 +875,7 @@ ${contextDetails}`;
           }`}
         >
           <MessageSquare className="w-3.5 h-3.5" />
-          <span>{language === 'en' ? 'Free Study Chat' : 'አስጎብኚ ውይይት'}</span>
+          <span>{language === 'en' ? 'Free Study Chat' : 'ነፃ የጥናት ውይይት'}</span>
         </button>
       </div>
 
