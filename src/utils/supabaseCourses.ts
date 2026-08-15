@@ -1,6 +1,7 @@
 import { getSupabase } from './supabaseClient';
 import { safeStorage } from './safeStorage';
 import { CourseRecord, LessonRecord, AdminDashboardStats, CouponCode, PlatformAnnouncement, CourseStatus } from '../types';
+import { INITIAL_CURRICULUM_COURSES, getCurriculumLessonsForCourse, getCurriculumCourse } from '../data/coursesCurriculum';
 
 // ============================================================================
 // ETHIOLEARN PRO - SUPABASE COURSES, PUBLISHING & ADMIN DATA SERVICE
@@ -98,20 +99,24 @@ export async function fetchPublishedCourses(levelFilter?: string): Promise<Cours
     const raw = safeStorage.getItem(LOCAL_STORAGE_COURSES_KEY);
     if (raw) {
       const parsed: CourseRecord[] = JSON.parse(raw);
-      const seenIds = new Set<string>();
-      return parsed
-        .filter(c => c.status === 'published' && (!levelFilter || levelFilter === 'All' || c.level === levelFilter))
-        .filter(c => {
-          if (seenIds.has(c.id)) return false;
-          seenIds.add(c.id);
-          return true;
-        });
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const seenIds = new Set<string>();
+        return parsed
+          .filter(c => c.status === 'published' && (!levelFilter || levelFilter === 'All' || c.level === levelFilter))
+          .filter(c => {
+            if (seenIds.has(c.id)) return false;
+            seenIds.add(c.id);
+            return true;
+          });
+      }
     }
   } catch (err) {
     console.error('Error reading cached courses:', err);
   }
 
-  return [];
+  // Fallback to initial authentic curriculum courses
+  const curriculumCourses = INITIAL_CURRICULUM_COURSES.map(c => c.course);
+  return curriculumCourses.filter(c => c.status === 'published' && (!levelFilter || levelFilter === 'All' || c.level === levelFilter));
 }
 
 /**
@@ -140,11 +145,13 @@ export async function fetchCourseById(courseId: string): Promise<CourseRecord | 
     const raw = safeStorage.getItem(LOCAL_STORAGE_COURSES_KEY);
     if (raw) {
       const courses: CourseRecord[] = JSON.parse(raw);
-      return courses.find(c => c.id === courseId) || null;
+      const found = courses.find(c => c.id === courseId);
+      if (found) return found;
     }
   } catch {}
 
-  return null;
+  const curr = getCurriculumCourse(courseId);
+  return curr ? curr.course : null;
 }
 
 /**
@@ -165,7 +172,7 @@ export async function fetchCourseLessons(courseId: string, isAdmin = false): Pro
       }
 
       const { data, error } = await query;
-      if (!error && Array.isArray(data)) {
+      if (!error && Array.isArray(data) && data.length > 0) {
         const seenIds = new Set<string>();
         return data
           .map(mapDbLesson)
@@ -185,11 +192,14 @@ export async function fetchCourseLessons(courseId: string, isAdmin = false): Pro
     const raw = safeStorage.getItem(LOCAL_STORAGE_LESSONS_KEY);
     if (raw) {
       const lessons: LessonRecord[] = JSON.parse(raw);
-      return lessons.filter(l => l.courseId === courseId && (isAdmin || l.status === 'published'));
+      const matched = lessons.filter(l => l.courseId === courseId && (isAdmin || l.status === 'published'));
+      if (matched.length > 0) return matched;
     }
   } catch {}
 
-  return [];
+  // Fallback to structured curriculum lessons
+  const curriculumLessons = getCurriculumLessonsForCourse(courseId);
+  return curriculumLessons.filter(l => isAdmin || l.status === 'published');
 }
 
 // ----------------------------------------------------------------------------
@@ -930,3 +940,409 @@ export async function fetchAdminStudents(searchQuery = ''): Promise<any[]> {
 
   return [];
 }
+
+// ----------------------------------------------------------------------------
+// 6. STUDENT COURSE PROGRESS & COMPLETION TRACKING (Supabase + Local Fallback)
+// ----------------------------------------------------------------------------
+
+const LOCAL_STORAGE_PROGRESS_KEY = 'ethiolearn_student_course_progress';
+const LOCAL_STORAGE_EXAM_ATTEMPTS_KEY = 'ethiolearn_student_exam_attempts';
+
+export async function fetchStudentCourseProgress(userId: string, courseId: string): Promise<any | null> {
+  const supabase = getSupabase();
+  if (supabase && userId) {
+    try {
+      const { data, error } = await supabase
+        .from('course_progress')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('course_id', courseId)
+        .maybeSingle();
+
+      if (!error && data) {
+        return {
+          courseId: data.course_id,
+          completedLessonIds: Array.isArray(data.completed_lessons) ? data.completed_lessons : [],
+          lastAccessedLessonId: data.last_accessed_lesson,
+          progressPercentage: Number(data.progress_percentage || 0),
+          totalLessons: Number(data.total_lessons || 0),
+          completedLessonsCount: Number(data.completed_lessons_count || 0),
+          lastUpdated: data.updated_at || data.created_at || new Date().toISOString()
+        };
+      }
+    } catch (e) {
+      console.warn('Error fetching course progress from Supabase:', e);
+    }
+  }
+
+  // Local storage fallback
+  try {
+    const raw = safeStorage.getItem(`${LOCAL_STORAGE_PROGRESS_KEY}_${userId || 'guest'}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed[courseId]) {
+        return parsed[courseId];
+      }
+    }
+  } catch (err) {}
+
+  return null;
+}
+
+export async function saveStudentCourseProgress(
+  userId: string,
+  courseId: string,
+  completedLessonIds: string[],
+  totalLessons: number,
+  lastAccessedLessonId?: string
+): Promise<{ success: boolean; progressPercentage: number }> {
+  const uniqueLessonIds = Array.from(new Set(completedLessonIds));
+  const completedCount = uniqueLessonIds.length;
+  const progressPercentage = totalLessons > 0 ? Math.min(100, Math.round((completedCount / totalLessons) * 100)) : 0;
+  const now = new Date().toISOString();
+
+  const progressData = {
+    courseId,
+    completedLessonIds: uniqueLessonIds,
+    lastAccessedLessonId,
+    progressPercentage,
+    totalLessons,
+    completedLessonsCount: completedCount,
+    lastUpdated: now
+  };
+
+  const supabase = getSupabase();
+  if (supabase && userId) {
+    try {
+      await supabase.from('course_progress').upsert({
+        user_id: userId,
+        course_id: courseId,
+        completed_lessons: uniqueLessonIds,
+        last_accessed_lesson: lastAccessedLessonId || null,
+        progress_percentage: progressPercentage,
+        total_lessons: totalLessons,
+        completed_lessons_count: completedCount,
+        updated_at: now
+      }, { onConflict: 'user_id,course_id' });
+    } catch (e) {
+      console.warn('Error syncing progress to Supabase:', e);
+    }
+  }
+
+  // Update local storage
+  try {
+    const storageKey = `${LOCAL_STORAGE_PROGRESS_KEY}_${userId || 'guest'}`;
+    const raw = safeStorage.getItem(storageKey);
+    const map = raw ? JSON.parse(raw) : {};
+    map[courseId] = progressData;
+    safeStorage.setItem(storageKey, JSON.stringify(map));
+  } catch (err) {}
+
+  return { success: true, progressPercentage };
+}
+
+export async function fetchAllStudentCourseProgresses(userId: string): Promise<{ [courseId: string]: any }> {
+  const result: { [courseId: string]: any } = {};
+
+  const supabase = getSupabase();
+  if (supabase && userId) {
+    try {
+      const { data, error } = await supabase
+        .from('course_progress')
+        .select('*')
+        .eq('user_id', userId);
+
+      if (!error && Array.isArray(data)) {
+        data.forEach(row => {
+          result[row.course_id] = {
+            courseId: row.course_id,
+            completedLessonIds: Array.isArray(row.completed_lessons) ? row.completed_lessons : [],
+            lastAccessedLessonId: row.last_accessed_lesson,
+            progressPercentage: Number(row.progress_percentage || 0),
+            totalLessons: Number(row.total_lessons || 0),
+            completedLessonsCount: Number(row.completed_lessons_count || 0),
+            lastUpdated: row.updated_at
+          };
+        });
+        return result;
+      }
+    } catch (e) {
+      console.warn('Error fetching all progress from Supabase:', e);
+    }
+  }
+
+  try {
+    const storageKey = `${LOCAL_STORAGE_PROGRESS_KEY}_${userId || 'guest'}`;
+    const raw = safeStorage.getItem(storageKey);
+    if (raw) {
+      return JSON.parse(raw);
+    }
+  } catch (err) {}
+
+  return result;
+}
+
+// ----------------------------------------------------------------------------
+// 7. EXAM ATTEMPTS & RESULTS PERSISTENCE (Supabase + Local Fallback)
+// ----------------------------------------------------------------------------
+
+export async function saveExamAttempt(attempt: any, userId?: string): Promise<{ success: boolean; id: string }> {
+  const attemptId = attempt.id || `attempt_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  const now = new Date().toISOString();
+
+  const record = {
+    ...attempt,
+    id: attemptId,
+    userId: userId || 'guest',
+    date: attempt.date || now,
+    createdAt: now
+  };
+
+  const supabase = getSupabase();
+  if (supabase && userId) {
+    try {
+      await supabase.from('exam_attempts').insert({
+        id: record.id,
+        user_id: userId,
+        exam_id: record.examId,
+        exam_title: record.examTitle,
+        subject: record.subject,
+        score: record.score,
+        total_questions: record.totalQuestions,
+        percentage: record.percentage,
+        grade: record.grade,
+        is_passed: record.isPassed,
+        time_spent_seconds: record.timeSpentSeconds,
+        user_answers: record.userAnswers || {},
+        flagged_questions: record.flaggedQuestions || [],
+        weak_topics: record.weakTopics || [],
+        incorrect_questions: record.incorrectQuestions || [],
+        created_at: now
+      });
+    } catch (e) {
+      console.warn('Error saving exam attempt to Supabase:', e);
+    }
+  }
+
+  // Update local storage
+  try {
+    const storageKey = `${LOCAL_STORAGE_EXAM_ATTEMPTS_KEY}_${userId || 'guest'}`;
+    const raw = safeStorage.getItem(storageKey);
+    const list: any[] = raw ? JSON.parse(raw) : [];
+    list.unshift(record);
+    safeStorage.setItem(storageKey, JSON.stringify(list.slice(0, 50)));
+  } catch (err) {}
+
+  return { success: true, id: attemptId };
+}
+
+export async function fetchStudentExamAttempts(userId?: string): Promise<any[]> {
+  const supabase = getSupabase();
+  if (supabase && userId) {
+    try {
+      const { data, error } = await supabase
+        .from('exam_attempts')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (!error && Array.isArray(data)) {
+        return data.map((row: any) => ({
+          id: row.id,
+          userId: row.user_id,
+          examId: row.exam_id,
+          examTitle: row.exam_title,
+          subject: row.subject,
+          score: Number(row.score || 0),
+          totalQuestions: Number(row.total_questions || 0),
+          percentage: Number(row.percentage || 0),
+          grade: row.grade || 'C',
+          isPassed: Boolean(row.is_passed),
+          timeSpentSeconds: Number(row.time_spent_seconds || 0),
+          userAnswers: row.user_answers || {},
+          flaggedQuestions: row.flagged_questions || [],
+          weakTopics: row.weak_topics || [],
+          incorrectQuestions: row.incorrect_questions || [],
+          date: row.created_at || new Date().toISOString()
+        }));
+      }
+    } catch (e) {
+      console.warn('Error fetching exam attempts from Supabase:', e);
+    }
+  }
+
+  try {
+    const storageKey = `${LOCAL_STORAGE_EXAM_ATTEMPTS_KEY}_${userId || 'guest'}`;
+    const raw = safeStorage.getItem(storageKey);
+    if (raw) {
+      return JSON.parse(raw);
+    }
+  } catch (err) {}
+
+  return [];
+}
+
+// ----------------------------------------------------------------------------
+// 8. STUDENT DAILY STUDY TASKS (Supabase + Local Storage Persistence)
+// ----------------------------------------------------------------------------
+
+const LOCAL_STORAGE_TASKS_KEY = 'ethiolearn_student_study_tasks';
+
+export async function fetchStudentTasks(userId?: string): Promise<any[]> {
+  const supabase = getSupabase();
+  if (supabase && userId) {
+    try {
+      const { data, error } = await supabase
+        .from('student_tasks')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return data.map((row: any) => ({
+          id: row.id,
+          userId: row.user_id,
+          title: row.title,
+          subject: row.subject,
+          courseTitle: row.course_title,
+          duration: row.duration || '20m',
+          durationMinutes: Number(row.duration_minutes || 20),
+          isCompleted: Boolean(row.is_completed),
+          type: row.type || 'review',
+          dueDate: row.due_date,
+          createdAt: row.created_at
+        }));
+      }
+    } catch (e) {
+      console.warn('Error fetching student tasks from Supabase:', e);
+    }
+  }
+
+  // Fallback to local cache
+  try {
+    const storageKey = `${LOCAL_STORAGE_TASKS_KEY}_${userId || 'guest'}`;
+    const raw = safeStorage.getItem(storageKey);
+    if (raw) {
+      const list = JSON.parse(raw);
+      if (Array.isArray(list) && list.length > 0) {
+        return list;
+      }
+    }
+  } catch (err) {}
+
+  return [];
+}
+
+export async function saveStudentTask(task: any, userId?: string): Promise<{ success: boolean; task: any }> {
+  const taskId = task.id || `task_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  const now = new Date().toISOString();
+
+  const formattedTask = {
+    id: taskId,
+    userId: userId || 'guest',
+    title: task.title,
+    subject: task.subject || 'General',
+    courseTitle: task.courseTitle || '',
+    duration: task.duration || '20m',
+    durationMinutes: Number(task.durationMinutes || 20),
+    isCompleted: Boolean(task.isCompleted),
+    type: task.type || 'review',
+    dueDate: task.dueDate || now.split('T')[0],
+    createdAt: task.createdAt || now
+  };
+
+  const supabase = getSupabase();
+  if (supabase && userId) {
+    try {
+      await supabase.from('student_tasks').upsert({
+        id: formattedTask.id,
+        user_id: userId,
+        title: formattedTask.title,
+        subject: formattedTask.subject,
+        course_title: formattedTask.courseTitle,
+        duration: formattedTask.duration,
+        duration_minutes: formattedTask.durationMinutes,
+        is_completed: formattedTask.isCompleted,
+        type: formattedTask.type,
+        due_date: formattedTask.dueDate,
+        created_at: formattedTask.createdAt
+      }, { onConflict: 'id' });
+    } catch (e) {
+      console.warn('Error saving student task to Supabase:', e);
+    }
+  }
+
+  // Update local storage
+  try {
+    const storageKey = `${LOCAL_STORAGE_TASKS_KEY}_${userId || 'guest'}`;
+    const raw = safeStorage.getItem(storageKey);
+    const list: any[] = raw ? JSON.parse(raw) : [];
+    const index = list.findIndex(t => t.id === formattedTask.id);
+    if (index >= 0) {
+      list[index] = formattedTask;
+    } else {
+      list.unshift(formattedTask);
+    }
+    safeStorage.setItem(storageKey, JSON.stringify(list));
+  } catch (err) {}
+
+  return { success: true, task: formattedTask };
+}
+
+export async function toggleStudentTaskStatus(taskId: string, isCompleted: boolean, userId?: string): Promise<{ success: boolean }> {
+  const supabase = getSupabase();
+  if (supabase && userId) {
+    try {
+      await supabase
+        .from('student_tasks')
+        .update({ is_completed: isCompleted, updated_at: new Date().toISOString() })
+        .eq('id', taskId)
+        .eq('user_id', userId);
+    } catch (e) {
+      console.warn('Error updating student task status in Supabase:', e);
+    }
+  }
+
+  // Update local storage
+  try {
+    const storageKey = `${LOCAL_STORAGE_TASKS_KEY}_${userId || 'guest'}`;
+    const raw = safeStorage.getItem(storageKey);
+    if (raw) {
+      const list: any[] = JSON.parse(raw);
+      const updated = list.map(t => t.id === taskId ? { ...t, isCompleted } : t);
+      safeStorage.setItem(storageKey, JSON.stringify(updated));
+    }
+  } catch (err) {}
+
+  return { success: true };
+}
+
+export async function deleteStudentTask(taskId: string, userId?: string): Promise<{ success: boolean }> {
+  const supabase = getSupabase();
+  if (supabase && userId) {
+    try {
+      await supabase
+        .from('student_tasks')
+        .delete()
+        .eq('id', taskId)
+        .eq('user_id', userId);
+    } catch (e) {
+      console.warn('Error deleting student task in Supabase:', e);
+    }
+  }
+
+  // Update local storage
+  try {
+    const storageKey = `${LOCAL_STORAGE_TASKS_KEY}_${userId || 'guest'}`;
+    const raw = safeStorage.getItem(storageKey);
+    if (raw) {
+      const list: any[] = JSON.parse(raw);
+      const filtered = list.filter(t => t.id !== taskId);
+      safeStorage.setItem(storageKey, JSON.stringify(filtered));
+    }
+  } catch (err) {}
+
+  return { success: true };
+}
+
+

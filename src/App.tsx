@@ -10,7 +10,7 @@ import {
   Share, X, ShieldCheck
 } from 'lucide-react';
 
-import { StudentProfile, CustomNote, Flashcard } from './types';
+import { StudentProfile, CustomNote, Flashcard, AITeacherContext } from './types';
 import SplashOnboarding from './components/SplashOnboarding';
 import PWADownloadAssistant from './components/PWADownloadAssistant';
 import AITutor from './components/AITutor';
@@ -26,6 +26,8 @@ import SupportChatBubble from './components/SupportChatBubble';
 import ExamNotesHubView from './components/ExamNotesHubView';
 import InAppViewerModal from './components/InAppViewerModal';
 import AdminDashboardView from './components/AdminDashboardView';
+import CourseExperienceView from './components/CourseExperienceView';
+import ExamEngineView from './components/ExamEngineView';
 
 import { 
   testFirestoreConnection, 
@@ -182,7 +184,8 @@ export default function App() {
     return (saved === 'am' || saved === 'en') ? saved : 'en';
   });
 
-  const [currentPage, setCurrentPage] = useState<'home' | 'tutor' | 'quiz' | 'profile' | 'notes' | 'bookstore' | 'university' | 'upgrade' | 'examprep'>('home');
+  const [currentPage, setCurrentPage] = useState<'home' | 'tutor' | 'quiz' | 'profile' | 'notes' | 'bookstore' | 'university' | 'upgrade' | 'examprep' | 'courses' | 'examengine'>('home');
+  const [aiContext, setAiContext] = useState<AITeacherContext | null>(null);
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>(() => {
     const saved = safeStorage.getItem('ethiolearn_theme');
     return (saved === 'light' || saved === 'dark') ? saved : 'light';
@@ -945,7 +948,9 @@ export default function App() {
               <div className="leading-none text-left">
                 <div className="flex items-center">
                   <span className="font-serif font-black text-slate-900 dark:text-white text-lg tracking-tight">ET_LEARN</span>
-                  <span className="text-[#F59E0B] text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-500 ml-1.5 font-sans">PRO</span>
+                  {profile.isPro && (
+                    <span className="text-[#F59E0B] text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-500 ml-1.5 font-sans">PRO</span>
+                  )}
                 </div>
                 <span className="text-[10px] text-slate-400 dark:text-zinc-400 font-semibold">{profile.university || 'Learn Smarter. Prepare Better.'}</span>
               </div>
@@ -1056,10 +1061,45 @@ export default function App() {
               <HomeDashboard 
                 profile={profile}
                 language={language}
-                onNavigate={(page) => setCurrentPage(page as any)}
+                onNavigate={(page, context) => {
+                  if (context) setAiContext(context);
+                  setCurrentPage(page as any);
+                }}
                 onUpdateGrade={handleUpdateGrade}
                 streakCount={streak}
                 studyHoursCount={studyHours}
+                onSelectCourse={(courseId) => {
+                  setCurrentPage('courses');
+                }}
+              />
+            )}
+
+            {currentPage === 'courses' && (
+              <CourseExperienceView 
+                profile={profile}
+                apiKey={profile.claudeApiKey || ""}
+                language={language}
+                onNavigate={(page) => setCurrentPage(page as any)}
+                onOpenAITutorWithContext={(ctx) => {
+                  setAiContext(ctx);
+                  setCurrentPage('tutor');
+                }}
+                onStudyAction={handleRecordStudyAction}
+                onOpenInAppViewer={(url, title) => { setInAppViewerUrl(url); setInAppViewerTitle(title); }}
+              />
+            )}
+
+            {currentPage === 'examengine' && (
+              <ExamEngineView 
+                profile={profile}
+                apiKey={profile.claudeApiKey || ""}
+                language={language}
+                onNavigate={(page) => setCurrentPage(page as any)}
+                onOpenAITutorWithContext={(ctx) => {
+                  setAiContext(ctx);
+                  setCurrentPage('tutor');
+                }}
+                onStudyAction={handleRecordStudyAction}
               />
             )}
 
@@ -1073,6 +1113,8 @@ export default function App() {
                 profile={profile}
                 onUpdateProfile={handleUpdateProfile}
                 onOpenUpgrade={() => setCurrentPage('upgrade')}
+                context={aiContext}
+                onClearContext={() => setAiContext(null)}
               />
             )}
 

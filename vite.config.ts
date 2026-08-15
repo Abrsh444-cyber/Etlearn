@@ -13,10 +13,8 @@ export default defineConfig(() => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
-        'react': path.resolve(__dirname, './node_modules/react'),
-        'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
       },
-      dedupe: ['react', 'react-dom', 'framer-motion', 'motion'],
+      dedupe: ['react', 'react-dom'],
     },
     optimizeDeps: {
       include: [
@@ -25,7 +23,6 @@ export default defineConfig(() => {
         'react/jsx-runtime',
         'react/jsx-dev-runtime',
         'motion/react',
-        'framer-motion',
         'lucide-react',
       ],
     },

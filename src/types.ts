@@ -137,6 +137,118 @@ export interface LessonRecord {
   updatedAt: string;
 }
 
+export interface LessonResource {
+  id: string;
+  title: string;
+  type: 'pdf' | 'summary' | 'cheat_sheet' | 'exercise';
+  url?: string;
+  size?: string;
+}
+
+export interface LessonRecord {
+  id: string;
+  courseId: string;
+  title: string;
+  chapterNumber: number;
+  unitTitle?: string;
+  content: string;
+  duration: string;
+  videoUrl?: string;
+  audioUrl?: string;
+  resources?: LessonResource[];
+  status: CourseStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StudentCourseProgress {
+  courseId: string;
+  completedLessonIds: string[];
+  lastAccessedLessonId?: string;
+  progressPercentage: number;
+  totalLessons: number;
+  completedLessonsCount: number;
+  lastUpdated: string;
+}
+
+export type QuestionType = 'mcq' | 'true_false' | 'short_answer';
+
+export interface ExamQuestion {
+  id: number | string;
+  question?: string;
+  text?: string;
+  questionNumber?: number;
+  options: string[];
+  correctAnswer: string;
+  explanation: string;
+  subject?: string;
+  topic?: string;
+  subjectTopic?: string;
+  unitName?: string;
+  questionType?: QuestionType;
+  difficulty?: 'easy' | 'medium' | 'hard';
+}
+
+export interface ExamPaper {
+  id: string;
+  title: string;
+  subject: string;
+  level: 'University' | 'Grade 12' | 'Common Courses';
+  university?: string;
+  year?: string;
+  durationMinutes: number;
+  totalQuestions: number;
+  passingPercentage?: number;
+  passingScore?: number;
+  instructions?: string;
+  questions: ExamQuestion[];
+  status?: 'published' | 'draft' | 'archived';
+  description?: string;
+}
+
+export interface ExamAttemptRecord {
+  id: string;
+  userId?: string;
+  examId: string;
+  examTitle: string;
+  subject: string;
+  score: number;
+  totalQuestions: number;
+  percentage: number;
+  grade: 'A' | 'B' | 'C' | 'D' | 'F';
+  isPassed: boolean;
+  timeSpentSeconds: number;
+  userAnswers: { [questionId: string]: string };
+  flaggedQuestions: (string | number)[];
+  date: string;
+  weakTopics: string[];
+  incorrectQuestions?: Array<{
+    id: string | number;
+    question: string;
+    studentAnswer: string;
+    correctAnswer: string;
+    explanation: string;
+    subjectTopic?: string;
+  }>;
+}
+
+export type AITeacherMode = 'teaching' | 'quiz' | 'exam_feedback' | 'free_chat';
+
+export interface AITeacherContext {
+  mode: AITeacherMode;
+  courseTitle?: string;
+  lessonTitle?: string;
+  lessonContent?: string;
+  subject?: string;
+  examErrors?: Array<{
+    question: string;
+    studentAnswer: string;
+    correctAnswer: string;
+    explanation: string;
+    subjectTopic?: string;
+  }>;
+}
+
 export interface AdminDashboardStats {
   totalStudents: number;
   publishedCourses: number;
@@ -208,6 +320,20 @@ export interface FlashcardReviewLog {
   date: string; // YYYY-MM-DD
   reviewedCount: number;
   correctCount: number;
+}
+
+export interface StudyTask {
+  id: string;
+  userId?: string;
+  title: string;
+  subject?: string;
+  courseTitle?: string;
+  durationMinutes?: number;
+  duration?: string;
+  isCompleted: boolean;
+  type?: 'review' | 'quiz' | 'lesson' | 'reading';
+  dueDate?: string;
+  createdAt?: string;
 }
 
 export interface AppState {
