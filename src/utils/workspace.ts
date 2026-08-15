@@ -5,6 +5,15 @@
 
 import { CustomNote } from '../types';
 import { getSupabase } from './supabaseClient';
+import { 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signInWithRedirect, 
+  onAuthStateChanged, 
+  signOut, 
+  User 
+} from 'firebase/auth';
+import { auth } from './firebaseStore';
 
 let isSigningIn = false;
 let cachedAccessToken: string | null = null;
@@ -17,93 +26,182 @@ try {
 }
 
 /**
- * Listen for Firebase Auth state changes
+ * Listen for Firebase Auth / Supabase state changes
  */
 export const initAuth = (
   onAuthSuccess: (user: any, accessToken: string) => void,
   onAuthFailure: () => void
 ) => {
-  const supabase = getSupabase();
-  if (!supabase) return () => {};
-
-  supabase.auth.getSession().then(({ data }: any) => {
-    if (data?.session?.user) {
-      const token = data.session.provider_token || data.session.access_token || '';
-      cachedAccessToken = token;
-      try {
-        sessionStorage.setItem('ethiolearn_google_token', token);
-      } catch (e) {}
-      onAuthSuccess(data.session.user, token);
-    }
-  });
-
-  const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: any) => {
-    if (session?.user) {
-      const token = session.provider_token || session.access_token || '';
-      cachedAccessToken = token;
-      try {
-        sessionStorage.setItem('ethiolearn_google_token', token);
-      } catch (e) {}
-      onAuthSuccess(session.user, token);
-    } else if (event === 'SIGNED_OUT') {
-      cachedAccessToken = null;
-      try {
-        sessionStorage.removeItem('ethiolearn_google_token');
-      } catch (e) {}
-      onAuthFailure();
-    }
-  });
-
-  return () => subscription.unsubscribe();
-};
-
-/**
- * Trigger Sign-In with Google Auth Popup
- */
-export const googleSignIn = async (): Promise<{ user: any; accessToken: string } | null> => {
-  const supabase = getSupabase();
-  if (!supabase) {
-    throw new Error('Supabase is not configured yet. Please configure it first!');
-  }
-  try {
-    isSigningIn = true;
-    
-    // Check if we already have an active session
-    const { data: sessionData } = await supabase.auth.getSession();
-    if (sessionData?.session?.user) {
-      const token = sessionData.session.provider_token || sessionData.session.access_token || '';
-      cachedAccessToken = token;
-      return { user: sessionData.session.user, accessToken: token };
-    }
-
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin,
-        scopes: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/docs'
+  // 1. Firebase Auth listener (Primary)
+  if (auth) {
+    const unsubscribeFirebase = onAuthStateChanged(auth, async (user: User | null) => {
+      if (user) {
+        let token = cachedAccessToken;
+        if (!token) {
+          try {
+            token = await user.getIdToken();
+          } catch (e) {
+            token = '';
+          }
+        }
+        onAuthSuccess(user, token || '');
+      } else {
+        // Only trigger failure if Supabase is also inactive
+        const supabase = getSupabase();
+        if (!supabase) {
+          cachedAccessToken = null;
+          try {
+            sessionStorage.removeItem('ethiolearn_google_token');
+          } catch (e) {}
+          onAuthFailure();
+        }
       }
     });
 
-    if (error) {
-      throw error;
+    // 2. Supabase listener as fallback
+    const supabase = getSupabase();
+    if (supabase) {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: any) => {
+        if (session?.user) {
+          const token = session.provider_token || session.access_token || '';
+          cachedAccessToken = token;
+          try {
+            sessionStorage.setItem('ethiolearn_google_token', token);
+          } catch (e) {}
+          onAuthSuccess(session.user, token);
+        } else if (event === 'SIGNED_OUT' && !auth?.currentUser) {
+          cachedAccessToken = null;
+          try {
+            sessionStorage.removeItem('ethiolearn_google_token');
+          } catch (e) {}
+          onAuthFailure();
+        }
+      });
+
+      return () => {
+        unsubscribeFirebase();
+        subscription.unsubscribe();
+      };
     }
 
-    if (data?.url) {
-      window.location.href = data.url;
+    return unsubscribeFirebase;
+  }
+
+  // If Firebase Auth is not available, check Supabase
+  const supabase = getSupabase();
+  if (supabase) {
+    supabase.auth.getSession().then(({ data }: any) => {
+      if (data?.session?.user) {
+        const token = data.session.provider_token || data.session.access_token || '';
+        cachedAccessToken = token;
+        try {
+          sessionStorage.setItem('ethiolearn_google_token', token);
+        } catch (e) {}
+        onAuthSuccess(data.session.user, token);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: any) => {
+      if (session?.user) {
+        const token = session.provider_token || session.access_token || '';
+        cachedAccessToken = token;
+        try {
+          sessionStorage.setItem('ethiolearn_google_token', token);
+        } catch (e) {}
+        onAuthSuccess(session.user, token);
+      } else if (event === 'SIGNED_OUT') {
+        cachedAccessToken = null;
+        try {
+          sessionStorage.removeItem('ethiolearn_google_token');
+        } catch (e) {}
+        onAuthFailure();
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }
+
+  return () => {};
+};
+
+/**
+ * Trigger Sign-In with Google Auth Popup (Firebase Auth primary, Supabase fallback)
+ */
+export const googleSignIn = async (): Promise<{ user: any; accessToken: string } | null> => {
+  if (isSigningIn) return null;
+  isSigningIn = true;
+
+  try {
+    // 1. Firebase Google Auth (Primary for AI Studio environment)
+    if (auth) {
+      const provider = new GoogleAuthProvider();
+      provider.addScope('https://www.googleapis.com/auth/spreadsheets');
+      provider.addScope('https://www.googleapis.com/auth/docs');
+      provider.setCustomParameters({ prompt: 'select_account' });
+
+      try {
+        const result = await signInWithPopup(auth, provider);
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        const token = credential?.accessToken || (await result.user.getIdToken()) || '';
+        if (token) {
+          cachedAccessToken = token;
+          try {
+            sessionStorage.setItem('ethiolearn_google_token', token);
+          } catch (e) {}
+        }
+        return { user: result.user, accessToken: token };
+      } catch (fbErr: any) {
+        console.warn('[Firebase Google Sign-In] Popup issue or cancellation:', fbErr);
+        // If Supabase is available, attempt fallback, otherwise rethrow
+        const supabase = getSupabase();
+        if (!supabase) {
+          throw fbErr;
+        }
+      }
     }
-    return null;
-  } catch (error: any) {
-    console.error('Google Sign-In error:', error);
-    throw error;
+
+    // 2. Supabase fallback if configured
+    const supabase = getSupabase();
+    if (supabase) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData?.session?.user) {
+        const token = sessionData.session.provider_token || sessionData.session.access_token || '';
+        cachedAccessToken = token;
+        return { user: sessionData.session.user, accessToken: token };
+      }
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+          scopes: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/docs'
+        }
+      });
+
+      if (error) throw error;
+      if (data?.url) {
+        window.location.href = data.url;
+      }
+      return null;
+    }
+
+    throw new Error('Authentication service is not initialized.');
   } finally {
     isSigningIn = false;
   }
 };
 
 /**
- * Trigger Sign-In with Google Redirect (Fallback for blocked popups in iframes)
+ * Trigger Sign-In with Google Redirect
  */
 export const googleSignInRedirect = async (): Promise<void> => {
+  if (auth) {
+    const provider = new GoogleAuthProvider();
+    provider.addScope('https://www.googleapis.com/auth/spreadsheets');
+    provider.addScope('https://www.googleapis.com/auth/docs');
+    await signInWithRedirect(auth, provider);
+    return;
+  }
   await googleSignIn();
 };
 
@@ -111,16 +209,31 @@ export const googleSignInRedirect = async (): Promise<void> => {
  * Retrieve cached token
  */
 export const getAccessToken = async (): Promise<string | null> => {
-  return cachedAccessToken;
+  if (cachedAccessToken) return cachedAccessToken;
+  if (auth?.currentUser) {
+    try {
+      const token = await auth.currentUser.getIdToken();
+      cachedAccessToken = token;
+      return token;
+    } catch (e) {}
+  }
+  return null;
 };
 
 /**
  * Google Log Out
  */
 export const logoutGoogle = async () => {
+  if (auth) {
+    try {
+      await signOut(auth);
+    } catch (e) {}
+  }
   const supabase = getSupabase();
   if (supabase) {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {}
   }
   cachedAccessToken = null;
   try {
