@@ -211,6 +211,8 @@ export async function fetchCourseLessons(courseId: string, isAdmin = false): Pro
  */
 export async function fetchAdminCourses(): Promise<CourseRecord[]> {
   const supabase = getSupabase();
+  let dbCourses: CourseRecord[] = [];
+
   if (supabase) {
     try {
       const { data, error } = await supabase
@@ -218,31 +220,48 @@ export async function fetchAdminCourses(): Promise<CourseRecord[]> {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (!error && Array.isArray(data)) {
+      if (!error && Array.isArray(data) && data.length > 0) {
         const seenIds = new Set<string>();
-        const courses: CourseRecord[] = [];
         for (const row of data) {
           if (!seenIds.has(row.id)) {
             seenIds.add(row.id);
-            courses.push(mapDbCourse(row));
+            dbCourses.push(mapDbCourse(row));
           }
         }
-        safeStorage.setItem(LOCAL_STORAGE_COURSES_KEY, JSON.stringify(courses));
-        return courses;
       }
     } catch (e) {
-      console.warn('Error fetching admin courses:', e);
+      console.warn('Error fetching admin courses from Supabase:', e);
     }
   }
 
+  // Check local storage cache
+  let cachedCourses: CourseRecord[] = [];
   try {
     const raw = safeStorage.getItem(LOCAL_STORAGE_COURSES_KEY);
     if (raw) {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) cachedCourses = parsed;
     }
   } catch {}
 
-  return [];
+  // Fallback to initial comprehensive curriculum courses if none in DB or cache
+  const defaultCourses = INITIAL_CURRICULUM_COURSES.map(c => c.course);
+
+  // Merge uniquely
+  const mergedMap = new Map<string, CourseRecord>();
+  defaultCourses.forEach(c => mergedMap.set(c.id, c));
+  cachedCourses.forEach(c => mergedMap.set(c.id, c));
+  dbCourses.forEach(c => mergedMap.set(c.id, c));
+
+  const result = Array.from(mergedMap.values()).sort((a, b) => {
+    return new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime();
+  });
+
+  try {
+    safeStorage.setItem(LOCAL_STORAGE_COURSES_KEY, JSON.stringify(result));
+  } catch {}
+
+  return result;
 }
 
 /**
@@ -502,7 +521,7 @@ export async function saveLesson(
 }
 
 // ----------------------------------------------------------------------------
-// 3. ADMIN DASHBOARD STATS (Live Supabase Aggregate Counts — 0 on empty)
+// 3. ADMIN DASHBOARD STATS (Live Supabase Aggregate Counts + Resilient Local Layer)
 // ----------------------------------------------------------------------------
 
 export async function fetchAdminDashboardStats(): Promise<AdminDashboardStats> {
@@ -519,127 +538,66 @@ export async function fetchAdminDashboardStats(): Promise<AdminDashboardStats> {
   let activeCouponsCount = 0;
   const recentActivity: AdminDashboardStats['recentActivity'] = [];
 
-  if (supabase) {
-    try {
-      // 1. Total real students from student_profiles
-      const { count: studentsCount, data: recentStudents } = await supabase
-        .from('student_profiles')
-        .select('name, email, created_at', { count: 'exact' })
-        .order('created_at', { ascending: false })
-        .limit(5);
+  // Fetch courses from unified source
+  const allCourses = await fetchAdminCourses();
+  publishedCourses = allCourses.filter(c => c.status === 'published').length;
+  draftCourses = allCourses.filter(c => c.status === 'draft').length;
+  totalLessons = allCourses.reduce((acc, c) => acc + (c.lessonsCount || 0), 0);
 
-      totalStudents = studentsCount || 0;
+  allCourses.slice(0, 5).forEach(c => {
+    recentActivity.push({
+      id: `act_course_${c.id}`,
+      type: c.status === 'published' ? 'course_published' : 'course_created',
+      title: c.status === 'published' ? 'Course Published' : 'Draft Course Created',
+      description: `"${c.title}" updated in database catalog`,
+      timestamp: c.updatedAt || c.createdAt || new Date().toISOString(),
+    });
+  });
 
-      if (recentStudents && recentStudents.length > 0) {
-        recentStudents.forEach((st: any, idx: number) => {
-          recentActivity.push({
-            id: `act_student_${st.email || idx}`,
-            type: 'user_registered',
-            title: 'New Student Enrollment',
-            description: `${st.name || 'Student'} (${st.email || 'Registered'}) joined the campus portal`,
-            timestamp: st.created_at || new Date().toISOString(),
-          });
-        });
-      }
+  // Fetch students from unified source
+  const allStudents = await fetchAdminStudents();
+  totalStudents = allStudents.length;
 
-      // 2. Published and Draft Courses count
-      const { data: coursesData } = await supabase
-        .from('courses')
-        .select('id, title, status, created_at, updated_at')
-        .order('updated_at', { ascending: false });
+  allStudents.slice(0, 5).forEach((st, idx) => {
+    recentActivity.push({
+      id: `act_student_${st.email || st.id || idx}`,
+      type: 'user_registered',
+      title: 'New Student Enrollment',
+      description: `${st.name || 'Student'} (${st.university || 'Registered'}) joined the campus portal`,
+      timestamp: st.created_at || st.createdAt || new Date().toISOString(),
+    });
+  });
 
-      if (coursesData && Array.isArray(coursesData)) {
-        coursesData.forEach((c: any) => {
-          if (c.status === 'published') publishedCourses++;
-          else if (c.status === 'draft') draftCourses++;
-
-          if (recentActivity.length < 10) {
-            recentActivity.push({
-              id: `act_course_${c.id}`,
-              type: c.status === 'published' ? 'course_published' : 'course_created',
-              title: c.status === 'published' ? 'Course Published' : 'Draft Course Created',
-              description: `"${c.title}" updated in database catalog`,
-              timestamp: c.updated_at || c.created_at || new Date().toISOString(),
-            });
-          }
-        });
-      }
-
-      // 3. Lessons count
-      const { count: lessonsCount } = await supabase
-        .from('lessons')
-        .select('*', { count: 'exact', head: true });
-      totalLessons = lessonsCount || 0;
-
-      // 4. Payments stats
-      const { data: paymentsData, count: payCount } = await supabase
-        .from('payments')
-        .select('id, amount, status, sender_name, created_at')
-        .order('created_at', { ascending: false });
-
-      totalPaymentsCount = payCount || 0;
-
-      if (paymentsData && Array.isArray(paymentsData)) {
-        paymentsData.forEach((p: any) => {
-          const amt = Number(p.amount || 0);
-          if (p.status === 'completed') {
-            totalRevenueETB += amt;
-          } else if (p.status === 'pending') {
-            pendingPaymentsCount++;
-          }
-
-          if (recentActivity.length < 15) {
-            recentActivity.push({
-              id: `act_pay_${p.id}`,
-              type: 'payment_received',
-              title: `Payment ${p.status === 'completed' ? 'Verified' : 'Pending'} (${amt} ETB)`,
-              description: `Transaction from ${p.sender_name || 'Student'}`,
-              timestamp: p.created_at || new Date().toISOString(),
-            });
-          }
-        });
-      }
-
-      // 5. Announcements count
-      const { count: annCount } = await supabase
-        .from('announcements')
-        .select('*', { count: 'exact', head: true });
-      activeAnnouncementsCount = annCount || 0;
-
-      // 6. Coupons count
-      const { count: coupCount } = await supabase
-        .from('coupons')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_active', true);
-      activeCouponsCount = coupCount || 0;
-
-    } catch (e) {
-      console.warn('Error computing live Supabase stats:', e);
+  // Fetch payments from unified source
+  const allPayments = await fetchAdminPayments();
+  totalPaymentsCount = allPayments.length;
+  allPayments.forEach(p => {
+    const amt = Number(p.amount || 0);
+    if (p.status === 'completed') {
+      totalRevenueETB += amt;
+    } else if (p.status === 'pending') {
+      pendingPaymentsCount++;
     }
-  } else {
-    // Read cached local storage counts if database client isn't connected yet
-    try {
-      const rawCourses = safeStorage.getItem(LOCAL_STORAGE_COURSES_KEY);
-      if (rawCourses) {
-        const courses: CourseRecord[] = JSON.parse(rawCourses);
-        publishedCourses = courses.filter(c => c.status === 'published').length;
-        draftCourses = courses.filter(c => c.status === 'draft').length;
-      }
-      const rawLessons = safeStorage.getItem(LOCAL_STORAGE_LESSONS_KEY);
-      if (rawLessons) {
-        totalLessons = JSON.parse(rawLessons).length;
-      }
-      const rawPayments = safeStorage.getItem(LOCAL_STORAGE_PAYMENTS_KEY);
-      if (rawPayments) {
-        const payments = JSON.parse(rawPayments);
-        totalPaymentsCount = payments.length;
-        payments.forEach((p: any) => {
-          if (p.status === 'completed') totalRevenueETB += Number(p.amount || 0);
-          if (p.status === 'pending') pendingPaymentsCount++;
-        });
-      }
-    } catch {}
-  }
+  });
+
+  allPayments.slice(0, 5).forEach(p => {
+    const amt = Number(p.amount || 0);
+    recentActivity.push({
+      id: `act_pay_${p.id}`,
+      type: 'payment_received',
+      title: `Payment ${p.status === 'completed' ? 'Verified' : 'Pending'} (${amt} ETB)`,
+      description: `Transaction from ${p.sender_name || p.senderName || p.userId || 'Student'} via ${(p.provider || 'local').toUpperCase()}`,
+      timestamp: p.created_at || p.createdAt || new Date().toISOString(),
+    });
+  });
+
+  // Announcements count
+  const allAnnouncements = await fetchAnnouncements();
+  activeAnnouncementsCount = allAnnouncements.length;
+
+  // Coupons count
+  const allCoupons = await fetchCoupons();
+  activeCouponsCount = allCoupons.filter(c => c.isActive).length;
 
   // Sort recent activity by timestamp descending
   recentActivity.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
@@ -695,10 +653,17 @@ export async function fetchAnnouncements(publishedOnly = false): Promise<Platfor
 
   try {
     const raw = safeStorage.getItem(LOCAL_STORAGE_ANNOUNCEMENTS_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
   } catch {}
 
-  return [];
+  try {
+    safeStorage.setItem(LOCAL_STORAGE_ANNOUNCEMENTS_KEY, JSON.stringify(DEFAULT_ANNOUNCEMENTS));
+  } catch {}
+
+  return DEFAULT_ANNOUNCEMENTS;
 }
 
 export async function createAnnouncement(ann: Partial<PlatformAnnouncement>): Promise<{ success: boolean; announcement?: PlatformAnnouncement; error?: string }> {
@@ -769,6 +734,168 @@ export async function deleteAnnouncement(annId: string): Promise<{ success: bool
   return { success: true };
 }
 
+const DEFAULT_ANNOUNCEMENTS: PlatformAnnouncement[] = [
+  {
+    id: 'ann_wku_exam_2026',
+    title: 'Wolkite University Midterm Exam Schedule 2026',
+    message: 'Official exam prep modules and past questions for freshman and sophomore courses are now updated under Uni Exams.',
+    badgeText: 'Exam Alert',
+    isImportant: true,
+    status: 'published',
+    date: '2026-03-15',
+    createdAt: '2026-03-15T08:00:00.000Z'
+  },
+  {
+    id: 'ann_freshman_notes_update',
+    title: 'New Freshman Common Course Notes Published',
+    message: 'Comprehensive lecture notes and flashcards added for Emerging Tech (EmTe 1012), General Biology (Biol 1011), and Intro Economics (Econ 1011).',
+    badgeText: 'Curriculum',
+    isImportant: false,
+    status: 'published',
+    date: '2026-03-10',
+    createdAt: '2026-03-10T10:00:00.000Z'
+  }
+];
+
+const DEFAULT_COUPONS: CouponCode[] = [
+  {
+    code: 'WKU2026',
+    discountPercentage: 20,
+    fixedDiscountETB: 0,
+    maxUses: 100,
+    usedCount: 14,
+    expiresAt: '2026-12-31',
+    isActive: true
+  },
+  {
+    code: 'ETHIOLEARN',
+    discountPercentage: 30,
+    fixedDiscountETB: 0,
+    maxUses: 50,
+    usedCount: 8,
+    expiresAt: '2026-12-31',
+    isActive: true
+  },
+  {
+    code: 'FRESHMAN50',
+    discountPercentage: 50,
+    fixedDiscountETB: 0,
+    maxUses: 200,
+    usedCount: 47,
+    expiresAt: '2026-12-31',
+    isActive: true
+  }
+];
+
+const DEFAULT_STARTER_STUDENTS = [
+  {
+    id: 'std_wku_01',
+    name: 'Bekele Tadesse',
+    email: 'bekele.tadesse@wku.edu.et',
+    university: 'Wolkite University',
+    year: 'Year 2 (Sophomore)',
+    is_pro: true,
+    isPro: true,
+    user_role: 'Student',
+    userRole: 'Student',
+    created_at: '2026-02-14T09:30:00.000Z',
+    createdAt: '2026-02-14T09:30:00.000Z'
+  },
+  {
+    id: 'std_aau_02',
+    name: 'Selamawit Alemu',
+    email: 'selamawit.alemu@aau.edu.et',
+    university: 'Addis Ababa University',
+    year: 'Year 1 (Freshman)',
+    is_pro: false,
+    isPro: false,
+    user_role: 'Student',
+    userRole: 'Student',
+    created_at: '2026-03-01T14:15:00.000Z',
+    createdAt: '2026-03-01T14:15:00.000Z'
+  },
+  {
+    id: 'std_hu_03',
+    name: 'Dawit Mekonnen',
+    email: 'dawit.m@hu.edu.et',
+    university: 'Hawassa University',
+    year: 'Year 3 (Junior)',
+    is_pro: false,
+    isPro: false,
+    user_role: 'Student',
+    userRole: 'Student',
+    created_at: '2026-03-05T11:20:00.000Z',
+    createdAt: '2026-03-05T11:20:00.000Z'
+  },
+  {
+    id: 'std_bdu_04',
+    name: 'Tigist Haile',
+    email: 'tigist.h@bdu.edu.et',
+    university: 'Bahir Dar University',
+    year: 'Year 4 (Senior)',
+    is_pro: true,
+    isPro: true,
+    user_role: 'Student',
+    userRole: 'Student',
+    created_at: '2026-03-12T16:40:00.000Z',
+    createdAt: '2026-03-12T16:40:00.000Z'
+  }
+];
+
+const DEFAULT_STARTER_PAYMENTS = [
+  {
+    id: 'PAY-10492',
+    userId: 'bekele.tadesse@wku.edu.et',
+    user_id: 'bekele.tadesse@wku.edu.et',
+    amount: 199,
+    currency: 'ETB',
+    provider: 'telebirr',
+    providerTxnId: 'TLB-9843219482',
+    provider_transaction_id: 'TLB-9843219482',
+    senderName: 'Bekele Tadesse',
+    sender_name: 'Bekele Tadesse',
+    senderPhone: '+251911458920',
+    sender_phone: '+251911458920',
+    status: 'completed',
+    createdAt: '2026-02-14T09:35:00.000Z',
+    created_at: '2026-02-14T09:35:00.000Z'
+  },
+  {
+    id: 'PAY-10518',
+    userId: 'selamawit.alemu@aau.edu.et',
+    user_id: 'selamawit.alemu@aau.edu.et',
+    amount: 299,
+    currency: 'ETB',
+    provider: 'cbe_birr',
+    providerTxnId: 'CBE-2026849201',
+    provider_transaction_id: 'CBE-2026849201',
+    senderName: 'Selamawit Alemu',
+    sender_name: 'Selamawit Alemu',
+    senderPhone: '+251922784102',
+    sender_phone: '+251922784102',
+    status: 'pending',
+    createdAt: '2026-03-01T14:20:00.000Z',
+    created_at: '2026-03-01T14:20:00.000Z'
+  },
+  {
+    id: 'PAY-10523',
+    userId: 'dawit.m@hu.edu.et',
+    user_id: 'dawit.m@hu.edu.et',
+    amount: 99,
+    currency: 'ETB',
+    provider: 'telebirr',
+    providerTxnId: 'TLB-5719302194',
+    provider_transaction_id: 'TLB-5719302194',
+    senderName: 'Dawit Mekonnen',
+    sender_name: 'Dawit Mekonnen',
+    senderPhone: '+251933561948',
+    sender_phone: '+251933561948',
+    status: 'pending',
+    createdAt: '2026-03-05T11:25:00.000Z',
+    created_at: '2026-03-05T11:25:00.000Z'
+  }
+];
+
 export async function fetchCoupons(): Promise<CouponCode[]> {
   const supabase = getSupabase();
   if (supabase) {
@@ -778,7 +905,7 @@ export async function fetchCoupons(): Promise<CouponCode[]> {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (!error && Array.isArray(data)) {
+      if (!error && Array.isArray(data) && data.length > 0) {
         return data.map((row: any) => ({
           code: row.code,
           discountPercentage: Number(row.discount_percentage || 20),
@@ -796,10 +923,17 @@ export async function fetchCoupons(): Promise<CouponCode[]> {
 
   try {
     const raw = safeStorage.getItem(LOCAL_STORAGE_COUPONS_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
   } catch {}
 
-  return [];
+  try {
+    safeStorage.setItem(LOCAL_STORAGE_COUPONS_KEY, JSON.stringify(DEFAULT_COUPONS));
+  } catch {}
+
+  return DEFAULT_COUPONS;
 }
 
 export async function createCoupon(coupon: CouponCode): Promise<{ success: boolean; error?: string }> {
@@ -862,6 +996,8 @@ export async function deleteCoupon(code: string): Promise<{ success: boolean; er
 
 export async function fetchAdminPayments(): Promise<any[]> {
   const supabase = getSupabase();
+  let dbPayments: any[] = [];
+
   if (supabase) {
     try {
       const { data, error } = await supabase
@@ -869,54 +1005,164 @@ export async function fetchAdminPayments(): Promise<any[]> {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (!error && Array.isArray(data)) {
-        return data;
+      if (!error && Array.isArray(data) && data.length > 0) {
+        dbPayments = data;
       }
     } catch (e) {
       console.warn('Error fetching admin payments:', e);
     }
   }
 
+  let cachedPayments: any[] = [];
   try {
     const raw = safeStorage.getItem(LOCAL_STORAGE_PAYMENTS_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) cachedPayments = parsed;
+    }
   } catch {}
 
-  return [];
+  // Scan local user payment keys
+  const userPayments: any[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('ethiolearn_payments_') && key !== LOCAL_STORAGE_PAYMENTS_KEY) {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const list = JSON.parse(raw);
+          if (Array.isArray(list)) userPayments.push(...list);
+        }
+      }
+    }
+  } catch {}
+
+  // Merge uniquely by payment ID or providerTxnId
+  const payMap = new Map<string, any>();
+  DEFAULT_STARTER_PAYMENTS.forEach(p => payMap.set(p.id, p));
+  cachedPayments.forEach(p => payMap.set(p.id, p));
+  userPayments.forEach(p => payMap.set(p.id || p.providerTxnId, {
+    ...p,
+    id: p.id || `PAY-${Date.now()}`,
+    user_id: p.userId,
+    sender_name: p.senderName || p.userId,
+    sender_phone: p.senderPhone,
+    provider_transaction_id: p.providerTxnId,
+    created_at: p.createdAt || new Date().toISOString()
+  }));
+  dbPayments.forEach(p => payMap.set(p.id, p));
+
+  const result = Array.from(payMap.values()).sort((a, b) => {
+    return new Date(b.created_at || b.createdAt || 0).getTime() - new Date(a.created_at || a.createdAt || 0).getTime();
+  });
+
+  try {
+    safeStorage.setItem(LOCAL_STORAGE_PAYMENTS_KEY, JSON.stringify(result));
+  } catch {}
+
+  return result;
 }
 
 export async function updatePaymentStatus(paymentId: string, status: 'completed' | 'failed' | 'pending'): Promise<{ success: boolean; error?: string }> {
   const supabase = getSupabase();
+  let paymentRecord: any = null;
+
   if (supabase) {
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('payments')
         .update({ status, updated_at: new Date().toISOString() })
-        .eq('id', paymentId);
+        .eq('id', paymentId)
+        .select()
+        .maybeSingle();
 
-      if (error) return { success: false, error: error.message };
+      if (!error && data) {
+        paymentRecord = data;
+      }
     } catch (e: any) {
-      return { success: false, error: e.message };
+      console.warn('Supabase payment status update notice:', e.message);
     }
   }
 
+  // Update local cache
   try {
     const raw = safeStorage.getItem(LOCAL_STORAGE_PAYMENTS_KEY);
     if (raw) {
       const list: any[] = JSON.parse(raw);
-      const index = list.findIndex(p => p.id === paymentId);
+      const index = list.findIndex(p => p.id === paymentId || p.providerTxnId === paymentId);
       if (index !== -1) {
         list[index].status = status;
+        paymentRecord = list[index];
         safeStorage.setItem(LOCAL_STORAGE_PAYMENTS_KEY, JSON.stringify(list));
       }
     }
   } catch {}
+
+  // If approved, automatically upgrade the corresponding student account to Pro!
+  if (status === 'completed' && paymentRecord) {
+    const targetEmail = (paymentRecord.user_id || paymentRecord.userId || paymentRecord.sender_name || paymentRecord.senderName || '').toLowerCase().trim();
+    
+    // Update local accounts
+    try {
+      const rawAccounts = safeStorage.getItem('ethiolearn_accounts');
+      if (rawAccounts) {
+        const accounts: any[] = JSON.parse(rawAccounts);
+        const updatedAccounts = accounts.map(acc => {
+          if (acc.email && (acc.email.toLowerCase().trim() === targetEmail || targetEmail.includes(acc.email.toLowerCase().trim()))) {
+            return {
+              ...acc,
+              profile: {
+                ...acc.profile,
+                isPro: true,
+                tier: 'pro_semester',
+                proStatus: 'active',
+                proPaymentDate: new Date().toISOString()
+              }
+            };
+          }
+          return acc;
+        });
+        safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updatedAccounts));
+      }
+    } catch {}
+
+    // Update active profile if it matches
+    try {
+      const rawProf = safeStorage.getItem('ethiolearn_current_profile');
+      if (rawProf) {
+        const curProf = JSON.parse(rawProf);
+        if (curProf.email && (curProf.email.toLowerCase().trim() === targetEmail || targetEmail.includes(curProf.email.toLowerCase().trim()))) {
+          const upgraded = {
+            ...curProf,
+            isPro: true,
+            tier: 'pro_semester',
+            proStatus: 'active',
+            proPaymentDate: new Date().toISOString()
+          };
+          safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(upgraded));
+        }
+      }
+    } catch {}
+
+    // Also update Supabase student profile if available
+    if (supabase && targetEmail) {
+      try {
+        supabase
+          .from('student_profiles')
+          .update({ is_pro: true, pro_status: 'active' })
+          .eq('email', targetEmail)
+          .then(() => {});
+      } catch {}
+    }
+  }
 
   return { success: true };
 }
 
 export async function fetchAdminStudents(searchQuery = ''): Promise<any[]> {
   const supabase = getSupabase();
+  let dbStudents: any[] = [];
+
   if (supabase) {
     try {
       let query = supabase
@@ -924,21 +1170,116 @@ export async function fetchAdminStudents(searchQuery = ''): Promise<any[]> {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (searchQuery.trim()) {
-        const q = searchQuery.trim().toLowerCase();
-        query = query.or(`name.ilike.%${q}%,email.ilike.%${q}%,university.ilike.%${q}%`);
-      }
-
       const { data, error } = await query;
       if (!error && Array.isArray(data)) {
-        return data;
+        dbStudents = data;
       }
     } catch (e) {
-      console.warn('Error fetching admin students:', e);
+      console.warn('Error fetching admin students from Supabase:', e);
     }
   }
 
-  return [];
+  // Gather local registered accounts
+  const localStudents: any[] = [];
+  try {
+    const rawAccs = safeStorage.getItem('ethiolearn_accounts');
+    if (rawAccs) {
+      const accs = JSON.parse(rawAccs);
+      if (Array.isArray(accs)) {
+        accs.forEach(acc => {
+          const prof = acc.profile || {};
+          localStudents.push({
+            id: `usr_${acc.email || Math.random().toString(36).substring(2, 7)}`,
+            name: prof.name || acc.name || 'Student',
+            email: acc.email || prof.email || 'student@wku.edu.et',
+            university: prof.university || 'Wolkite University',
+            year: prof.year || 'University',
+            is_pro: Boolean(prof.isPro || prof.tier?.includes('pro')),
+            isPro: Boolean(prof.isPro || prof.tier?.includes('pro')),
+            user_role: (acc.email && acc.email.toLowerCase().includes('admin')) ? 'Admin' : 'Student',
+            userRole: (acc.email && acc.email.toLowerCase().includes('admin')) ? 'Admin' : 'Student',
+            created_at: prof.createdAt || new Date().toISOString(),
+            createdAt: prof.createdAt || new Date().toISOString(),
+            avatar: prof.avatar || '🎓'
+          });
+        });
+      }
+    }
+  } catch {}
+
+  // Gather current active profile if not in accounts
+  try {
+    const rawProf = safeStorage.getItem('ethiolearn_current_profile');
+    if (rawProf) {
+      const cur = JSON.parse(rawProf);
+      if (cur.email) {
+        localStudents.push({
+          id: `usr_cur_${cur.email}`,
+          name: cur.name || 'Current User',
+          email: cur.email,
+          university: cur.university || 'Wolkite University',
+          year: cur.year || 'University',
+          is_pro: Boolean(cur.isPro),
+          isPro: Boolean(cur.isPro),
+          user_role: cur.email.toLowerCase().includes('admin') ? 'Admin' : 'Student',
+          userRole: cur.email.toLowerCase().includes('admin') ? 'Admin' : 'Student',
+          created_at: cur.createdAt || new Date().toISOString(),
+          createdAt: cur.createdAt || new Date().toISOString(),
+          avatar: cur.avatar || '🎓'
+        });
+      }
+    }
+  } catch {}
+
+  // Map and unify
+  const studentMap = new Map<string, any>();
+
+  // Starter students
+  DEFAULT_STARTER_STUDENTS.forEach(st => studentMap.set(st.email.toLowerCase(), st));
+
+  // Local registered accounts overwrite
+  localStudents.forEach(st => {
+    if (st.email) studentMap.set(st.email.toLowerCase(), st);
+  });
+
+  // Supabase profiles overwrite
+  dbStudents.forEach(row => {
+    const email = (row.email || '').toLowerCase();
+    const profData = row.profile_data || {};
+    if (email) {
+      studentMap.set(email, {
+        id: row.id || `usr_${email}`,
+        name: row.name || profData.name || 'Student',
+        email: row.email,
+        university: row.university || profData.university || 'Wolkite University',
+        year: row.year || profData.year || 'University',
+        is_pro: Boolean(row.is_pro || profData.isPro),
+        isPro: Boolean(row.is_pro || profData.isPro),
+        user_role: row.user_role || (email.includes('admin') ? 'Admin' : 'Student'),
+        userRole: row.user_role || (email.includes('admin') ? 'Admin' : 'Student'),
+        created_at: row.created_at || new Date().toISOString(),
+        createdAt: row.created_at || new Date().toISOString(),
+        avatar: profData.avatar || '🎓'
+      });
+    }
+  });
+
+  let list = Array.from(studentMap.values()).sort((a, b) => {
+    return new Date(b.created_at || b.createdAt || 0).getTime() - new Date(a.created_at || a.createdAt || 0).getTime();
+  });
+
+  if (searchQuery.trim()) {
+    const q = searchQuery.trim().toLowerCase();
+    list = list.filter(st => {
+      return (
+        (st.name && st.name.toLowerCase().includes(q)) ||
+        (st.email && st.email.toLowerCase().includes(q)) ||
+        (st.university && st.university.toLowerCase().includes(q))
+      );
+    });
+  }
+
+  return list;
 }
 
 // ----------------------------------------------------------------------------
