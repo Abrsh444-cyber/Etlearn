@@ -397,7 +397,7 @@ Maintain a professional educational tone at all times. If students encounter tec
               parts: [{ text: m.content || '' }]
             }));
             const response = await ai.models.generateContent({
-              model: 'gemini-3.5-flash',
+              model: 'gemini-2.5-flash',
               contents: geminiContents,
               config: { systemInstruction: systemInstruction },
             });
@@ -739,7 +739,7 @@ Maintain a professional educational tone at all times. If students encounter tec
         });
  
         const stream = await ai.models.generateContentStream({
-          model: highThinking ? 'gemini-3.1-pro-preview' : 'gemini-3.5-flash',
+          model: highThinking ? 'gemini-2.5-pro' : 'gemini-2.5-flash',
           contents: geminiContents,
           config: { 
             systemInstruction: system || undefined,

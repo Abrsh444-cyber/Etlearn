@@ -94,7 +94,7 @@ export async function submitClaudeChat(
       });
 
       const stream = await ai.models.generateContentStream({
-        model: highThinking ? 'gemini-3.1-pro-preview' : 'gemini-3.5-flash',
+        model: highThinking ? 'gemini-2.5-pro' : 'gemini-2.5-flash',
         contents: geminiContents,
         config: {
           systemInstruction: systemPrompt || undefined,
