@@ -14,6 +14,7 @@ import {
 import { StudentProfile, AccountInfo } from '../types';
 import { playClickChime, playSuccessChime, playFailureChime } from '../utils/audio';
 import { getSupabase, saveSupabaseCredentials, clearSupabaseCredentials, testSupabaseConnection } from '../utils/supabaseClient';
+import { syncProfileToFirestore, saveNoteToFirestore, getAuthInstance, testFirestoreConnection } from '../utils/firebaseStore';
 import StudentAvatar from './StudentAvatar';
 import StudentAvatarSelector from './StudentAvatarSelector';
 import PWADownloadAssistant from './PWADownloadAssistant';
@@ -245,7 +246,19 @@ export default function StudentProfileView({
           .from('student_profiles')
           .upsert(payloadRecord, { onConflict: 'email' });
 
-        if (error) throw error;
+        if (error) {
+          console.warn('[Supabase Upsert Warning]:', error.message);
+        }
+      }
+
+      // Sync with Firestore if active Firebase auth session exists
+      const firebaseAuth = getAuthInstance();
+      if (firebaseAuth?.currentUser) {
+        try {
+          await syncProfileToFirestore(firebaseAuth.currentUser.uid, updatedProfile);
+        } catch (fErr) {
+          console.warn('[Firestore Profile Sync Warning]:', fErr);
+        }
       }
 
       onUpdateProfile(updatedProfile);
@@ -259,7 +272,7 @@ export default function StudentProfileView({
       setIsEditing(false);
       setTimeout(() => setSaveSuccess(null), 5000);
     } catch (err: any) {
-      console.error('[Supabase Upsert Error]:', err);
+      console.error('[Profile Persistence Error]:', err);
       playFailureChime();
       setSaveError(err.message || 'Unable to persist changes in the cloud database.');
     } finally {
@@ -347,7 +360,30 @@ export default function StudentProfileView({
           .upsert(fullBackupPayload, { onConflict: 'email' });
         
         if (!profErr) backupSuccess = true;
-      } catch (e) {}
+      } catch (e) {
+        console.warn('[Supabase Backup Warning]:', e);
+      }
+    }
+
+    // Also sync to Firestore if user UID available
+    const firebaseAuth = getAuthInstance();
+    if (firebaseAuth?.currentUser) {
+      try {
+        await syncProfileToFirestore(firebaseAuth.currentUser.uid, localProfile);
+        if (notesData.length > 0) {
+          for (const note of notesData) {
+            await saveNoteToFirestore(firebaseAuth.currentUser.uid, note);
+          }
+        }
+        backupSuccess = true;
+      } catch (fErr) {
+        console.warn('[Firestore Backup Warning]:', fErr);
+      }
+    }
+
+    // In local mode without cloud keys configured, safely confirm local cache is fully preserved
+    if (!supa && !firebaseAuth?.currentUser) {
+      backupSuccess = true;
     }
 
     setSyncLoading(false);

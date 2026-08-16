@@ -676,11 +676,17 @@ Maintain a professional educational tone at all times. If students encounter tec
   // Endpoint to fetch default server-side configured Supabase credentials (if defined as environment secrets)
   app.get(['/api/supabase-config', '/api/supabase-config/'], (req, res) => {
     try {
-      const url = process.env.VITE_SUPABASE_URL || '';
-      const anonKey = process.env.VITE_SUPABASE_ANON_KEY || '';
+      const url = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
+      const anonKey = (
+        process.env.SUPABASE_ANON_KEY || 
+        process.env.SUPABASE_KEY || 
+        process.env.VITE_SUPABASE_ANON_KEY || 
+        process.env.VITE_SUPABASE_KEY || 
+        ''
+      ).trim();
       return res.json({
-        url: url.trim(),
-        anonKey: anonKey.trim()
+        url,
+        anonKey
       });
     } catch (e: any) {
       return res.status(500).json({ error: e.message });
