@@ -731,7 +731,11 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
           performance_data: {},
           updated_at: new Date().toISOString()
         };
-        supa.from('student_profiles').upsert(payloadRecord).catch(() => {});
+        try {
+          await supa.from('student_profiles').upsert(payloadRecord);
+        } catch (e) {
+          console.warn('[Supabase Upsert error]:', e);
+        }
       }
 
       const newAccount: AccountInfo = {
