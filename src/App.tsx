@@ -35,8 +35,10 @@ import {
   fetchProfileFromFirestore, 
   saveNoteToFirestore, 
   deleteNoteFromFirestore, 
-  fetchNotesFromFirestore 
+  fetchNotesFromFirestore,
+  auth
 } from './utils/firebaseStore';
+import { signOut as firebaseSignOut } from 'firebase/auth';
 
 import { getEthiopianDate } from './utils/ethiopianCalendar';
 import { playClickChime, playSuccessChime, playFailureChime } from './utils/audio';
@@ -762,6 +764,7 @@ export default function App() {
     playClickChime();
     // Clear local profile and authentication variables
     safeStorage.removeItem('ethiolearn_current_profile');
+    safeStorage.removeItem('ethiolearn_active_email');
     setProfile(null);
     
     // Clear Google Workspace auth session if active
@@ -775,6 +778,15 @@ export default function App() {
       }
     }
     
+    // Clear Firebase Auth session if active
+    if (auth) {
+      try {
+        await firebaseSignOut(auth);
+      } catch (e) {
+        console.warn('Error signing out of Firebase Auth:', e);
+      }
+    }
+
     // Clear Supabase auth session if active
     try {
       const supa = getSupabase();

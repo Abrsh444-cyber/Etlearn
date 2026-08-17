@@ -25,7 +25,7 @@ import {
 import { 
   Key, User, Landmark, GraduationCap, ArrowRight, Info, Eye, EyeOff, 
   Mail, Lock, LogIn, UserPlus, ArrowLeft, ShieldAlert, CheckCircle, Database,
-  Bot, Sparkles, BookOpen, Layers, MessageSquare, Globe, ChevronRight, ChevronLeft, ThumbsUp, Send, RefreshCw, X
+  Bot, Sparkles, BookOpen, Layers, MessageSquare, Globe, ChevronRight, ChevronLeft, ThumbsUp, Send, RefreshCw, X, Trash2
 } from 'lucide-react';
 import EthioLearnLogo from './EthioLearnLogo';
 import StudentAvatarSelector from './StudentAvatarSelector';
@@ -331,7 +331,16 @@ interface AccountInfo {
 
 export default function SplashOnboarding({ onComplete, initialProfile }: SplashOnboardingProps) {
   // Mode switcher: 'onboarding' | 'splash' | 'signin' | 'signup' | 'forgot_password' | 'update_password'
-  const [mode, setMode] = useState<'onboarding' | 'splash' | 'signin' | 'signup' | 'forgot_password' | 'update_password'>('onboarding');
+  const [mode, setMode] = useState<'onboarding' | 'splash' | 'signin' | 'signup' | 'forgot_password' | 'update_password'>(() => {
+    try {
+      const stored = safeStorage.getItem('ethiolearn_accounts');
+      const hasSeen = safeStorage.getItem('ethiolearn_has_seen_onboarding');
+      if (stored || hasSeen) {
+        return 'signin';
+      }
+    } catch (e) {}
+    return 'onboarding';
+  });
   
   // Onboarding states
   const [onboardingStep, setOnboardingStep] = useState(1);
@@ -478,9 +487,12 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
     if (auth) {
       unsubscribeFb = onAuthStateChanged(auth, async (user) => {
         if (user && user.email) {
-          const userEmail = user.email;
-          const userName = user.displayName || user.email.split('@')[0] || 'Scholar';
-          completeGoogleProfileSetup(userEmail, userName);
+          const isGoogleUser = user.providerData?.some(p => p.providerId === 'google.com');
+          if (isGoogleUser) {
+            const userEmail = user.email;
+            const userName = user.displayName || user.email.split('@')[0] || 'Scholar';
+            completeGoogleProfileSetup(userEmail, userName, user.uid);
+          }
         }
       });
     }
@@ -989,18 +1001,18 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
 
     let hasValidationError = false;
     if (!emailTrim) {
-      setEmailError("Email address is required.");
+      setEmailError(preferredLanguage === 'am' ? "ኢሜይል አድራሻ ያስፈልጋል።" : "Email address is required.");
       hasValidationError = true;
     } else if (!emailTrim.includes('@')) {
-      setEmailError("Please enter a valid email address.");
+      setEmailError(preferredLanguage === 'am' ? "እባክዎን ትክክለኛ የኢሜይል አድራሻ ያስገቡ።" : "Please enter a valid email address.");
       hasValidationError = true;
     }
 
     if (!passwordTrim) {
-      setPasswordError("Password is required.");
+      setPasswordError(preferredLanguage === 'am' ? "የይለፍ ቃል ያስፈልጋል።" : "Password is required.");
       hasValidationError = true;
-    } else if (passwordTrim.length < 5) {
-      setPasswordError("Password must be at least 5 characters.");
+    } else if (passwordTrim.length < 4) {
+      setPasswordError(preferredLanguage === 'am' ? "የይለፍ ቃል ቢያንስ 4 ፊደላት መሆን አለበት።" : "Password must be at least 4 characters.");
       hasValidationError = true;
     }
 
@@ -1011,7 +1023,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
 
     setLoading(true);
 
-    // Read stored local accounts
+    // 1. Read stored local accounts from safeStorage
     let currentAccounts: AccountInfo[] = registeredAccounts;
     try {
       const stored = safeStorage.getItem('ethiolearn_accounts');
@@ -1022,10 +1034,70 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
     } catch (e) {}
 
     const localMatch = currentAccounts.find(
-      acc => acc.email.toLowerCase() === emailTrim && acc.passwordEncrypted === passwordTrim
+      acc => acc.email.toLowerCase() === emailTrim && (acc.passwordEncrypted === passwordTrim || acc.passwordEncrypted === 'google_authenticated')
     );
 
-    // Try Supabase Auth first if available
+    // 2. Try Firebase Auth
+    if (auth) {
+      try {
+        const userCredential = await signInWithEmailAndPassword(auth, emailTrim, passwordTrim);
+        if (userCredential?.user) {
+          const uid = userCredential.user.uid;
+          let profile = await fetchProfileFromFirestore(uid);
+          if (!profile && localMatch) {
+            profile = localMatch.profile;
+          }
+          if (!profile) {
+            profile = {
+              name: userCredential.user.displayName || emailTrim.split('@')[0],
+              email: emailTrim,
+              university: "Wolkite University",
+              year: "University",
+              subjects: subjectsList,
+              claudeApiKey: "",
+              dailyGoalHours: 2,
+              theme: 'dark',
+              language: preferredLanguage === 'am' ? 'am' : 'en',
+              avatar: 'champion',
+              isRegistered: true,
+              unregisteredAICredits: 5
+            };
+            await syncProfileToFirestore(uid, profile);
+          }
+
+          const newAccount: AccountInfo = {
+            email: emailTrim,
+            passwordEncrypted: passwordTrim,
+            rememberMe: rememberMe,
+            profile
+          };
+          const updatedAccs = [...currentAccounts.filter(acc => acc.email.toLowerCase() !== emailTrim), newAccount];
+          safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updatedAccs));
+          safeStorage.setItem('ethiolearn_active_email', emailTrim);
+          safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(profile));
+          safeStorage.setItem('ethiolearn_has_seen_onboarding', 'true');
+
+          if (rememberMe) {
+            safeStorage.setItem('ethiolearn_remember_login', JSON.stringify({
+              email: emailTrim,
+              password: passwordTrim,
+              rememberMe: true
+            }));
+          } else {
+            safeStorage.removeItem('ethiolearn_remember_login');
+          }
+
+          playSuccessChime();
+          setLoading(false);
+          onComplete({ ...profile, isRegistered: true });
+          return;
+        }
+      } catch (fbErr: any) {
+        console.warn('[Firebase Auth Login attempt]:', fbErr?.message || fbErr);
+      }
+    }
+
+    // 3. Try Supabase Auth
     const supa = getSupabase();
     if (supa) {
       try {
@@ -1049,7 +1121,6 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
           .eq('email', emailTrim)
           .maybeSingle();
 
-        // Check if credentials match either through Supabase Auth, direct table match, or local match
         const tablePasswordMatch = supaRecord?.profile_data?.password === passwordTrim;
 
         if (authSuccess || tablePasswordMatch || localMatch) {
@@ -1112,7 +1183,6 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
               unregisteredAICredits: 5
             };
 
-            // Seed missing row in student_profiles
             await supa.from('student_profiles').upsert({
               email: emailTrim,
               name: profile.name,
@@ -1133,7 +1203,6 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
             }, { onConflict: 'email' });
           }
 
-          // Save account locally
           const newAccount: AccountInfo = {
             email: emailTrim,
             passwordEncrypted: passwordTrim,
@@ -1144,6 +1213,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
           safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updatedAccs));
           safeStorage.setItem('ethiolearn_active_email', emailTrim);
           safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(profile));
+          safeStorage.setItem('ethiolearn_has_seen_onboarding', 'true');
 
           if (rememberMe) {
             safeStorage.setItem('ethiolearn_remember_login', JSON.stringify({
@@ -1162,21 +1232,14 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
         }
       } catch (err: any) {
         console.warn('[Supabase Auth Error]:', err);
-        if (localMatch) {
-          safeStorage.setItem('ethiolearn_active_email', emailTrim);
-          safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(localMatch.profile));
-          playSuccessChime();
-          setLoading(false);
-          onComplete({ ...localMatch.profile, isRegistered: true });
-          return;
-        }
       }
     }
 
-    // Fully offline or local fallback sign in
+    // 4. Local storage / Device login match
     if (localMatch) {
       safeStorage.setItem('ethiolearn_active_email', emailTrim);
       safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(localMatch.profile));
+      safeStorage.setItem('ethiolearn_has_seen_onboarding', 'true');
       if (rememberMe) {
         safeStorage.setItem('ethiolearn_remember_login', JSON.stringify({
           email: emailTrim,
@@ -1192,12 +1255,12 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
       return;
     }
 
-    // Check if user exists but wrong password vs user not registered at all
+    // 5. Account matching check for informative feedback
     const existingUser = currentAccounts.find(acc => acc.email.toLowerCase() === emailTrim);
     if (existingUser) {
-      setAuthError("Incorrect password. Please try again or click 'Forgot password?' to reset.");
+      setAuthError(preferredLanguage === 'am' ? "የይለፍ ቃል የተሳሳተ ነው። እባክዎ እንደገና ይሞክሩ ወይም 'የይለፍ ቃል ረሱ?' የሚለውን ይጫኑ።" : "Incorrect password. Please try again or click 'Forgot password?' to reset.");
     } else {
-      setAuthError("No account found with this email. Click 'Sign up' to create an account.");
+      setAuthError(preferredLanguage === 'am' ? "በዚህ ኢሜይል የተመዘገበ አካውንት አልተገኘም። እባክዎ 'ተመዝገብ' የሚለውን ይጫኑ።" : "No academic account found with this email. Click 'Sign up' to create one.");
     }
 
     playFailureChime();
@@ -1206,21 +1269,42 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
 
   const handleQuickLogin = (acc: AccountInfo) => {
     setAuthError(null);
+    setEmailError(null);
+    setPasswordError(null);
     playClickChime();
 
-    if (acc.rememberMe) {
-      // Direct session validation bypass if "Remember Me" is true
+    // Autofill credentials
+    setEmail(acc.email);
+    setPassword(acc.passwordEncrypted && acc.passwordEncrypted !== 'google_authenticated' ? acc.passwordEncrypted : '');
+    setRememberMe(acc.rememberMe !== false);
+
+    if (acc.rememberMe && acc.passwordEncrypted && acc.passwordEncrypted !== 'google_authenticated') {
       try {
         safeStorage.setItem('ethiolearn_active_email', acc.email);
         safeStorage.setItem('ethiolearn_current_profile', JSON.stringify({ ...acc.profile, isRegistered: true }));
+        safeStorage.setItem('ethiolearn_has_seen_onboarding', 'true');
       } catch (e) {}
       playSuccessChime();
       onComplete({ ...acc.profile, isRegistered: true });
     } else {
-      // Autofill email and prompt for password
-      setEmail(acc.email);
-      setPassword('');
-      setAuthError("Please enter your security password to login.");
+      setMode('signin');
+      setInfoMessage(
+        preferredLanguage === 'am'
+          ? `የ ${acc.profile.name} አካውንት ተመርጧል። ለመግባት የይለፍ ቃልዎን ያስገቡ።`
+          : `Selected ${acc.profile.name}'s profile. Please enter your password to sign in.`
+      );
+    }
+  };
+
+  const handleRemoveSavedAccount = (emailToRemove: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    playClickChime();
+    const updated = registeredAccounts.filter(acc => acc.email.toLowerCase() !== emailToRemove.toLowerCase());
+    setRegisteredAccounts(updated);
+    safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updated));
+    const activeEmail = safeStorage.getItem('ethiolearn_active_email');
+    if (activeEmail?.toLowerCase() === emailToRemove.toLowerCase()) {
+      safeStorage.removeItem('ethiolearn_active_email');
     }
   };
 
@@ -1258,7 +1342,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
       hasErrors = true;
     }
 
-    if (passwordTrim.length < 5) {
+    if (passwordTrim.length < 4) {
       setPasswordError(t.validationPassword);
       hasErrors = true;
     }
@@ -1310,7 +1394,27 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
       updated_at: new Date().toISOString()
     };
 
-    // Try Supabase Auth registration first
+    // 1. Try Firebase Auth registration & Firestore sync
+    if (auth) {
+      try {
+        const userCred = await createUserWithEmailAndPassword(auth, emailTrim, passwordTrim);
+        if (userCred?.user) {
+          await syncProfileToFirestore(userCred.user.uid, profile);
+        }
+      } catch (fbErr: any) {
+        console.warn('[Firebase Auth Register Notice]:', fbErr?.message || fbErr);
+        if (fbErr?.code === 'auth/email-already-in-use') {
+          try {
+            const userCred = await signInWithEmailAndPassword(auth, emailTrim, passwordTrim);
+            if (userCred?.user) {
+              await syncProfileToFirestore(userCred.user.uid, profile);
+            }
+          } catch (signInErr) {}
+        }
+      }
+    }
+
+    // 2. Try Supabase Auth registration
     const supa = getSupabase();
     if (supa) {
       try {
@@ -1331,68 +1435,19 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
           console.warn('[Supabase Auth SignUp Notice]:', error.message);
         }
 
-        // Successfully registered / upsert into Supabase student_profiles table
-        const { error: upsertError } = await supa
+        await supa
           .from('student_profiles')
           .upsert(payloadRecord, { onConflict: 'email' });
 
-        if (upsertError) {
-          console.warn('[Supabase Onboarding] Could not upsert student_profiles record:', upsertError.message);
-        }
-
-        const newAccount: AccountInfo = {
-          email: emailTrim,
-          passwordEncrypted: passwordTrim,
-          rememberMe: rememberMe,
-          profile
-        };
-
-        const updated = [...registeredAccounts.filter(acc => acc.email.toLowerCase() !== emailTrim), newAccount];
-        safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updated));
-        safeStorage.setItem('ethiolearn_active_email', emailTrim);
-        safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(profile));
-
-        if (rememberMe) {
-          safeStorage.setItem('ethiolearn_remember_login', JSON.stringify({
-            email: emailTrim,
-            password: passwordTrim,
-            rememberMe: true
-          }));
-        } else {
-          safeStorage.removeItem('ethiolearn_remember_login');
-        }
-
-        // Inform the user if email confirmation is required
         if (data?.user && !data.session) {
           setInfoMessage(preferredLanguage === 'am' ? "አካውንትዎ ተፈጥሯል! እባክዎን አስፈላጊ ከሆነ ኢሜይልዎን ያረጋግጡ።" : "Account registered successfully! Please check your email inbox if verification was requested.");
         }
-
-        playSuccessChime();
-        setLoading(false);
-        onComplete(profile);
-        return;
       } catch (err: any) {
         console.warn('[Supabase Register Fallback Warning]:', err);
-        // Fallback continues below to save local account and try direct insert
       }
     }
 
-    // Check pre-existing accounts locally to avoid visual duplicates
-    const exists = registeredAccounts.some(acc => acc.email.toLowerCase() === emailTrim);
-    if (exists) {
-      setEmailError(preferredLanguage === 'am' ? "በዚህ ኢሜይል አድራሻ አስቀድሞ የተመዘገበ አካውንት አለ።" : "An academic account with this email address already exists.");
-      playFailureChime();
-      setLoading(false);
-      return;
-    }
-
-    // Direct database write attempt for local/offline fallback
-    if (supa) {
-      try {
-        await supa.from('student_profiles').upsert(payloadRecord, { onConflict: 'email' });
-      } catch (e) {}
-    }
-
+    // 3. Save local account storage
     const newAccount: AccountInfo = {
       email: emailTrim,
       passwordEncrypted: passwordTrim,
@@ -1400,14 +1455,14 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
       profile
     };
 
-    // Save accounts storage
-    const updated = [...registeredAccounts, newAccount];
+    const updated = [...registeredAccounts.filter(acc => acc.email.toLowerCase() !== emailTrim), newAccount];
+    setRegisteredAccounts(updated);
     try {
       safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updated));
       safeStorage.setItem('ethiolearn_active_email', emailTrim);
       safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(profile));
+      safeStorage.setItem('ethiolearn_has_seen_onboarding', 'true');
 
-      // Save remembered credentials if checked
       if (rememberMe) {
         safeStorage.setItem('ethiolearn_remember_login', JSON.stringify({
           email: emailTrim,
@@ -2488,6 +2543,69 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                   >
                     Dismiss
                   </button>
+                </div>
+              </div>
+            )}
+
+            {/* Saved Accounts on Device - Quick Sign-In */}
+            {registeredAccounts.length > 0 && (
+              <div className="space-y-2.5 bg-slate-50/80 dark:bg-zinc-900/60 p-3.5 rounded-xl border border-slate-200/80 dark:border-zinc-800/80">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider">
+                    {preferredLanguage === 'am' ? 'በዚህ ስልክ የተቀመጡ አካውንቶች' : 'Saved Accounts on Device'}
+                  </p>
+                  <span className="text-[10px] text-[#C8962E] font-mono font-bold">
+                    {registeredAccounts.length} {preferredLanguage === 'am' ? 'አካውንት' : 'profile(s)'}
+                  </span>
+                </div>
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {registeredAccounts.map((acc) => (
+                    <div
+                      key={acc.email}
+                      onClick={() => handleQuickLogin(acc)}
+                      className="group flex items-center justify-between p-2.5 rounded-lg bg-white dark:bg-zinc-800/90 hover:bg-amber-500/10 dark:hover:bg-amber-500/10 border border-slate-200 dark:border-zinc-700/70 hover:border-amber-500/50 transition-all cursor-pointer shadow-xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#C8962E] to-amber-300 flex items-center justify-center text-black font-bold text-xs shrink-0 shadow-inner">
+                          {acc.profile?.name?.[0]?.toUpperCase() || 'S'}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-800 dark:text-zinc-100 truncate group-hover:text-amber-500 transition-colors">
+                            {acc.profile?.name || 'Student'}
+                          </p>
+                          <p className="text-[10px] text-slate-500 dark:text-zinc-400 truncate font-mono">
+                            {acc.email}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleQuickLogin(acc); }}
+                          className="px-2.5 py-1 bg-[#C8962E] hover:bg-[#b08123] text-black font-bold text-[10px] rounded-md transition-all shadow-xs flex items-center gap-1"
+                        >
+                          <LogIn className="w-3 h-3" />
+                          <span>{preferredLanguage === 'am' ? 'ግባ' : 'Sign In'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => handleRemoveSavedAccount(acc.email, e)}
+                          title="Remove from device"
+                          className="p-1 text-slate-400 hover:text-red-400 transition-colors rounded cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="relative flex py-1 items-center">
+                  <div className="flex-grow border-t border-slate-200 dark:border-zinc-800"></div>
+                  <span className="flex-shrink mx-3 text-[9.5px] text-slate-400 dark:text-zinc-500 font-bold uppercase tracking-wider">
+                    {preferredLanguage === 'am' ? 'ወይም በሌላ ኢሜይል ግባ' : 'or enter credentials'}
+                  </span>
+                  <div className="flex-grow border-t border-slate-200 dark:border-zinc-800"></div>
                 </div>
               </div>
             )}
