@@ -25,6 +25,9 @@ export interface PaymentRecord {
   userId: string;
   subscriptionId?: string;
   amount: number;
+  originalAmount?: number;
+  couponCode?: string;
+  discountETB?: number;
   currency: string;
   provider: PaymentProvider;
   providerTxnId: string;

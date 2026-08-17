@@ -75,7 +75,7 @@ export default function BillingAccountSection({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 text-xs">
           <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-800">
             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">
-              {language === 'en' ? 'Daily AI Tutor Limit' : 'የዕለታዊ AI አጠቃቀም'}
+              {language === 'en' ? 'Daily Ask Teacher Limit' : 'የዕለታዊ መምህሩን ጠይቅ አጠቃቀም'}
             </span>
             <p className="text-sm font-black text-white">
               {subInfo.isPro ? (language === 'en' ? 'UNLIMITED ♾️' : 'ያልተገደበ ♾️') : (language === 'en' ? '5 Questions / Day' : 'በቀን 5 ጥያቄዎች')}

@@ -2040,10 +2040,10 @@ Ensure the layout utilizes clear headers, a detailed markdown text explanation, 
                         {/* Header */}
                         <div className="border-b pb-2">
                           <h4 className="text-[10px] font-bold uppercase text-emerald-700 dark:text-emerald-400 tracking-widest flex items-center gap-1.5">
-                            <MessageSquare className="w-3.5 h-3.5" /> Direct AI Textbook Tutor
+                            <MessageSquare className="w-3.5 h-3.5" /> Direct Ask Teacher Assistant
                           </h4>
                           <p className="text-[10px] text-slate-500 dark:text-zinc-400 leading-tight">
-                            Curious about an equation, detail or translation? Ask our tutor to explain it using simple terms.
+                            Curious about an equation, detail or translation? Ask Teacher to explain it using simple terms.
                           </p>
                         </div>
 
@@ -2052,7 +2052,7 @@ Ensure the layout utilizes clear headers, a detailed markdown text explanation, 
                           {inlineAiResponse ? (
                             <div className="space-y-2">
                               <div className="p-2.5 bg-[#078930]/10 border border-[#078930]/20 rounded-xl text-emerald-805 dark:text-emerald-300">
-                                <p className="font-extrabold text-[10px] uppercase text-emerald-700">Tutor Response:</p>
+                                <p className="font-extrabold text-[10px] uppercase text-emerald-700">Teacher Response:</p>
                                 <p className="mt-1 leading-relaxed capitalize whitespace-pre-wrap">{inlineAiResponse}</p>
                               </div>
                             </div>
@@ -2064,7 +2064,7 @@ Ensure the layout utilizes clear headers, a detailed markdown text explanation, 
                           ) : (
                             <div className="flex flex-col items-center justify-center h-full py-8 text-center text-slate-450 dark:text-zinc-500 italic space-y-1">
                               <Bot className="w-7 h-7 mb-1 text-slate-350 animate-bounce" />
-                              <p>Ask anything about this chapter!</p>
+                              <p>Ask Teacher anything about this chapter!</p>
                               <p className="text-[9px] text-slate-400 dark:text-zinc-650 tracking-tight not-italic">e.g., "Give me a simple real-life analogy for Cardinal Utility."</p>
                             </div>
                           )}
@@ -2077,7 +2077,7 @@ Ensure the layout utilizes clear headers, a detailed markdown text explanation, 
                         <textarea
                           value={inlineAiQuestion}
                           onChange={(e) => setInlineAiQuestion(e.target.value)}
-                          placeholder="Ask the AI Tutor about this chapter..."
+                          placeholder="Ask Teacher about this chapter..."
                           className="w-full p-2 text-xs border rounded-xl bg-white dark:bg-zinc-900 focus:ring-1 focus:ring-emerald-500 outline-none resize-none h-14"
                         />
                         
@@ -2087,7 +2087,7 @@ Ensure the layout utilizes clear headers, a detailed markdown text explanation, 
                           className="w-full py-2 bg-[#078930] hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-[10px] font-extrabold uppercase tracking-wider cursor-pointer shadow-sm flex items-center justify-center gap-1.5"
                         >
                           <Bot className="w-3.5 h-3.5 text-white" />
-                          <span>Ask AI Tutor</span>
+                          <span>Ask Teacher</span>
                         </button>
                         {inlineAiResponse && (
                           <button 

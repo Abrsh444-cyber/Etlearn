@@ -1,5 +1,6 @@
 import { getSupabase } from './supabaseClient';
 import { safeStorage } from './safeStorage';
+import { isAdministratorEmail, ADMIN_EMAIL } from './adminAuth';
 import { CourseRecord, LessonRecord, AdminDashboardStats, CouponCode, PlatformAnnouncement, CourseStatus } from '../types';
 import { INITIAL_CURRICULUM_COURSES, getCurriculumLessonsForCourse, getCurriculumCourse } from '../data/coursesCurriculum';
 
@@ -281,7 +282,7 @@ export async function createCourse(course: Partial<CourseRecord>): Promise<{ suc
     status: course.status || 'draft',
     lessonsCount: course.lessonsCount || 0,
     goalDays: course.goalDays || 14,
-    instructorId: course.instructorId || 'admin',
+    instructorId: course.instructorId || ADMIN_EMAIL,
     instructorName: course.instructorName || 'EthioLearn Faculty',
     thumbnailUrl: course.thumbnailUrl || '',
     createdAt: now,
@@ -617,17 +618,20 @@ export async function fetchAdminDashboardStats(): Promise<AdminDashboardStats> {
 }
 
 // ----------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 // 4. ANNOUNCEMENTS & COUPONS DATABASE QUERIES
 // ----------------------------------------------------------------------------
 
 export async function fetchAnnouncements(publishedOnly = false): Promise<PlatformAnnouncement[]> {
   const supabase = getSupabase();
+  let dbAnnouncements: PlatformAnnouncement[] = [];
+
   if (supabase) {
     try {
       let query = supabase
         .from('announcements')
         .select('*')
-        .order('date', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (publishedOnly) {
         query = query.eq('status', 'published');
@@ -635,47 +639,61 @@ export async function fetchAnnouncements(publishedOnly = false): Promise<Platfor
 
       const { data, error } = await query;
       if (!error && Array.isArray(data)) {
-        return data.map((row: any) => ({
-          id: row.id,
-          title: row.title,
-          message: row.message,
-          badgeText: row.badge_text || 'Notice',
-          isImportant: Boolean(row.is_important),
+        dbAnnouncements = data.map((row: any) => ({
+          id: String(row.id),
+          title: row.title || 'Notice',
+          message: row.message || '',
+          badgeText: row.badge_text || row.badgeText || 'Notice',
+          isImportant: Boolean(row.is_important ?? row.isImportant),
           status: row.status || 'published',
-          date: row.date || new Date().toISOString().split('T')[0],
-          createdAt: row.created_at,
+          date: row.date || (row.created_at ? row.created_at.split('T')[0] : new Date().toISOString().split('T')[0]),
+          createdAt: row.created_at || new Date().toISOString(),
         }));
       }
     } catch (e) {
-      console.warn('Error fetching announcements:', e);
+      console.warn('Error fetching announcements from Supabase:', e);
     }
   }
 
+  let cachedAnnouncements: PlatformAnnouncement[] = [];
   try {
     const raw = safeStorage.getItem(LOCAL_STORAGE_ANNOUNCEMENTS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) cachedAnnouncements = parsed;
     }
   } catch {}
 
+  // Merge announcements uniquely
+  const annMap = new Map<string, PlatformAnnouncement>();
+  cachedAnnouncements.forEach(a => annMap.set(a.id, a));
+  dbAnnouncements.forEach(a => annMap.set(a.id, a));
+
+  const result = Array.from(annMap.values()).sort((a, b) => {
+    return new Date(b.createdAt || b.date || 0).getTime() - new Date(a.createdAt || a.date || 0).getTime();
+  });
+
   try {
-    safeStorage.setItem(LOCAL_STORAGE_ANNOUNCEMENTS_KEY, JSON.stringify(DEFAULT_ANNOUNCEMENTS));
+    safeStorage.setItem(LOCAL_STORAGE_ANNOUNCEMENTS_KEY, JSON.stringify(result));
   } catch {}
 
-  return DEFAULT_ANNOUNCEMENTS;
+  if (publishedOnly) {
+    return result.filter(a => a.status === 'published' || !a.status);
+  }
+
+  return result;
 }
 
 export async function createAnnouncement(ann: Partial<PlatformAnnouncement>): Promise<{ success: boolean; announcement?: PlatformAnnouncement; error?: string }> {
-  const id = ann.id || `ann_${Date.now()}`;
+  const id = ann.id || `ann_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const now = new Date().toISOString();
   const dateStr = ann.date || now.split('T')[0];
 
   const newAnn: PlatformAnnouncement = {
     id,
-    title: ann.title || 'Notice',
-    message: ann.message || '',
-    badgeText: ann.badgeText || 'Notice',
+    title: ann.title?.trim() || 'Platform Notice',
+    message: ann.message?.trim() || '',
+    badgeText: ann.badgeText?.trim() || 'Notice',
     isImportant: Boolean(ann.isImportant),
     status: ann.status || 'published',
     date: dateStr,
@@ -685,7 +703,7 @@ export async function createAnnouncement(ann: Partial<PlatformAnnouncement>): Pr
   const supabase = getSupabase();
   if (supabase) {
     try {
-      const { error } = await supabase.from('announcements').insert({
+      const { error } = await supabase.from('announcements').upsert({
         id: newAnn.id,
         title: newAnn.title,
         message: newAnn.message,
@@ -694,19 +712,28 @@ export async function createAnnouncement(ann: Partial<PlatformAnnouncement>): Pr
         status: newAnn.status,
         date: newAnn.date,
         created_at: newAnn.createdAt,
-      });
+      }, { onConflict: 'id' });
 
-      if (error) return { success: false, error: error.message };
+      if (error) {
+        console.warn('Supabase announcement upsert notice:', error.message);
+      }
     } catch (e: any) {
-      return { success: false, error: e.message };
+      console.warn('Supabase announcement insert error:', e.message);
     }
   }
 
   try {
     const raw = safeStorage.getItem(LOCAL_STORAGE_ANNOUNCEMENTS_KEY);
     const list: PlatformAnnouncement[] = raw ? JSON.parse(raw) : [];
-    list.unshift(newAnn);
-    safeStorage.setItem(LOCAL_STORAGE_ANNOUNCEMENTS_KEY, JSON.stringify(list));
+    const filtered = list.filter(a => a.id !== newAnn.id);
+    filtered.unshift(newAnn);
+    safeStorage.setItem(LOCAL_STORAGE_ANNOUNCEMENTS_KEY, JSON.stringify(filtered));
+  } catch {}
+
+  try {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('ethiolearn_data_updated'));
+    }
   } catch {}
 
   return { success: true, announcement: newAnn };
@@ -716,10 +743,9 @@ export async function deleteAnnouncement(annId: string): Promise<{ success: bool
   const supabase = getSupabase();
   if (supabase) {
     try {
-      const { error } = await supabase.from('announcements').delete().eq('id', annId);
-      if (error) return { success: false, error: error.message };
+      await supabase.from('announcements').delete().eq('id', annId);
     } catch (e: any) {
-      return { success: false, error: e.message };
+      console.warn('Supabase announcement delete notice:', e.message);
     }
   }
 
@@ -731,173 +757,19 @@ export async function deleteAnnouncement(annId: string): Promise<{ success: bool
     }
   } catch {}
 
+  try {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('ethiolearn_data_updated'));
+    }
+  } catch {}
+
   return { success: true };
 }
 
-const DEFAULT_ANNOUNCEMENTS: PlatformAnnouncement[] = [
-  {
-    id: 'ann_wku_exam_2026',
-    title: 'Wolkite University Midterm Exam Schedule 2026',
-    message: 'Official exam prep modules and past questions for freshman and sophomore courses are now updated under Uni Exams.',
-    badgeText: 'Exam Alert',
-    isImportant: true,
-    status: 'published',
-    date: '2026-03-15',
-    createdAt: '2026-03-15T08:00:00.000Z'
-  },
-  {
-    id: 'ann_freshman_notes_update',
-    title: 'New Freshman Common Course Notes Published',
-    message: 'Comprehensive lecture notes and flashcards added for Emerging Tech (EmTe 1012), General Biology (Biol 1011), and Intro Economics (Econ 1011).',
-    badgeText: 'Curriculum',
-    isImportant: false,
-    status: 'published',
-    date: '2026-03-10',
-    createdAt: '2026-03-10T10:00:00.000Z'
-  }
-];
-
-const DEFAULT_COUPONS: CouponCode[] = [
-  {
-    code: 'WKU2026',
-    discountPercentage: 20,
-    fixedDiscountETB: 0,
-    maxUses: 100,
-    usedCount: 14,
-    expiresAt: '2026-12-31',
-    isActive: true
-  },
-  {
-    code: 'ETHIOLEARN',
-    discountPercentage: 30,
-    fixedDiscountETB: 0,
-    maxUses: 50,
-    usedCount: 8,
-    expiresAt: '2026-12-31',
-    isActive: true
-  },
-  {
-    code: 'FRESHMAN50',
-    discountPercentage: 50,
-    fixedDiscountETB: 0,
-    maxUses: 200,
-    usedCount: 47,
-    expiresAt: '2026-12-31',
-    isActive: true
-  }
-];
-
-const DEFAULT_STARTER_STUDENTS = [
-  {
-    id: 'std_wku_01',
-    name: 'Bekele Tadesse',
-    email: 'bekele.tadesse@wku.edu.et',
-    university: 'Wolkite University',
-    year: 'Year 2 (Sophomore)',
-    is_pro: true,
-    isPro: true,
-    user_role: 'Student',
-    userRole: 'Student',
-    created_at: '2026-02-14T09:30:00.000Z',
-    createdAt: '2026-02-14T09:30:00.000Z'
-  },
-  {
-    id: 'std_aau_02',
-    name: 'Selamawit Alemu',
-    email: 'selamawit.alemu@aau.edu.et',
-    university: 'Addis Ababa University',
-    year: 'Year 1 (Freshman)',
-    is_pro: false,
-    isPro: false,
-    user_role: 'Student',
-    userRole: 'Student',
-    created_at: '2026-03-01T14:15:00.000Z',
-    createdAt: '2026-03-01T14:15:00.000Z'
-  },
-  {
-    id: 'std_hu_03',
-    name: 'Dawit Mekonnen',
-    email: 'dawit.m@hu.edu.et',
-    university: 'Hawassa University',
-    year: 'Year 3 (Junior)',
-    is_pro: false,
-    isPro: false,
-    user_role: 'Student',
-    userRole: 'Student',
-    created_at: '2026-03-05T11:20:00.000Z',
-    createdAt: '2026-03-05T11:20:00.000Z'
-  },
-  {
-    id: 'std_bdu_04',
-    name: 'Tigist Haile',
-    email: 'tigist.h@bdu.edu.et',
-    university: 'Bahir Dar University',
-    year: 'Year 4 (Senior)',
-    is_pro: true,
-    isPro: true,
-    user_role: 'Student',
-    userRole: 'Student',
-    created_at: '2026-03-12T16:40:00.000Z',
-    createdAt: '2026-03-12T16:40:00.000Z'
-  }
-];
-
-const DEFAULT_STARTER_PAYMENTS = [
-  {
-    id: 'PAY-10492',
-    userId: 'bekele.tadesse@wku.edu.et',
-    user_id: 'bekele.tadesse@wku.edu.et',
-    amount: 199,
-    currency: 'ETB',
-    provider: 'telebirr',
-    providerTxnId: 'TLB-9843219482',
-    provider_transaction_id: 'TLB-9843219482',
-    senderName: 'Bekele Tadesse',
-    sender_name: 'Bekele Tadesse',
-    senderPhone: '+251911458920',
-    sender_phone: '+251911458920',
-    status: 'completed',
-    createdAt: '2026-02-14T09:35:00.000Z',
-    created_at: '2026-02-14T09:35:00.000Z'
-  },
-  {
-    id: 'PAY-10518',
-    userId: 'selamawit.alemu@aau.edu.et',
-    user_id: 'selamawit.alemu@aau.edu.et',
-    amount: 299,
-    currency: 'ETB',
-    provider: 'cbe_birr',
-    providerTxnId: 'CBE-2026849201',
-    provider_transaction_id: 'CBE-2026849201',
-    senderName: 'Selamawit Alemu',
-    sender_name: 'Selamawit Alemu',
-    senderPhone: '+251922784102',
-    sender_phone: '+251922784102',
-    status: 'pending',
-    createdAt: '2026-03-01T14:20:00.000Z',
-    created_at: '2026-03-01T14:20:00.000Z'
-  },
-  {
-    id: 'PAY-10523',
-    userId: 'dawit.m@hu.edu.et',
-    user_id: 'dawit.m@hu.edu.et',
-    amount: 99,
-    currency: 'ETB',
-    provider: 'telebirr',
-    providerTxnId: 'TLB-5719302194',
-    provider_transaction_id: 'TLB-5719302194',
-    senderName: 'Dawit Mekonnen',
-    sender_name: 'Dawit Mekonnen',
-    senderPhone: '+251933561948',
-    sender_phone: '+251933561948',
-    status: 'pending',
-    createdAt: '2026-03-05T11:25:00.000Z',
-    created_at: '2026-03-05T11:25:00.000Z'
-  }
-];
-
 export async function fetchCoupons(): Promise<CouponCode[]> {
   const supabase = getSupabase();
+  let dbCoupons: CouponCode[] = [];
+
   if (supabase) {
     try {
       const { data, error } = await supabase
@@ -906,76 +778,91 @@ export async function fetchCoupons(): Promise<CouponCode[]> {
         .order('created_at', { ascending: false });
 
       if (!error && Array.isArray(data) && data.length > 0) {
-        return data.map((row: any) => ({
-          code: row.code,
-          discountPercentage: Number(row.discount_percentage || 20),
-          fixedDiscountETB: Number(row.fixed_discount_etb || 0),
-          maxUses: Number(row.max_uses || 100),
-          usedCount: Number(row.used_count || 0),
-          expiresAt: row.expires_at || '2026-12-31',
-          isActive: Boolean(row.is_active),
+        dbCoupons = data.map((row: any) => ({
+          code: (row.code || '').toUpperCase().trim(),
+          discountPercentage: Number(row.discount_percentage ?? row.discountPercentage ?? 20),
+          fixedDiscountETB: Number(row.fixed_discount_etb ?? row.fixedDiscountETB ?? 0),
+          maxUses: Number(row.max_uses ?? row.maxUses ?? 100),
+          usedCount: Number(row.used_count ?? row.usedCount ?? 0),
+          expiresAt: row.expires_at || row.expiresAt || '2026-12-31',
+          isActive: row.is_active !== undefined ? Boolean(row.is_active) : (row.isActive !== undefined ? Boolean(row.isActive) : true),
         }));
       }
     } catch (e) {
-      console.warn('Error fetching coupons:', e);
+      console.warn('Error fetching coupons from Supabase:', e);
     }
   }
 
+  let cachedCoupons: CouponCode[] = [];
   try {
     const raw = safeStorage.getItem(LOCAL_STORAGE_COUPONS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) cachedCoupons = parsed;
     }
   } catch {}
 
+  const couponMap = new Map<string, CouponCode>();
+  cachedCoupons.forEach(c => couponMap.set(c.code.toUpperCase(), c));
+  dbCoupons.forEach(c => couponMap.set(c.code.toUpperCase(), c));
+
+  const result = Array.from(couponMap.values());
   try {
-    safeStorage.setItem(LOCAL_STORAGE_COUPONS_KEY, JSON.stringify(DEFAULT_COUPONS));
+    safeStorage.setItem(LOCAL_STORAGE_COUPONS_KEY, JSON.stringify(result));
   } catch {}
 
-  return DEFAULT_COUPONS;
+  return result;
 }
 
 export async function createCoupon(coupon: CouponCode): Promise<{ success: boolean; error?: string }> {
+  const cleanCode = coupon.code.toUpperCase().trim();
   const supabase = getSupabase();
   if (supabase) {
     try {
       const { error } = await supabase.from('coupons').upsert({
-        code: coupon.code.toUpperCase().trim(),
+        code: cleanCode,
         discount_percentage: coupon.discountPercentage,
         fixed_discount_etb: coupon.fixedDiscountETB || 0,
         max_uses: coupon.maxUses,
         used_count: coupon.usedCount || 0,
-        expires_at: coupon.expiresAt,
-        is_active: coupon.isActive,
+        expires_at: coupon.expiresAt || '2026-12-31',
+        is_active: coupon.isActive !== undefined ? coupon.isActive : true,
         created_at: new Date().toISOString(),
       }, { onConflict: 'code' });
 
-      if (error) return { success: false, error: error.message };
+      if (error) {
+        console.warn('Supabase coupon create notice:', error.message);
+      }
     } catch (e: any) {
-      return { success: false, error: e.message };
+      console.warn('Supabase coupon create exception:', e.message);
     }
   }
 
   try {
     const raw = safeStorage.getItem(LOCAL_STORAGE_COUPONS_KEY);
     const list: CouponCode[] = raw ? JSON.parse(raw) : [];
-    const filtered = list.filter(c => c.code.toUpperCase() !== coupon.code.toUpperCase());
-    filtered.unshift(coupon);
+    const filtered = list.filter(c => c.code.toUpperCase() !== cleanCode);
+    filtered.unshift({ ...coupon, code: cleanCode });
     safeStorage.setItem(LOCAL_STORAGE_COUPONS_KEY, JSON.stringify(filtered));
+  } catch {}
+
+  try {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('ethiolearn_data_updated'));
+    }
   } catch {}
 
   return { success: true };
 }
 
 export async function deleteCoupon(code: string): Promise<{ success: boolean; error?: string }> {
+  const cleanCode = code.toUpperCase().trim();
   const supabase = getSupabase();
   if (supabase) {
     try {
-      const { error } = await supabase.from('coupons').delete().eq('code', code.toUpperCase().trim());
-      if (error) return { success: false, error: error.message };
+      await supabase.from('coupons').delete().eq('code', cleanCode);
     } catch (e: any) {
-      return { success: false, error: e.message };
+      console.warn('Supabase coupon delete notice:', e.message);
     }
   }
 
@@ -983,11 +870,127 @@ export async function deleteCoupon(code: string): Promise<{ success: boolean; er
     const raw = safeStorage.getItem(LOCAL_STORAGE_COUPONS_KEY);
     if (raw) {
       const list: CouponCode[] = JSON.parse(raw);
-      safeStorage.setItem(LOCAL_STORAGE_COUPONS_KEY, JSON.stringify(list.filter(c => c.code.toUpperCase() !== code.toUpperCase())));
+      safeStorage.setItem(LOCAL_STORAGE_COUPONS_KEY, JSON.stringify(list.filter(c => c.code.toUpperCase() !== cleanCode)));
+    }
+  } catch {}
+
+  try {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('ethiolearn_data_updated'));
     }
   } catch {}
 
   return { success: true };
+}
+
+/**
+ * Validate a student entered coupon code against real database/cached coupons
+ */
+export async function validateCoupon(code: string, originalAmountETB: number): Promise<{
+  valid: boolean;
+  coupon?: CouponCode;
+  discountETB: number;
+  finalAmountETB: number;
+  message: string;
+}> {
+  const cleanCode = (code || '').trim().toUpperCase();
+  if (!cleanCode) {
+    return {
+      valid: false,
+      discountETB: 0,
+      finalAmountETB: originalAmountETB,
+      message: 'Please enter a coupon code.'
+    };
+  }
+
+  const coupons = await fetchCoupons();
+  const matched = coupons.find(c => c.code.toUpperCase() === cleanCode);
+
+  if (!matched) {
+    return {
+      valid: false,
+      discountETB: 0,
+      finalAmountETB: originalAmountETB,
+      message: `Coupon code "${cleanCode}" is invalid or does not exist.`
+    };
+  }
+
+  if (!matched.isActive) {
+    return {
+      valid: false,
+      discountETB: 0,
+      finalAmountETB: originalAmountETB,
+      message: `Coupon code "${cleanCode}" is currently inactive.`
+    };
+  }
+
+  if (matched.maxUses > 0 && matched.usedCount >= matched.maxUses) {
+    return {
+      valid: false,
+      discountETB: 0,
+      finalAmountETB: originalAmountETB,
+      message: `Coupon code "${cleanCode}" has reached its maximum redemptions.`
+    };
+  }
+
+  if (matched.expiresAt && new Date(matched.expiresAt).getTime() < Date.now()) {
+    return {
+      valid: false,
+      discountETB: 0,
+      finalAmountETB: originalAmountETB,
+      message: `Coupon code "${cleanCode}" has expired.`
+    };
+  }
+
+  let discount = 0;
+  if (matched.fixedDiscountETB && matched.fixedDiscountETB > 0) {
+    discount = Math.min(originalAmountETB, matched.fixedDiscountETB);
+  } else if (matched.discountPercentage > 0) {
+    discount = Math.round((originalAmountETB * matched.discountPercentage) / 100);
+  }
+
+  const finalAmount = Math.max(0, originalAmountETB - discount);
+
+  return {
+    valid: true,
+    coupon: matched,
+    discountETB: discount,
+    finalAmountETB: finalAmount,
+    message: `Promo code "${cleanCode}" applied! Saved ${discount} ETB (${matched.discountPercentage || Math.round((discount / originalAmountETB) * 100)}% OFF).`
+  };
+}
+
+/**
+ * Increment coupon usage counter upon verified payment
+ */
+export async function incrementCouponUsage(code: string): Promise<void> {
+  const cleanCode = (code || '').trim().toUpperCase();
+  if (!cleanCode) return;
+
+  const supabase = getSupabase();
+  if (supabase) {
+    try {
+      const { data } = await supabase.from('coupons').select('used_count').eq('code', cleanCode).maybeSingle();
+      const currentCount = Number(data?.used_count || 0);
+      await supabase.from('coupons').update({ used_count: currentCount + 1 }).eq('code', cleanCode);
+    } catch (e) {
+      console.warn('Could not increment coupon usage in Supabase:', e);
+    }
+  }
+
+  try {
+    const raw = safeStorage.getItem(LOCAL_STORAGE_COUPONS_KEY);
+    if (raw) {
+      const list: CouponCode[] = JSON.parse(raw);
+      const updated = list.map(c => {
+        if (c.code.toUpperCase() === cleanCode) {
+          return { ...c, usedCount: (c.usedCount || 0) + 1 };
+        }
+        return c;
+      });
+      safeStorage.setItem(LOCAL_STORAGE_COUPONS_KEY, JSON.stringify(updated));
+    }
+  } catch {}
 }
 
 // ----------------------------------------------------------------------------
@@ -1037,18 +1040,17 @@ export async function fetchAdminPayments(): Promise<any[]> {
     }
   } catch {}
 
-  // Merge uniquely by payment ID or providerTxnId
+  // Merge uniquely by payment ID or providerTxnId (Real data only - no starter dummy payments)
   const payMap = new Map<string, any>();
-  DEFAULT_STARTER_PAYMENTS.forEach(p => payMap.set(p.id, p));
   cachedPayments.forEach(p => payMap.set(p.id, p));
   userPayments.forEach(p => payMap.set(p.id || p.providerTxnId, {
     ...p,
     id: p.id || `PAY-${Date.now()}`,
-    user_id: p.userId,
-    sender_name: p.senderName || p.userId,
-    sender_phone: p.senderPhone,
-    provider_transaction_id: p.providerTxnId,
-    created_at: p.createdAt || new Date().toISOString()
+    user_id: p.userId || p.user_id,
+    sender_name: p.senderName || p.sender_name || p.userId,
+    sender_phone: p.senderPhone || p.sender_phone,
+    provider_transaction_id: p.providerTxnId || p.provider_transaction_id,
+    created_at: p.createdAt || p.created_at || new Date().toISOString()
   }));
   dbPayments.forEach(p => payMap.set(p.id, p));
 
@@ -1196,8 +1198,8 @@ export async function fetchAdminStudents(searchQuery = ''): Promise<any[]> {
             year: prof.year || 'University',
             is_pro: Boolean(prof.isPro || prof.tier?.includes('pro')),
             isPro: Boolean(prof.isPro || prof.tier?.includes('pro')),
-            user_role: (acc.email && acc.email.toLowerCase().includes('admin')) ? 'Admin' : 'Student',
-            userRole: (acc.email && acc.email.toLowerCase().includes('admin')) ? 'Admin' : 'Student',
+            user_role: isAdministratorEmail(acc.email) ? 'Admin' : 'Student',
+            userRole: isAdministratorEmail(acc.email) ? 'Admin' : 'Student',
             created_at: prof.createdAt || new Date().toISOString(),
             createdAt: prof.createdAt || new Date().toISOString(),
             avatar: prof.avatar || '🎓'
@@ -1221,8 +1223,8 @@ export async function fetchAdminStudents(searchQuery = ''): Promise<any[]> {
           year: cur.year || 'University',
           is_pro: Boolean(cur.isPro),
           isPro: Boolean(cur.isPro),
-          user_role: cur.email.toLowerCase().includes('admin') ? 'Admin' : 'Student',
-          userRole: cur.email.toLowerCase().includes('admin') ? 'Admin' : 'Student',
+          user_role: isAdministratorEmail(cur.email) ? 'Admin' : 'Student',
+          userRole: isAdministratorEmail(cur.email) ? 'Admin' : 'Student',
           created_at: cur.createdAt || new Date().toISOString(),
           createdAt: cur.createdAt || new Date().toISOString(),
           avatar: cur.avatar || '🎓'
@@ -1234,15 +1236,12 @@ export async function fetchAdminStudents(searchQuery = ''): Promise<any[]> {
   // Map and unify
   const studentMap = new Map<string, any>();
 
-  // Starter students
-  DEFAULT_STARTER_STUDENTS.forEach(st => studentMap.set(st.email.toLowerCase(), st));
-
-  // Local registered accounts overwrite
+  // Local registered accounts
   localStudents.forEach(st => {
     if (st.email) studentMap.set(st.email.toLowerCase(), st);
   });
 
-  // Supabase profiles overwrite
+  // Supabase profiles overwrite and enrich
   dbStudents.forEach(row => {
     const email = (row.email || '').toLowerCase();
     const profData = row.profile_data || {};
@@ -1255,8 +1254,8 @@ export async function fetchAdminStudents(searchQuery = ''): Promise<any[]> {
         year: row.year || profData.year || 'University',
         is_pro: Boolean(row.is_pro || profData.isPro),
         isPro: Boolean(row.is_pro || profData.isPro),
-        user_role: row.user_role || (email.includes('admin') ? 'Admin' : 'Student'),
-        userRole: row.user_role || (email.includes('admin') ? 'Admin' : 'Student'),
+        user_role: isAdministratorEmail(email) ? 'Admin' : (row.user_role || 'Student'),
+        userRole: isAdministratorEmail(email) ? 'Admin' : (row.user_role || 'Student'),
         created_at: row.created_at || new Date().toISOString(),
         createdAt: row.created_at || new Date().toISOString(),
         avatar: profData.avatar || '🎓'

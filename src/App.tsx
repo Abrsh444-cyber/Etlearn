@@ -44,6 +44,7 @@ import { initAuth, googleSignIn, googleSignInRedirect, logoutGoogle, exportAnaly
 import { User as FirebaseUser } from 'firebase/auth';
 import { initSupabaseConfig, getSupabase } from './utils/supabaseClient';
 import { safeStorage } from './utils/safeStorage';
+import { isAdministratorEmail, ADMIN_EMAIL } from './utils/adminAuth';
 import { 
   getTelegramWebApp, 
   isTelegramWebApp, 
@@ -230,6 +231,13 @@ export default function App() {
   // Ethiopian Calendar support
   const [ethDate, setEthDate] = useState({ day: 1, monthName: "መስከረም", year: 2016, formatted: "መስከረም 1, 2016" });
 
+  // Administrator authorization check (Strictly restricted to ezrat2116@gmail.com)
+  const isUserAdmin = Boolean(
+    isAdministratorEmail(profile?.email) || 
+    isAdministratorEmail(supaUser?.email) || 
+    isAdministratorEmail(googleUser?.email)
+  );
+
   // PWA elements
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [isInstallable, setIsInstallable] = useState(false);
@@ -281,6 +289,13 @@ export default function App() {
 
       const payloadRecord = {
         email,
+        name: activeProfile.name || email.split('@')[0],
+        university: activeProfile.university || 'Wolkite University',
+        year: activeProfile.year || 'Freshman',
+        subjects: Array.isArray(activeProfile.subjects) ? activeProfile.subjects : [],
+        is_pro: Boolean(activeProfile.isPro || activeProfile.tier?.includes('pro')),
+        user_role: isAdministratorEmail(email) ? 'admin' : 'student',
+        referral_code: activeProfile.referralCode || null,
         profile_data: {
           ...activeProfile,
           password
@@ -571,14 +586,22 @@ export default function App() {
 
             const payloadRecord = {
               email: email,
+              name: profile.name || email.split('@')[0],
+              university: profile.university || 'Wolkite University',
+              year: profile.year || 'Freshman',
+              subjects: Array.isArray(profile.subjects) ? profile.subjects : [],
+              is_pro: Boolean(profile.isPro),
+              user_role: isAdministratorEmail(email) ? 'admin' : 'student',
+              referral_code: profile.referralCode || null,
               profile_data: profile,
               study_sessions: studySessions,
               notes_data: notesData,
               performance_data: performanceData,
+              created_at: new Date().toISOString(),
               updated_at: new Date().toISOString()
             };
 
-            await supa.from('student_profiles').insert(payloadRecord);
+            await supa.from('student_profiles').upsert(payloadRecord, { onConflict: 'email' });
           }
         } catch (err) {
           console.error('[Supabase Sync Failure]:', err);
@@ -719,6 +742,10 @@ export default function App() {
     const updated = { ...completedProfile, theme: themeMode };
     setProfile(updated);
     safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(updated));
+    if (completedProfile.email) {
+      safeStorage.setItem('ethiolearn_active_email', completedProfile.email.toLowerCase().trim());
+    }
+    syncWithSupabase(updated);
     playSuccessChime();
     showToast(`Welcome ${completedProfile.name}!`);
   };
@@ -1013,15 +1040,17 @@ export default function App() {
 
 
 
-            {/* Admin Dashboard Shield Button */}
-            <button
-              onClick={() => { playClickChime(); setIsAdminOpen(true); }}
-              className="p-2.5 border border-amber-500/30 bg-amber-500/10 rounded-xl hover:bg-amber-500/20 text-amber-500 cursor-pointer transition-all flex items-center gap-1"
-              title="Admin Control Dashboard"
-            >
-              <ShieldCheck className="w-4 h-4" />
-              <span className="hidden lg:inline text-[10px] font-black uppercase tracking-wider">Admin</span>
-            </button>
+            {/* Admin Dashboard Shield Button - Strictly visible ONLY to ezrat2116@gmail.com */}
+            {isUserAdmin && (
+              <button
+                onClick={() => { playClickChime(); setIsAdminOpen(true); }}
+                className="p-2.5 border border-amber-500/30 bg-amber-500/10 rounded-xl hover:bg-amber-500/20 text-amber-500 cursor-pointer transition-all flex items-center gap-1"
+                title="Admin Control Dashboard (ezrat2116@gmail.com)"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span className="hidden lg:inline text-[10px] font-black uppercase tracking-wider">Admin</span>
+              </button>
+            )}
 
             {profile.isPro && (
               <div 
@@ -1231,7 +1260,7 @@ export default function App() {
             </span>
           </button>
 
-          {/* AI Tutor Tab */}
+          {/* Ask Teacher Tab */}
           <button
             onClick={() => { playClickChime(); setCurrentPage('tutor'); }}
             className={`flex flex-col items-center justify-center w-full transition-all cursor-pointer rounded-xl ${
@@ -1240,7 +1269,7 @@ export default function App() {
           >
             <Bot className="w-5 h-5 shrink-0" />
             <span className="text-[9px] font-semibold mt-1">
-              {language === 'en' ? 'AI Tutor' : 'የአይ ረዳት'}
+              {language === 'en' ? 'Ask Teacher' : 'መምህሩን ጠይቅ'}
             </span>
           </button>
 
@@ -1408,8 +1437,8 @@ export default function App() {
         />
       )}
 
-      {/* Admin Control Dashboard Modal Overlay */}
-      {isAdminOpen && (
+      {/* Admin Control Dashboard Modal Overlay - Strictly restricted to ezrat2116@gmail.com */}
+      {isAdminOpen && isUserAdmin && (
         <AdminDashboardView
           currentProfile={profile}
           language={language}

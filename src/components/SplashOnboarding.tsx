@@ -31,6 +31,7 @@ import EthioLearnLogo from './EthioLearnLogo';
 import StudentAvatarSelector from './StudentAvatarSelector';
 import StudentAvatar from './StudentAvatar';
 import { safeStorage } from '../utils/safeStorage';
+import { isAdministratorEmail } from '../utils/adminAuth';
 
 export const ETHIOPIAN_UNIVERSITIES = [
   "Addis Ababa University (AAU)",
@@ -1028,53 +1029,108 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
     const supa = getSupabase();
     if (supa) {
       try {
+        let authSuccess = false;
+        let supaUserObj: any = null;
+
         const { data, error } = await supa.auth.signInWithPassword({
           email: emailTrim,
           password: passwordTrim
         });
 
         if (!error && data?.user) {
-          // Successfully authenticated with Supabase!
-          const { data: supaRecord } = await supa
-            .from('student_profiles')
-            .select('*')
-            .eq('email', emailTrim)
-            .maybeSingle();
+          authSuccess = true;
+          supaUserObj = data.user;
+        }
 
+        // Fetch student profile row from student_profiles table
+        const { data: supaRecord } = await supa
+          .from('student_profiles')
+          .select('*')
+          .eq('email', emailTrim)
+          .maybeSingle();
+
+        // Check if credentials match either through Supabase Auth, direct table match, or local match
+        const tablePasswordMatch = supaRecord?.profile_data?.password === passwordTrim;
+
+        if (authSuccess || tablePasswordMatch || localMatch) {
           let profile: StudentProfile;
+
           if (supaRecord && supaRecord.profile_data) {
-            profile = supaRecord.profile_data;
-            if (supaRecord.study_sessions) {
+            profile = {
+              ...supaRecord.profile_data,
+              name: supaRecord.profile_data.name || supaRecord.name || emailTrim.split('@')[0],
+              email: emailTrim,
+              university: supaRecord.profile_data.university || supaRecord.university || "Wolkite University",
+              year: supaRecord.profile_data.year || supaRecord.year || "Freshman",
+              subjects: Array.isArray(supaRecord.profile_data.subjects) && supaRecord.profile_data.subjects.length > 0
+                ? supaRecord.profile_data.subjects
+                : (Array.isArray(supaRecord.subjects) && supaRecord.subjects.length > 0 ? supaRecord.subjects : subjectsList),
+              isRegistered: true,
+              isPro: Boolean(supaRecord.is_pro || supaRecord.profile_data.isPro)
+            };
+
+            if (supaRecord.study_sessions && Array.isArray(supaRecord.study_sessions)) {
               safeStorage.setItem('ethiolearn_study_sessions', JSON.stringify(supaRecord.study_sessions));
             }
-            if (supaRecord.notes_data) {
+            if (supaRecord.notes_data && Array.isArray(supaRecord.notes_data)) {
               safeStorage.setItem('ethiolearn_custom_notes', JSON.stringify(supaRecord.notes_data));
             }
-            if (supaRecord.performance_data) {
+            if (supaRecord.performance_data && typeof supaRecord.performance_data === 'object') {
               safeStorage.setItem('ethiolearn_quiz_perf', JSON.stringify(supaRecord.performance_data));
             }
+          } else if (supaRecord) {
+            profile = {
+              name: supaRecord.name || emailTrim.split('@')[0],
+              email: emailTrim,
+              university: supaRecord.university || "Wolkite University",
+              year: supaRecord.year || "Freshman",
+              subjects: Array.isArray(supaRecord.subjects) && supaRecord.subjects.length > 0 ? supaRecord.subjects : subjectsList,
+              claudeApiKey: "",
+              dailyGoalHours: 2,
+              theme: 'dark',
+              language: preferredLanguage === 'am' ? 'am' : 'en',
+              avatar: 'champion',
+              isRegistered: true,
+              isPro: Boolean(supaRecord.is_pro),
+              unregisteredAICredits: 5
+            };
           } else if (localMatch) {
             profile = localMatch.profile;
           } else {
             profile = {
-              name: emailTrim.split('@')[0],
+              name: supaUserObj?.user_metadata?.display_name || emailTrim.split('@')[0],
               email: emailTrim,
-              university: "Addis Ababa University",
-              year: "University",
+              university: supaUserObj?.user_metadata?.university || "Wolkite University",
+              year: supaUserObj?.user_metadata?.year || "Freshman",
               subjects: subjectsList,
               claudeApiKey: "",
               dailyGoalHours: 2,
               theme: 'dark',
-              language: 'both',
-              avatar: 'champion',
+              language: preferredLanguage === 'am' ? 'am' : 'en',
+              avatar: supaUserObj?.user_metadata?.avatar || 'champion',
               isRegistered: true,
               unregisteredAICredits: 5
             };
+
+            // Seed missing row in student_profiles
             await supa.from('student_profiles').upsert({
               email: emailTrim,
-              profile_data: profile,
+              name: profile.name,
+              university: profile.university,
+              year: profile.year,
+              subjects: profile.subjects,
+              is_pro: false,
+              user_role: isAdministratorEmail(emailTrim) ? 'admin' : 'student',
+              profile_data: {
+                ...profile,
+                password: passwordTrim
+              },
+              study_sessions: [],
+              notes_data: [],
+              performance_data: {},
+              created_at: new Date().toISOString(),
               updated_at: new Date().toISOString()
-            });
+            }, { onConflict: 'email' });
           }
 
           // Save account locally
@@ -1087,6 +1143,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
           const updatedAccs = [...currentAccounts.filter(acc => acc.email.toLowerCase() !== emailTrim), newAccount];
           safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updatedAccs));
           safeStorage.setItem('ethiolearn_active_email', emailTrim);
+          safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(profile));
 
           if (rememberMe) {
             safeStorage.setItem('ethiolearn_remember_login', JSON.stringify({
@@ -1102,25 +1159,12 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
           setLoading(false);
           onComplete({ ...profile, isRegistered: true });
           return;
-        } else if (localMatch) {
-          // Local credentials matched
-          safeStorage.setItem('ethiolearn_active_email', emailTrim);
-          if (rememberMe) {
-            safeStorage.setItem('ethiolearn_remember_login', JSON.stringify({
-              email: emailTrim,
-              password: passwordTrim,
-              rememberMe: true
-            }));
-          }
-          playSuccessChime();
-          setLoading(false);
-          onComplete({ ...localMatch.profile, isRegistered: true });
-          return;
         }
       } catch (err: any) {
         console.warn('[Supabase Auth Error]:', err);
         if (localMatch) {
           safeStorage.setItem('ethiolearn_active_email', emailTrim);
+          safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(localMatch.profile));
           playSuccessChime();
           setLoading(false);
           onComplete({ ...localMatch.profile, isRegistered: true });
@@ -1132,6 +1176,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
     // Fully offline or local fallback sign in
     if (localMatch) {
       safeStorage.setItem('ethiolearn_active_email', emailTrim);
+      safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(localMatch.profile));
       if (rememberMe) {
         safeStorage.setItem('ethiolearn_remember_login', JSON.stringify({
           email: emailTrim,
@@ -1167,6 +1212,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
       // Direct session validation bypass if "Remember Me" is true
       try {
         safeStorage.setItem('ethiolearn_active_email', acc.email);
+        safeStorage.setItem('ethiolearn_current_profile', JSON.stringify({ ...acc.profile, isRegistered: true }));
       } catch (e) {}
       playSuccessChime();
       onComplete({ ...acc.profile, isRegistered: true });
@@ -1229,6 +1275,41 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
 
     setLoading(true);
 
+    const profile: StudentProfile = {
+      name: nameTrim,
+      email: emailTrim,
+      university: univTrim,
+      year,
+      subjects: selectedSubjects,
+      claudeApiKey: claudeApiKey.trim(),
+      dailyGoalHours: 2,
+      theme: 'dark',
+      language: preferredLanguage === 'am' ? 'am' : 'en',
+      avatar,
+      isRegistered: true,
+      unregisteredAICredits: 5
+    };
+
+    const payloadRecord = {
+      email: emailTrim,
+      name: nameTrim,
+      university: univTrim,
+      year: year,
+      subjects: selectedSubjects,
+      is_pro: false,
+      user_role: isAdministratorEmail(emailTrim) ? 'admin' : 'student',
+      referral_code: null,
+      profile_data: {
+        ...profile,
+        password: passwordTrim
+      },
+      study_sessions: [],
+      notes_data: [],
+      performance_data: {},
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
     // Try Supabase Auth registration first
     const supa = getSupabase();
     if (supa) {
@@ -1246,46 +1327,17 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
           }
         });
 
-        if (error) {
-          setAuthError(error.message);
-          playFailureChime();
-          setLoading(false);
-          return;
+        if (error && !error.message.includes('already registered')) {
+          console.warn('[Supabase Auth SignUp Notice]:', error.message);
         }
 
-        // Successfully registered in Supabase! Now let's save the profile record
-        const profile: StudentProfile = {
-          name: nameTrim,
-          email: emailTrim,
-          university: univTrim,
-          year,
-          subjects: selectedSubjects,
-          claudeApiKey: claudeApiKey.trim(),
-          dailyGoalHours: 2,
-          theme: 'dark',
-          language: preferredLanguage === 'am' ? 'am' : 'en',
-          avatar,
-          isRegistered: true,
-          unregisteredAICredits: 5
-        };
+        // Successfully registered / upsert into Supabase student_profiles table
+        const { error: upsertError } = await supa
+          .from('student_profiles')
+          .upsert(payloadRecord, { onConflict: 'email' });
 
-        const payloadRecord = {
-          email: emailTrim,
-          profile_data: {
-            ...profile,
-            password: passwordTrim
-          },
-          study_sessions: [],
-          notes_data: [],
-          performance_data: {},
-          updated_at: new Date().toISOString()
-        };
-
-        const { error: insertError } = await supa.from('student_profiles').insert(payloadRecord);
-        if (insertError) {
-          console.warn('[Supabase Onboarding] Could not insert profile record:', insertError.message);
-          // Try to upsert in case row exists
-          await supa.from('student_profiles').upsert(payloadRecord);
+        if (upsertError) {
+          console.warn('[Supabase Onboarding] Could not upsert student_profiles record:', upsertError.message);
         }
 
         const newAccount: AccountInfo = {
@@ -1298,6 +1350,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
         const updated = [...registeredAccounts.filter(acc => acc.email.toLowerCase() !== emailTrim), newAccount];
         safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updated));
         safeStorage.setItem('ethiolearn_active_email', emailTrim);
+        safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(profile));
 
         if (rememberMe) {
           safeStorage.setItem('ethiolearn_remember_login', JSON.stringify({
@@ -1311,7 +1364,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
 
         // Inform the user if email confirmation is required
         if (data?.user && !data.session) {
-          setInfoMessage(preferredLanguage === 'am' ? "እባክዎን አካውንትዎን ለማረጋገጥ ኢሜይልዎን ያረጋግጡ።" : "Please check your inbox to confirm your registration email before logging in.");
+          setInfoMessage(preferredLanguage === 'am' ? "አካውንትዎ ተፈጥሯል! እባክዎን አስፈላጊ ከሆነ ኢሜይልዎን ያረጋግጡ።" : "Account registered successfully! Please check your email inbox if verification was requested.");
         }
 
         playSuccessChime();
@@ -1319,11 +1372,8 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
         onComplete(profile);
         return;
       } catch (err: any) {
-        console.error('[Supabase Register Error]:', err);
-        setAuthError(err.message || 'An error occurred during registration.');
-        playFailureChime();
-        setLoading(false);
-        return;
+        console.warn('[Supabase Register Fallback Warning]:', err);
+        // Fallback continues below to save local account and try direct insert
       }
     }
 
@@ -1336,21 +1386,12 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
       return;
     }
 
-    // Create student profile (offline fallback)
-    const profile: StudentProfile = {
-      name: nameTrim,
-      email: emailTrim,
-      university: univTrim,
-      year,
-      subjects: selectedSubjects,
-      claudeApiKey: claudeApiKey.trim(),
-      dailyGoalHours: 2,
-      theme: 'dark',
-      language: preferredLanguage === 'am' ? 'am' : 'en',
-      avatar,
-      isRegistered: true,
-      unregisteredAICredits: 5
-    };
+    // Direct database write attempt for local/offline fallback
+    if (supa) {
+      try {
+        await supa.from('student_profiles').upsert(payloadRecord, { onConflict: 'email' });
+      } catch (e) {}
+    }
 
     const newAccount: AccountInfo = {
       email: emailTrim,
@@ -1364,6 +1405,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
     try {
       safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updated));
       safeStorage.setItem('ethiolearn_active_email', emailTrim);
+      safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(profile));
 
       // Save remembered credentials if checked
       if (rememberMe) {

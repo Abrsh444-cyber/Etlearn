@@ -277,7 +277,7 @@ export default function CourseExperienceView({
               className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 text-sm font-bold flex items-center gap-2 transition shadow-lg shadow-amber-500/20"
             >
               <Bot className="w-4 h-4" />
-              {language === 'am' ? 'AI Teacherን አናግር' : 'Ask AI Tutor'}
+              {language === 'am' ? 'መምህሩን ጠይቅ' : 'Ask Teacher'}
             </button>
           </div>
         </div>

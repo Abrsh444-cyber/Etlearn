@@ -484,8 +484,8 @@ ${contextDetails}`;
         setMessages(JSON.parse(saved).slice(-50));
       } else {
         const introText = language === 'en' 
-          ? `Greetings. I am your AI Academic Tutor for *${selectedSubject}*. Please ask any question, attach your study materials, or click "Generate Quiz" to challenge your knowledge.`
-          : `ጤና ይስጥልኝ። እኔ ለ*${selectedSubject}* የትምህርት ረዳትዎ ነኝ። ማንኛውንም ጥያቄ ይጠይቁኝ፣ የጥናት መረጃዎችን ያያይዙ ወይም ራስዎን ለመፈተን "ፈተናዎች" የሚለውን ይጫኑ።`;
+          ? `Greetings. I am your Ask Teacher AI Academic Mentor for *${selectedSubject}*. Please ask any question, attach your study materials, or click "Generate Quiz" to challenge your knowledge.`
+          : `ጤና ይስጥልኝ። እኔ ለ*${selectedSubject}* የትምህርት መምህርዎ ነኝ። ማንኛውንም ጥያቄ ይጠይቁኝ፣ የጥናት መረጃዎችን ያያይዙ ወይም ራስዎን ለመፈተን "ፈተናዎች" የሚለውን ይጫኑ።`;
         setMessages([{ role: 'assistant', content: introText }]);
       }
     }
@@ -734,7 +734,7 @@ ${contextDetails}`;
           <div>
             <div className="flex items-center gap-1.5 flex-wrap">
               <h2 className="text-base font-bold text-white leading-tight">
-                {language === 'en' ? 'AI Master Teacher' : 'AI መምህር'}
+                {language === 'en' ? 'Ask Teacher AI' : 'መምህሩን ጠይቅ (Ask Teacher)'}
               </h2>
               {profile.isRegistered ? (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded font-sans">
@@ -1030,8 +1030,8 @@ ${contextDetails}`;
                   <div className="w-4 h-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin shrink-0" />
                   <span className="text-xs font-sans">
                     {language === 'en' 
-                      ? (highThinking ? 'Tutor is reasoning (3.1 Pro High Thinking)...' : 'Tutor is thinking...') 
-                      : (highThinking ? 'መርጃው በከፍተኛ ማሰብ እያሰላሰለ ነው (3.1 Pro)...' : 'መርጃው እያሰበ ነው...')}
+                      ? (highThinking ? 'Teacher is reasoning (3.1 Pro High Thinking)...' : 'Teacher is thinking...') 
+                      : (highThinking ? 'መምህሩ በከፍተኛ ማሰብ እያሰላሰለ ነው (3.1 Pro)...' : 'መምህሩ እያሰበ ነው...')}
                   </span>
                 </div>
               </div>

@@ -97,7 +97,7 @@ export default function PaywallModal({
               <div className="p-1 rounded-full bg-emerald-500/20 text-emerald-400 shrink-0">
                 <Check className="w-3.5 h-3.5" />
               </div>
-              <span>{language === 'en' ? 'Unlimited AI Tutor questions (English & Amharic)' : 'ያልተገደበ የ AI መምህር ጥያቄዎች (በእንግሊዝኛና አማርኛ)'}</span>
+              <span>{language === 'en' ? 'Unlimited Ask Teacher questions (English & Amharic)' : 'ያልተገደበ የመምህሩን ጠይቅ (Ask Teacher) ጥያቄዎች'}</span>
             </div>
             <div className="flex items-center gap-2.5">
               <div className="p-1 rounded-full bg-emerald-500/20 text-emerald-400 shrink-0">

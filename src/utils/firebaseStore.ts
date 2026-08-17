@@ -7,6 +7,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { 
   getFirestore, 
+  initializeFirestore,
   doc, 
   getDoc, 
   setDoc, 
@@ -30,19 +31,27 @@ export const app = (() => {
 
 export const db = (() => {
   if (!app) return null;
+  const dbId = (firebaseConfig as any).firestoreDatabaseId || undefined;
   try {
-    if (firebaseConfig.firestoreDatabaseId) {
+    if (dbId) {
       try {
-        return getFirestore(app, firebaseConfig.firestoreDatabaseId);
-      } catch (e) {
-        console.warn('[Firestore] Named database access failed, falling back to default instance:', e);
-        return getFirestore(app);
+        return initializeFirestore(app, {
+          experimentalForceLongPolling: true,
+        }, dbId);
+      } catch {
+        return getFirestore(app, dbId);
       }
     }
-    return getFirestore(app);
+    return initializeFirestore(app, {
+      experimentalForceLongPolling: true,
+    });
   } catch (err) {
-    console.warn('[Firestore] Service is not available:', err);
-    return null;
+    try {
+      return getFirestore(app);
+    } catch {
+      console.warn('[Firestore] Service is not available:', err);
+      return null;
+    }
   }
 })();
 

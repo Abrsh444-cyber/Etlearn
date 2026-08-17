@@ -542,8 +542,8 @@ export default function HomeDashboard({
               </h1>
               <p className="text-sm text-slate-300 mt-1.5 leading-relaxed">
                 {isAmharic 
-                  ? 'ወደ እለታዊ የጥናት ማዕከልዎ እንኳን ደህና መጡ። የዩኒቨርሲቲ ሞጁሎች፣ አስጎብኚ AI መምህር እና ያለፉ ፈተናዎች ተዘጋጅተዋል።' 
-                  : 'Welcome to your academic study cockpit. Your university modules, Asgobnyi AI tutor, and model exams are synchronized.'}
+                  ? 'ወደ እለታዊ የጥናት ማዕከልዎ እንኳን ደህና መጡ። የዩኒቨርሲቲ ሞጁሎች፣ መምህሩን ጠይቅ (Ask Teacher) እና ያለፉ ፈተናዎች ተዘጋጅተዋል።' 
+                  : 'Welcome to your academic study cockpit. Your university modules, Ask Teacher AI, and model exams are synchronized.'}
               </p>
             </div>
 
@@ -606,7 +606,7 @@ export default function HomeDashboard({
               className="px-5 py-3 rounded-xl bg-[#0F172A] hover:bg-slate-800 border border-slate-700 text-slate-200 font-semibold text-sm transition-all cursor-pointer flex items-center justify-center gap-2 hover:border-amber-500/40 active:scale-[0.98]"
             >
               <Bot className="w-4 h-4 text-amber-400" />
-              <span>{isAmharic ? 'አስጎብኚ AI መምህር' : 'Ask Asgobnyi AI'}</span>
+              <span>{isAmharic ? 'መምህሩን ጠይቅ' : 'Ask Teacher'}</span>
             </button>
           </div>
         </div>
@@ -646,7 +646,7 @@ export default function HomeDashboard({
             </div>
           </button>
 
-          {/* 2. AI Tutor "አስጎብኚ" */}
+          {/* 2. Ask Teacher */}
           <button
             onClick={() => { playClickChime(); onNavigate('tutor'); }}
             className="p-4 rounded-xl bg-[#111C35] border border-slate-800 hover:border-amber-500/50 transition-all cursor-pointer text-left group flex flex-col justify-between h-28 shadow-xs"
@@ -661,7 +661,7 @@ export default function HomeDashboard({
             </div>
             <div>
               <span className="block text-xs font-bold text-slate-100 group-hover:text-amber-400 transition-colors">
-                {isAmharic ? 'አስጎብኚ AI መምህር' : 'AI Tutor'}
+                {isAmharic ? 'መምህሩን ጠይቅ' : 'Ask Teacher'}
               </span>
               <span className="block text-[10px] text-slate-400 truncate">Step-by-step Q&A</span>
             </div>
@@ -1124,13 +1124,13 @@ export default function HomeDashboard({
             </div>
           </section>
 
-          {/* 2. Asgobnyi AI Study Prompts ("ፈጣን የAI መጠየቂያዎች") */}
+          {/* 2. Ask Teacher Study Prompts ("ፈጣን የAI መጠየቂያዎች") */}
           <section className="p-5 sm:p-6 rounded-2xl bg-[#111C35] border border-slate-800/90 space-y-4 shadow-sm">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2">
                 <Bot className="w-4 h-4 text-amber-400" />
                 <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                  {isAmharic ? 'አስጎብኚ ፈጣን ጥያቄዎች' : 'Asgobnyi AI Study Prompts'}
+                  {isAmharic ? 'መምህሩን ጠይቅ - ፈጣን ጥያቄዎች' : 'Ask Teacher Study Prompts'}
                 </h3>
               </div>
 

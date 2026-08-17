@@ -9,6 +9,7 @@ import {
   StudentProfile, CouponCode, PlatformAnnouncement, CourseRecord, LessonRecord, 
   AdminDashboardStats, CourseStatus 
 } from '../types';
+import { isAdministratorEmail, ADMIN_EMAIL } from '../utils/adminAuth';
 import { playClickChime, playSuccessChime, playFailureChime } from '../utils/audio';
 import { 
   fetchAdminDashboardStats, fetchAdminCourses, createCourse, updateCourse, 
@@ -523,6 +524,40 @@ export default function AdminDashboardView({
       (s.university && s.university.toLowerCase().includes(q));
   });
 
+  // Security Guard: Prevent unauthorized viewers
+  const isAuthorized = isAdministratorEmail(currentProfile?.email);
+  if (!isAuthorized) {
+    return (
+      <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="w-full max-w-md bg-slate-950 border border-red-500/30 rounded-3xl p-6 text-center space-y-4 shadow-2xl"
+        >
+          <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 mx-auto">
+            <Lock className="w-8 h-8" />
+          </div>
+          <div className="space-y-1">
+            <h2 className="text-lg font-black text-white">
+              {isAmharic ? 'የተከለከለ መዳረሻ' : 'Access Restricted'}
+            </h2>
+            <p className="text-xs text-slate-400">
+              {isAmharic 
+                ? 'ይህ የአስተዳዳሪ ክፍል ለተፈቀደለት አስተዳዳሪ (ezrat2116@gmail.com) ብቻ የተወሰነ ነው።' 
+                : `The Admin Dashboard is strictly restricted to administrator (${ADMIN_EMAIL}). Your account does not have access permissions.`}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-white font-bold text-xs transition-all cursor-pointer"
+          >
+            {isAmharic ? 'ዝጋ' : 'Close'}
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto">
       <motion.div 
@@ -1033,6 +1068,11 @@ export default function AdminDashboardView({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {payments.map(p => {
                     const isProcessing = Boolean(paymentActionLoading[p.id]);
+                    const couponCode = p.couponCode || p.coupon_code;
+                    const originalAmt = p.originalAmount || p.original_amount;
+                    const discountAmt = p.discountETB || p.discount_etb;
+                    const receiptImg = p.receiptImage || p.receipt_image;
+
                     return (
                       <div key={p.id} className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3">
                         <div className="flex items-start justify-between gap-2">
@@ -1055,9 +1095,49 @@ export default function AdminDashboardView({
                         </div>
 
                         <div className="flex items-center justify-between text-xs font-mono bg-slate-950 p-2.5 rounded-xl border border-slate-800/80">
-                          <span className="text-slate-400">Amount:</span>
-                          <span className="text-emerald-400 font-black text-sm">{p.amount} ETB</span>
+                          <div>
+                            <span className="text-slate-400 block text-[10px]">Payment Amount</span>
+                            {couponCode && originalAmt ? (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs line-through text-slate-500">{originalAmt} ETB</span>
+                                <span className="text-emerald-400 font-black text-sm">{p.amount} ETB</span>
+                              </div>
+                            ) : (
+                              <span className="text-emerald-400 font-black text-sm">{p.amount} ETB</span>
+                            )}
+                          </div>
+                          {couponCode && (
+                            <div className="text-right">
+                              <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30 text-[10px] font-mono font-bold block">
+                                PROMO: {couponCode}
+                              </span>
+                              {discountAmt ? (
+                                <span className="text-[10px] text-emerald-400">-{discountAmt} ETB OFF</span>
+                              ) : null}
+                            </div>
+                          )}
                         </div>
+
+                        {receiptImg && (
+                          <div className="p-2 bg-slate-950 rounded-xl border border-slate-800/80 flex items-center gap-3">
+                            <img 
+                              src={receiptImg} 
+                              alt="Receipt" 
+                              className="w-10 h-10 object-cover rounded-lg border border-slate-700" 
+                            />
+                            <div className="text-xs">
+                              <span className="font-bold text-slate-300 block">Bank / Telebirr Receipt Attached</span>
+                              <a 
+                                href={receiptImg} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className="text-[10px] text-amber-400 hover:underline"
+                              >
+                                View full receipt image
+                              </a>
+                            </div>
+                          </div>
+                        )}
 
                         {p.status === 'pending' && (
                           <div className="flex items-center gap-2 pt-1">
@@ -1132,22 +1212,29 @@ export default function AdminDashboardView({
                 </button>
               </form>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {coupons.map(c => (
-                  <div key={c.code} className="p-4 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between">
-                    <div>
-                      <span className="font-mono font-black text-amber-400 text-sm">{c.code}</span>
-                      <p className="text-xs text-slate-400 mt-0.5">{c.discountPercentage}% OFF • {c.usedCount}/{c.maxUses} used</p>
+              {coupons.length === 0 ? (
+                <div className="py-8 text-center bg-slate-900/40 rounded-2xl border border-slate-800 text-slate-500 text-xs">
+                  No promotional coupons created yet. Use the form above to generate your first campus coupon code.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {coupons.map(c => (
+                    <div key={c.code} className="p-4 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                      <div>
+                        <span className="font-mono font-black text-amber-400 text-sm">{c.code}</span>
+                        <p className="text-xs text-slate-400 mt-0.5">{c.discountPercentage}% OFF • {c.usedCount}/{c.maxUses} used</p>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteCoupon(c.code)}
+                        className="p-1.5 text-slate-500 hover:text-red-400 cursor-pointer transition-colors"
+                        title="Delete coupon"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => handleDeleteCoupon(c.code)}
-                      className="p-1.5 text-slate-500 hover:text-red-400 cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -1204,28 +1291,35 @@ export default function AdminDashboardView({
                 </button>
               </form>
 
-              <div className="space-y-3">
-                {announcements.map(a => (
-                  <div key={a.id} className="p-4 rounded-2xl bg-slate-900 border border-slate-800 flex items-start justify-between gap-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-mono font-bold">
-                          {a.badgeText || 'Notice'}
-                        </span>
-                        <h4 className="text-xs font-bold text-white">{a.title}</h4>
+              {announcements.length === 0 ? (
+                <div className="py-8 text-center bg-slate-900/40 rounded-2xl border border-slate-800 text-slate-500 text-xs">
+                  No active broadcasts. Announcements published here will be displayed to all students.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {announcements.map(a => (
+                    <div key={a.id} className="p-4 rounded-2xl bg-slate-900 border border-slate-800 flex items-start justify-between gap-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-mono font-bold">
+                            {a.badgeText || 'Notice'}
+                          </span>
+                          <h4 className="text-xs font-bold text-white">{a.title}</h4>
+                        </div>
+                        <p className="text-xs text-slate-400">{a.message}</p>
+                        <span className="text-[10px] font-mono text-slate-500 block pt-1">{a.date}</span>
                       </div>
-                      <p className="text-xs text-slate-400">{a.message}</p>
-                      <span className="text-[10px] font-mono text-slate-500 block pt-1">{a.date}</span>
+                      <button
+                        onClick={() => handleDeleteAnnouncement(a.id)}
+                        className="p-1 text-slate-500 hover:text-red-400 cursor-pointer transition-colors"
+                        title="Delete announcement"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => handleDeleteAnnouncement(a.id)}
-                      className="p-1 text-slate-500 hover:text-red-400 cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
