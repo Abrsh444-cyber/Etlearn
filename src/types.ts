@@ -235,7 +235,7 @@ export interface ExamAttemptRecord {
   }>;
 }
 
-export type AITeacherMode = 'teaching' | 'quiz' | 'exam_feedback' | 'free_chat';
+export type AITeacherMode = 'teaching' | 'quiz' | 'exam_feedback' | 'chat' | 'free_chat';
 
 export interface AITeacherContext {
   mode: AITeacherMode;
@@ -250,6 +250,33 @@ export interface AITeacherContext {
     explanation: string;
     subjectTopic?: string;
   }>;
+}
+
+export interface SavedChatSession {
+  id: string;
+  title: string;
+  subject: string;
+  mode: AITeacherMode;
+  messages: Array<{
+    role: 'user' | 'assistant';
+    content: string;
+    attachment?: {
+      name: string;
+      mimeType: string;
+      data: string;
+    };
+    fileData?: {
+      name: string;
+      mimeType: string;
+      data: string;
+    };
+    timestamp?: string;
+  }>;
+  createdAt: string;
+  updatedAt: string;
+  isPinned?: boolean;
+  modelUsed?: string;
+  summary?: string;
 }
 
 export interface AdminDashboardStats {
