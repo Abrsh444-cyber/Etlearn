@@ -276,14 +276,14 @@ export default function SavedChatsDrawer({
   return (
     <AnimatePresence>
       {isOpen && (
-        <>
-          {/* Backdrop for mobile */}
+        <div className="fixed inset-0 z-50 overflow-hidden flex">
+          {/* Backdrop for all screen sizes */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs md:hidden"
+            className="fixed inset-0 bg-black/70 backdrop-blur-xs transition-opacity cursor-pointer"
           />
 
           {/* Drawer Panel */}
@@ -292,42 +292,50 @@ export default function SavedChatsDrawer({
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
             transition={{ type: 'spring', damping: 26, stiffness: 280 }}
-            className="fixed top-0 bottom-0 left-0 z-50 w-[85vw] max-w-[340px] md:w-80 bg-[#0A1128] border-r border-slate-800/90 flex flex-col shadow-2xl overflow-hidden"
+            className="relative z-50 w-[90vw] max-w-[380px] sm:w-96 bg-[#0A1128] border-r border-slate-800 flex flex-col shadow-2xl h-full select-none"
           >
-            {/* Drawer Header */}
-            <div className="p-4 border-b border-slate-800 bg-[#0c1533] flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
-                  <Sparkles className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white leading-tight">
-                    {isAmharic ? 'የተቀመጡ ውይይቶች' : 'Saved Chats'}
+            {/* Drawer Header with Prominent Back Button */}
+            <div className="p-3.5 sm:p-4 border-b border-slate-800 bg-[#0C152E] flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <button
+                  onClick={onClose}
+                  className="p-2 -ml-1 rounded-xl bg-slate-900 border border-slate-800 hover:border-amber-500/50 text-slate-300 hover:text-amber-400 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shrink-0"
+                  title={isAmharic ? 'ወደ ውይይት ተመለስ' : 'Back to Chat'}
+                >
+                  <ArrowLeft className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs font-bold">{isAmharic ? 'ተመለስ' : 'Back'}</span>
+                </button>
+
+                <div className="min-w-0 pl-1">
+                  <h3 className="text-sm font-bold text-white truncate leading-tight flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span>{isAmharic ? 'የተቀመጡ ውይይቶች' : 'Saved Chats'}</span>
                   </h3>
-                  <span className="text-[10px] text-slate-400 font-mono">
-                    {sessions.length} {isAmharic ? 'ውይይቶች ተመዝግበዋል' : 'conversations'}
+                  <span className="text-[10px] text-slate-400 font-mono block truncate">
+                    {sessions.length} {isAmharic ? 'ውይይቶች' : 'sessions'}
                   </span>
                 </div>
               </div>
 
               <button
                 onClick={onClose}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors md:hidden"
+                className="p-2 rounded-xl text-slate-400 hover:text-white bg-slate-900 border border-slate-800 hover:bg-slate-800 transition-colors cursor-pointer shrink-0 active:scale-95"
+                title={isAmharic ? 'ዝጋ' : 'Close'}
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* New Chat Primary Action */}
-            <div className="p-3 border-b border-slate-800/60 bg-[#0A1128]">
+            <div className="p-3 border-b border-slate-800/80 bg-[#0A1128]">
               <button
                 onClick={() => {
                   onNewChat();
                   onClose();
                 }}
-                className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-amber-500/15 cursor-pointer transition-all active:scale-98"
+                className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-md shadow-amber-500/15 cursor-pointer transition-all active:scale-98"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-4 h-4 stroke-[2.5]" />
                 <span>{isAmharic ? 'አዲስ ውይይት ጀምር' : 'New Chat Session'}</span>
               </button>
             </div>
@@ -456,7 +464,7 @@ export default function SavedChatsDrawer({
               </button>
             </div>
           </motion.aside>
-        </>
+        </div>
       )}
     </AnimatePresence>
   );
