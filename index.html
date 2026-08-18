@@ -17,9 +17,14 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
+          navigator.serviceWorker.getRegistrations().then((registrations) => {
+            for (const reg of registrations) {
+              reg.update();
+            }
+          });
           navigator.serviceWorker.register('/sw.js')
-            .then((reg) => console.log('[Service Worker] Registered successfully:', reg.scope))
-            .catch((err) => console.error('[Service Worker] Registration failed:', err));
+            .then((reg) => console.log('[Service Worker] Active scope:', reg.scope))
+            .catch((err) => console.error('[Service Worker] Failed:', err));
         });
       }
     </script>

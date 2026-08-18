@@ -3,120 +3,81 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-const CACHE_NAME = 'ethiolearn-pro-v1';
+const CACHE_NAME = 'ethiolearn-pro-v3';
 const PRECACHE_ASSETS = [
   '/',
-  '/index.html',
   '/manifest.json',
-  '/ethiolearn_icon.jpg',
-  'https://cdn.jsdelivr.net/npm/chart.js'
+  '/ethiolearn_icon.jpg'
 ];
 
 // Install Event: Precache crucial shell assets
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('[Service Worker] Precaching app shell...');
-      return cache.addAll(PRECACHE_ASSETS).catch((err) => {
-        console.warn('[Service Worker] Precache warned:', err);
-      });
-    })
-  );
   self.skipWaiting();
 });
 
-// Activate Event: Clean up legacy caches
+// Activate Event: Clean up all legacy and stale caches immediately
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME) {
-            console.log('[Service Worker] Deleting obsolete cache:', cache);
-            return caches.delete(cache);
-          }
+          console.log('[Service Worker] Flushing stale cache:', cache);
+          return caches.delete(cache);
         })
       );
-    })
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// Fetch Event: Cache-first with Network Fallback & Network-first for dynamic content
+// Fetch Event: Bypass dev scripts and dynamic modules
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip web socket / hot reload channels or non-GET requests
+  // Never intercept non-GET requests or WebSockets
   if (request.method !== 'GET' || url.protocol === 'ws:' || url.protocol === 'wss:') {
     return;
   }
 
-  // Bypass Google API or AI Tutor API endpoints (must run actual fetch or fail gracefully in code)
-  if (url.hostname.includes('googleapis.com') || url.hostname.includes('openrouter.ai') || url.hostname.includes('api.groq.com') || url.pathname.startsWith('/api/')) {
-    event.respondWith(
-      fetch(request).catch(() => {
-        return new Response(
-          JSON.stringify({ error: true, message: "Requires active network connection." }),
-          { headers: { 'Content-Type': 'application/json' } }
-        );
-      })
-    );
-    return;
+  // Never intercept dev server files, source code, node_modules, or API endpoints
+  if (
+    url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/node_modules/') ||
+    url.pathname.startsWith('/@') ||
+    url.pathname.endsWith('.ts') ||
+    url.pathname.endsWith('.tsx') ||
+    url.searchParams.has('v') ||
+    url.searchParams.has('t') ||
+    url.hostname === 'localhost' ||
+    url.hostname === '127.0.0.1' ||
+    url.hostname.includes('run.app')
+  ) {
+    return; // Direct browser network fetch
   }
 
-  // Handle SPA navigation requests - fall back to index.html if offline or resource not found
+  // SPA navigation handling when offline
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request).catch(() => {
-        // Retrieve cached index page (supports offline virtual routes)
-        return caches.match('/index.html', { ignoreSearch: true }) || caches.match('/', { ignoreSearch: true });
+        return caches.match('/index.html') || fetch(request);
       })
     );
     return;
   }
 
-  // Use Cache-First with Network Fallback for static assets
-  // Use ignoreSearch: true to ensure query-string variants (like cache-busting or sources) don't miss the cache
+  // Static assets with network-first strategy
   event.respondWith(
-    caches.match(request, { ignoreSearch: true }).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Trigger a background fetch to keep cache up to date (Stale-While-Revalidate)
-        fetch(request)
-          .then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-              const cacheCopy = networkResponse.clone();
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(request, cacheCopy);
-              });
-            }
-          })
-          .catch(() => {
-            // Silence background check failure
+    fetch(request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200 && request.url.startsWith('http')) {
+          const cacheCopy = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, cacheCopy);
           });
-        return cachedResponse;
-      }
-
-      // If not in cache, fetch from network
-      return fetch(request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const cacheCopy = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(request, cacheCopy);
-            });
-          }
-          return networkResponse;
-        })
-        .catch((error) => {
-          console.log('[Service Worker] Resource fetch failed offline:', request.url);
-          // Return a structured offline message response fallback
-          return new Response('Offline and not cached.', {
-            status: 503,
-            statusText: 'Service Unavailable',
-            headers: { 'Content-Type': 'text/plain' }
-          });
-        });
-    })
+        }
+        return networkResponse;
+      })
+      .catch(() => caches.match(request))
   );
 });

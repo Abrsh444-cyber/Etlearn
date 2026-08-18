@@ -51,6 +51,14 @@ service cloud.firestore {
         && data.durationMinutes is int;
     }
 
+    // Promotions Schema Validation
+    function isValidPromotion(data) {
+      return data.keys().hasAll(['code', 'discountPercentage', 'isActive'])
+        && data.code is string && data.code.size() <= 64
+        && data.discountPercentage is int
+        && data.isActive is bool;
+    }
+
     // 2. Profiles Collection
     match /profiles/{userId} {
       allow get: if isOwner(userId);
@@ -73,6 +81,13 @@ service cloud.firestore {
         allow update: if isOwner(userId) && isValidId(sessionId) && isValidStudySession(request.resource.data);
         allow delete: if isOwner(userId) && isValidId(sessionId);
       }
+    }
+
+    // 5. Promotions Collection - readable by active users for checkout discount validation
+    match /promotions/{promoId} {
+      allow list, get: if true;
+      allow create, update: if isSignedIn() && isValidPromotion(request.resource.data);
+      allow delete: if isSignedIn();
     }
   }
 }

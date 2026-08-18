@@ -5,11 +5,12 @@ import {
   Zap, Lock, BookOpen, FileText, Smartphone, AlertCircle, ArrowRight, RefreshCw, ShieldCheck, Upload, Image as ImageIcon, Trash2, Scale,
   Tag, Gift, Percent, X
 } from 'lucide-react';
-import { StudentProfile, SubscriptionTier, PaymentProvider, PaymentRecord, CouponCode } from '../types';
+import { StudentProfile, SubscriptionTier, PaymentProvider, PaymentRecord, CouponCode, Promotion } from '../types';
 import { playClickChime, playSuccessChime, playFailureChime } from '../utils/audio';
 import { safeStorage } from '../utils/safeStorage';
 import { addPaymentRecordLocal, getPaymentHistoryLocal } from '../utils/monetization';
 import { validateCoupon, incrementCouponUsage } from '../utils/supabaseCourses';
+import { validatePromotionInDatabase, incrementPromotionUsage, fetchPromotionsFromFirestore } from '../utils/firebaseStore';
 import TermsModal from './TermsModal';
 
 interface UpgradeProViewProps {
@@ -41,10 +42,22 @@ export default function UpgradeProView({
 
   // Coupon / Promo Code States
   const [couponInput, setCouponInput] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState<CouponCode | null>(null);
+  const [appliedCoupon, setAppliedCoupon] = useState<CouponCode | Promotion | null>(null);
   const [couponDiscountETB, setCouponDiscountETB] = useState(0);
   const [couponMessage, setCouponMessage] = useState('');
   const [couponStatus, setCouponStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
+  const [availablePromotions, setAvailablePromotions] = useState<Promotion[]>([]);
+
+  // Load available active promotions for easy 1-click selection
+  useEffect(() => {
+    fetchPromotionsFromFirestore().then(promos => {
+      if (Array.isArray(promos) && promos.length > 0) {
+        setAvailablePromotions(promos.filter(p => p.isActive));
+      }
+    }).catch(err => {
+      console.warn('[UpgradePro] Notice fetching promotions:', err);
+    });
+  }, []);
   
   // Handle receipt image file select
   const handleReceiptImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -82,48 +95,69 @@ export default function UpgradeProView({
   // Reset coupon if tier changes
   useEffect(() => {
     if (appliedCoupon) {
-      // Re-validate against new tier price
-      validateCoupon(appliedCoupon.code, currentPrice.etb).then(res => {
+      // Re-validate against new tier price using database validator
+      validatePromotionInDatabase(appliedCoupon.code, currentPrice.etb, selectedTier).then(res => {
         if (res.valid) {
           setCouponDiscountETB(res.discountETB);
         } else {
-          setAppliedCoupon(null);
-          setCouponDiscountETB(0);
-          setCouponStatus('idle');
-          setCouponMessage('');
+          // Fallback check legacy coupon
+          validateCoupon(appliedCoupon.code, currentPrice.etb).then(legacyRes => {
+            if (legacyRes.valid) {
+              setCouponDiscountETB(legacyRes.discountETB);
+            } else {
+              setAppliedCoupon(null);
+              setCouponDiscountETB(0);
+              setCouponStatus('idle');
+              setCouponMessage('');
+            }
+          });
         }
       });
     }
   }, [selectedTier]);
 
-  const handleApplyCoupon = async (e?: React.FormEvent) => {
+  const handleApplyCoupon = async (codeOverride?: string, e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const clean = couponInput.trim().toUpperCase();
+    const clean = (codeOverride || couponInput).trim().toUpperCase();
     if (!clean) {
-      setCouponMessage(language === 'en' ? 'Please enter a coupon code' : 'እባክዎ የቅናሽ ኮድ ያስገቡ');
+      setCouponMessage(language === 'en' ? 'Please enter a promo code' : 'እባክዎ የቅናሽ ወይም ፕሮሞ ኮድ ያስገቡ');
       setCouponStatus('invalid');
       return;
     }
 
     setCouponStatus('checking');
     try {
+      // 1. Primary: Validate against promotions database
+      const dbPromoRes = await validatePromotionInDatabase(clean, currentPrice.etb, selectedTier);
+      if (dbPromoRes.valid && dbPromoRes.promotion) {
+        setAppliedCoupon(dbPromoRes.promotion);
+        setCouponDiscountETB(dbPromoRes.discountETB);
+        setCouponMessage(dbPromoRes.message);
+        setCouponStatus('valid');
+        setCouponInput(clean);
+        playSuccessChime();
+        return;
+      }
+
+      // 2. Secondary fallback: check coupon table
       const res = await validateCoupon(clean, currentPrice.etb);
       if (res.valid && res.coupon) {
         setAppliedCoupon(res.coupon);
         setCouponDiscountETB(res.discountETB);
         setCouponMessage(res.message);
         setCouponStatus('valid');
+        setCouponInput(clean);
         playSuccessChime();
       } else {
         setAppliedCoupon(null);
         setCouponDiscountETB(0);
-        setCouponMessage(res.message);
+        setCouponMessage(dbPromoRes.message || res.message || (language === 'en' ? `Promo code "${clean}" not found.` : `የፕሮሞ ኮድ "${clean}" አልተገኘም።`));
         setCouponStatus('invalid');
         playFailureChime();
       }
     } catch (err: any) {
       setCouponStatus('invalid');
-      setCouponMessage(language === 'en' ? 'Error validating coupon code' : 'የቅናሽ ኮዱን ማረጋገጥ አልተቻለም');
+      setCouponMessage(language === 'en' ? 'Error validating promo code with database' : 'የቅናሽ ኮዱን ማረጋገጥ አልተቻለም');
       playFailureChime();
     }
   };
@@ -169,7 +203,7 @@ export default function UpgradeProView({
       endDate = end.toISOString();
     }
 
-    // Save payment record with coupon data
+    // Save payment record with coupon & promotion data
     const paymentRecord: PaymentRecord = {
       id: `PAY-${Date.now()}`,
       userId: profile.email || profile.name || 'student',
@@ -190,8 +224,9 @@ export default function UpgradeProView({
     
     addPaymentRecordLocal(paymentRecord);
 
-    // If coupon was used, increment usage count in DB
+    // If coupon / promotion was used, increment usage count in DB
     if (appliedCoupon) {
+      incrementPromotionUsage(appliedCoupon.code);
       incrementCouponUsage(appliedCoupon.code);
     }
     
@@ -603,6 +638,37 @@ export default function UpgradeProView({
                     <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                     <span>{couponMessage}</span>
                   </p>
+                )}
+
+                {/* Available Verified Promotion Chips from Database */}
+                {!appliedCoupon && (
+                  <div className="pt-2 border-t border-slate-800/80">
+                    <p className="text-[10px] uppercase font-mono text-slate-400 font-bold mb-1.5 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-amber-400" />
+                      {language === 'en' ? 'Available Student Discounts (Tap to apply):' : 'ለተማሪዎች የተዘጋጁ ቅናሾች (ለመጠቀም ይንኩ):'}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(availablePromotions.length > 0 ? availablePromotions : [
+                        { code: 'WKU2026', discountPercentage: 30, description: 'Wolkite University 30% OFF' },
+                        { code: 'ETHIOLEARN50', discountPercentage: 50, description: '50% Early Bird' },
+                        { code: 'FRESHMAN25', discountPercentage: 25, description: '25% Freshman Discount' },
+                        { code: 'EXAMPASS40', fixedDiscountETB: 40, description: '40 ETB OFF Pass' },
+                      ]).map((promo: any) => (
+                        <button
+                          key={promo.code}
+                          type="button"
+                          onClick={() => handleApplyCoupon(promo.code)}
+                          className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 hover:border-amber-400 text-[11px] font-mono font-bold text-amber-300 flex items-center gap-1.5 transition-all cursor-pointer"
+                        >
+                          <Gift className="w-3 h-3 text-amber-400" />
+                          <span>{promo.code}</span>
+                          <span className="text-[10px] text-slate-400 font-normal">
+                            ({promo.discountPercentage ? `${promo.discountPercentage}% OFF` : `${promo.fixedDiscountETB} ETB OFF`})
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

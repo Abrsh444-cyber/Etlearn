@@ -886,7 +886,7 @@ ${contextDetails}`;
                 </h1>
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                 <span className="hidden sm:inline-block text-[9px] px-1.5 py-0.2 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 font-mono font-bold">
-                  {highThinking ? 'Gemini 2.5 Pro' : 'Gemini 2.5 Flash'}
+                  {highThinking ? 'Gemini Pro' : 'Gemini Flash AI'}
                 </span>
               </div>
               <p className="text-[10px] text-slate-400 truncate max-w-[130px] sm:max-w-[220px]">

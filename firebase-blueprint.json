@@ -43,6 +43,22 @@
         "durationMinutes": { "type": "integer" }
       },
       "required": ["id", "subject", "date", "durationMinutes"]
+    },
+    "promotion": {
+      "title": "Promotion",
+      "description": "A promotional discount code for subscription upgrades.",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "discountPercentage": { "type": "integer" },
+        "fixedDiscountETB": { "type": "integer" },
+        "maxUses": { "type": "integer" },
+        "usedCount": { "type": "integer" },
+        "expiresAt": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "description": { "type": "string" }
+      },
+      "required": ["code", "discountPercentage", "isActive"]
     }
   },
   "firestore": {
@@ -57,6 +73,10 @@
     "/profiles/{userId}/study_sessions/{sessionId}": {
       "schema": "study_session",
       "description": "Subcollection of logged active focus study sessions."
+    },
+    "/promotions/{promoId}": {
+      "schema": "promotion",
+      "description": "Collection of promotion and discount codes for subscription upgrades."
     }
   }
 }

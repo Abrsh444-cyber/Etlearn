@@ -390,22 +390,29 @@ Maintain a professional educational tone at all times. If students encounter tec
           if (cand.type === 'gemini') {
             const ai = new GoogleGenAI({
               apiKey: cand.key,
-              httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
             });
             const geminiContents = messages.map((m: any) => ({
               role: m.role === 'assistant' ? 'model' : 'user',
               parts: [{ text: m.content || '' }]
             }));
-            const response = await ai.models.generateContent({
-              model: 'gemini-2.5-flash',
-              contents: geminiContents,
-              config: { systemInstruction: systemInstruction },
-            });
-            replyText = response.text || "";
-            if (replyText) {
-              success = true;
-              break;
+            const candidateModels = ['gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-3.7-flash'];
+            for (const cm of candidateModels) {
+              try {
+                const response = await ai.models.generateContent({
+                  model: cm,
+                  contents: geminiContents,
+                  config: { systemInstruction: systemInstruction },
+                });
+                replyText = response.text || "";
+                if (replyText) {
+                  success = true;
+                  break;
+                }
+              } catch (cmErr: any) {
+                console.warn(`[Support API Cascade] Model ${cm} failed:`, cmErr?.message);
+              }
             }
+            if (success) break;
           } else if (cand.type === 'groq') {
             const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
               method: 'POST',
@@ -724,7 +731,6 @@ Maintain a professional educational tone at all times. If students encounter tec
       const runGeminiDirect = async (key: string) => {
         const ai = new GoogleGenAI({
           apiKey: key,
-          httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
         });
         const geminiContents = messages.map((m: any) => {
           const parts: any[] = [];
@@ -743,31 +749,53 @@ Maintain a professional educational tone at all times. If students encounter tec
             parts
           };
         });
- 
-        const stream = await ai.models.generateContentStream({
-          model: highThinking ? 'gemini-2.5-pro' : 'gemini-2.5-flash',
-          contents: geminiContents,
-          config: { 
-            systemInstruction: system || undefined,
-            thinkingConfig: highThinking ? { thinkingLevel: ThinkingLevel.HIGH } : undefined
-          },
-        });
 
-        if (!res.headersSent) {
-          res.setHeader('Content-Type', 'text/event-stream');
-          res.setHeader('Cache-Control', 'no-cache');
-          res.setHeader('Connection', 'keep-alive');
-        }
+        // Resilient candidate list: try fast, highly available models with automatic cascade
+        const modelsToTry = highThinking
+          ? ['gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.7-flash']
+          : ['gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-3.7-flash'];
 
-        for await (const chunk of stream) {
-          const content = chunk.text;
-          if (content) {
-            const legacyChunk = { type: 'content_block_delta', delta: { text: content } };
-            res.write(`data: ${JSON.stringify(legacyChunk)}\n\n`);
+        let lastErr: any = null;
+        for (const targetModel of modelsToTry) {
+          try {
+            console.log(`[Gemini Direct Stream] Attempting model ${targetModel}...`);
+            const stream = await ai.models.generateContentStream({
+              model: targetModel,
+              contents: geminiContents,
+              config: { 
+                systemInstruction: system || undefined,
+                ...(highThinking && targetModel === 'gemini-3.7-flash' ? { thinkingConfig: { thinkingBudget: 2048 } } : {})
+              },
+            });
+
+            if (!res.headersSent) {
+              res.setHeader('Content-Type', 'text/event-stream');
+              res.setHeader('Cache-Control', 'no-cache');
+              res.setHeader('Connection', 'keep-alive');
+            }
+
+            let receivedAnyChunk = false;
+            for await (const chunk of stream) {
+              const content = chunk.text;
+              if (content) {
+                receivedAnyChunk = true;
+                const legacyChunk = { type: 'content_block_delta', delta: { text: content } };
+                res.write(`data: ${JSON.stringify(legacyChunk)}\n\n`);
+              }
+            }
+
+            if (receivedAnyChunk) {
+              res.write('data: [DONE]\n\n');
+              res.end();
+              return;
+            }
+          } catch (modelErr: any) {
+            console.warn(`[Gemini Direct Stream] Model ${targetModel} failed:`, modelErr?.message || modelErr);
+            lastErr = modelErr;
           }
         }
-        res.write('data: [DONE]\n\n');
-        res.end();
+
+        if (lastErr) throw lastErr;
       };
 
       const runGroqDirect = async (key: string, targetModel?: string) => {

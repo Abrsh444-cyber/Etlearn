@@ -93,25 +93,42 @@ export async function submitClaudeChat(
         };
       });
 
-      const stream = await ai.models.generateContentStream({
-        model: highThinking ? 'gemini-2.5-pro' : 'gemini-2.5-flash',
-        contents: geminiContents,
-        config: {
-          systemInstruction: systemPrompt || undefined,
-          thinkingConfig: highThinking ? { thinkingLevel: ThinkingLevel.HIGH } : undefined
-        },
-      });
+      const candidateModels = highThinking
+        ? ['gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.7-flash']
+        : ['gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-3.7-flash'];
 
-      let accumulatedText = '';
-      for await (const chunk of stream) {
-        const content = chunk.text;
-        if (content) {
-          accumulatedText += content;
-          callbacks.onChunk(content);
+      let lastErr: any = null;
+      for (const targetModel of candidateModels) {
+        try {
+          const stream = await ai.models.generateContentStream({
+            model: targetModel,
+            contents: geminiContents,
+            config: {
+              systemInstruction: systemPrompt || undefined,
+              ...(highThinking && targetModel === 'gemini-3.7-flash' ? { thinkingConfig: { thinkingBudget: 2048 } } : {})
+            },
+          });
+
+          let accumulatedText = '';
+          for await (const chunk of stream) {
+            const content = chunk.text;
+            if (content) {
+              accumulatedText += content;
+              callbacks.onChunk(content);
+            }
+          }
+
+          if (accumulatedText) {
+            callbacks.onComplete(accumulatedText);
+            return;
+          }
+        } catch (streamErr: any) {
+          console.warn(`[Client Direct Stream] Model ${targetModel} failed:`, streamErr);
+          lastErr = streamErr;
         }
       }
 
-      callbacks.onComplete(accumulatedText);
+      if (lastErr) throw lastErr;
       return;
     }
 

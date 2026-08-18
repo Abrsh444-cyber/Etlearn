@@ -97,6 +97,21 @@ export interface CouponCode {
   usedCount: number;
   expiresAt: string;
   isActive: boolean;
+  description?: string;
+}
+
+export interface Promotion {
+  id?: string;
+  code: string;
+  title?: string;
+  description?: string;
+  discountPercentage: number;
+  fixedDiscountETB?: number;
+  maxUses?: number;
+  usedCount?: number;
+  expiresAt?: string;
+  isActive: boolean;
+  applicableTiers?: SubscriptionTier[];
 }
 
 export interface PlatformAnnouncement {
