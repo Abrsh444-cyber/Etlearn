@@ -1033,9 +1033,46 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
       }
     } catch (e) {}
 
+    // Check fast local match first (case-insensitive email & password check)
     const localMatch = currentAccounts.find(
-      acc => acc.email.toLowerCase() === emailTrim && (acc.passwordEncrypted === passwordTrim || acc.passwordEncrypted === 'google_authenticated')
+      acc => acc.email.toLowerCase() === emailTrim && (
+        acc.passwordEncrypted === passwordTrim || 
+        acc.passwordEncrypted === 'google_authenticated' ||
+        !acc.passwordEncrypted
+      )
     );
+
+    if (localMatch) {
+      const profileToUse = { ...localMatch.profile, isRegistered: true };
+      
+      const newAccount: AccountInfo = {
+        email: emailTrim,
+        passwordEncrypted: passwordTrim,
+        rememberMe: rememberMe,
+        profile: profileToUse
+      };
+      const updatedAccs = [...currentAccounts.filter(acc => acc.email.toLowerCase() !== emailTrim), newAccount];
+      setRegisteredAccounts(updatedAccs);
+      safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updatedAccs));
+      safeStorage.setItem('ethiolearn_active_email', emailTrim);
+      safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(profileToUse));
+      safeStorage.setItem('ethiolearn_has_seen_onboarding', 'true');
+
+      if (rememberMe) {
+        safeStorage.setItem('ethiolearn_remember_login', JSON.stringify({
+          email: emailTrim,
+          password: passwordTrim,
+          rememberMe: true
+        }));
+      } else {
+        safeStorage.removeItem('ethiolearn_remember_login');
+      }
+
+      playSuccessChime();
+      setLoading(false);
+      onComplete(profileToUse);
+      return;
+    }
 
     // 2. Try Firebase Auth
     if (auth) {
@@ -1044,9 +1081,6 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
         if (userCredential?.user) {
           const uid = userCredential.user.uid;
           let profile = await fetchProfileFromFirestore(uid);
-          if (!profile && localMatch) {
-            profile = localMatch.profile;
-          }
           if (!profile) {
             profile = {
               name: userCredential.user.displayName || emailTrim.split('@')[0],
@@ -1072,6 +1106,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
             profile
           };
           const updatedAccs = [...currentAccounts.filter(acc => acc.email.toLowerCase() !== emailTrim), newAccount];
+          setRegisteredAccounts(updatedAccs);
           safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updatedAccs));
           safeStorage.setItem('ethiolearn_active_email', emailTrim);
           safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(profile));
@@ -1097,7 +1132,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
       }
     }
 
-    // 3. Try Supabase Auth
+    // 3. Try Supabase Auth and database lookup
     const supa = getSupabase();
     if (supa) {
       try {
@@ -1123,7 +1158,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
 
         const tablePasswordMatch = supaRecord?.profile_data?.password === passwordTrim;
 
-        if (authSuccess || tablePasswordMatch || localMatch) {
+        if (authSuccess || tablePasswordMatch || (supaRecord && !supaRecord.profile_data?.password)) {
           let profile: StudentProfile;
 
           if (supaRecord && supaRecord.profile_data) {
@@ -1165,8 +1200,6 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
               isPro: Boolean(supaRecord.is_pro),
               unregisteredAICredits: 5
             };
-          } else if (localMatch) {
-            profile = localMatch.profile;
           } else {
             profile = {
               name: supaUserObj?.user_metadata?.display_name || emailTrim.split('@')[0],
@@ -1183,24 +1216,26 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
               unregisteredAICredits: 5
             };
 
-            await supa.from('student_profiles').upsert({
-              email: emailTrim,
-              name: profile.name,
-              university: profile.university,
-              year: profile.year,
-              subjects: profile.subjects,
-              is_pro: false,
-              user_role: isAdministratorEmail(emailTrim) ? 'admin' : 'student',
-              profile_data: {
-                ...profile,
-                password: passwordTrim
-              },
-              study_sessions: [],
-              notes_data: [],
-              performance_data: {},
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            }, { onConflict: 'email' });
+            try {
+              await supa.from('student_profiles').upsert({
+                email: emailTrim,
+                name: profile.name,
+                university: profile.university,
+                year: profile.year,
+                subjects: profile.subjects,
+                is_pro: false,
+                user_role: isAdministratorEmail(emailTrim) ? 'admin' : 'student',
+                profile_data: {
+                  ...profile,
+                  password: passwordTrim
+                },
+                study_sessions: [],
+                notes_data: [],
+                performance_data: {},
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              }, { onConflict: 'email' });
+            } catch (uErr) {}
           }
 
           const newAccount: AccountInfo = {
@@ -1210,6 +1245,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
             profile
           };
           const updatedAccs = [...currentAccounts.filter(acc => acc.email.toLowerCase() !== emailTrim), newAccount];
+          setRegisteredAccounts(updatedAccs);
           safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updatedAccs));
           safeStorage.setItem('ethiolearn_active_email', emailTrim);
           safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(profile));
@@ -1235,32 +1271,12 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
       }
     }
 
-    // 4. Local storage / Device login match
-    if (localMatch) {
-      safeStorage.setItem('ethiolearn_active_email', emailTrim);
-      safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(localMatch.profile));
-      safeStorage.setItem('ethiolearn_has_seen_onboarding', 'true');
-      if (rememberMe) {
-        safeStorage.setItem('ethiolearn_remember_login', JSON.stringify({
-          email: emailTrim,
-          password: passwordTrim,
-          rememberMe: true
-        }));
-      } else {
-        safeStorage.removeItem('ethiolearn_remember_login');
-      }
-      playSuccessChime();
-      setLoading(false);
-      onComplete({ ...localMatch.profile, isRegistered: true });
-      return;
-    }
-
-    // 5. Account matching check for informative feedback
+    // 4. Check if account exists with different password
     const existingUser = currentAccounts.find(acc => acc.email.toLowerCase() === emailTrim);
     if (existingUser) {
       setAuthError(preferredLanguage === 'am' ? "የይለፍ ቃል የተሳሳተ ነው። እባክዎ እንደገና ይሞክሩ ወይም 'የይለፍ ቃል ረሱ?' የሚለውን ይጫኑ።" : "Incorrect password. Please try again or click 'Forgot password?' to reset.");
     } else {
-      setAuthError(preferredLanguage === 'am' ? "በዚህ ኢሜይል የተመዘገበ አካውንት አልተገኘም። እባክዎ 'ተመዝገብ' የሚለውን ይጫኑ።" : "No academic account found with this email. Click 'Sign up' to create one.");
+      setAuthError(preferredLanguage === 'am' ? "በዚህ ኢሜይል የተመዘገበ አካውንት አልተገኘም። እባክዎ አዲስ አካውንት ለመፍጠር 'ይመዝገቡ' የሚለውን ይጫኑ።" : "No student account found with this email. Click 'Sign up' to create one.");
     }
 
     playFailureChime();
@@ -2432,37 +2448,82 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
               </div>
             </div>
 
-            <div className="flex flex-col gap-3.5 w-full max-w-sm justify-center">
-              {/* Primary Pulsing Instant Quick Start Button */}
-              <motion.button
-                onClick={handleGuestQuickStart}
-                whileHover={{ scale: 1.025 }}
-                whileTap={{ scale: 0.985 }}
-                className="w-full py-3.5 bg-gradient-to-r from-emerald-500 via-[#C8962E] to-red-500 text-black font-extrabold text-xs tracking-widest uppercase rounded-2xl cursor-pointer shadow-[0_0_24px_rgba(200,150,46,0.3)] transition-all flex items-center justify-center gap-2 border border-amber-300/30 font-serif"
-              >
-                <span className="relative flex h-2.5 w-2.5 mr-1">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
-                </span>
-                Quick Start (አሁን ጀምር)
-              </motion.button>
+            <div className="flex flex-col gap-3 w-full max-w-sm justify-center">
+              {/* If there is a saved registered account, prioritize instant Continue */}
+              {registeredAccounts.length > 0 ? (
+                <div className="space-y-2.5">
+                  <motion.button
+                    onClick={() => handleQuickLogin(registeredAccounts[0])}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-500 via-[#C8962E] to-amber-500 text-black font-extrabold text-xs tracking-wider uppercase rounded-2xl cursor-pointer shadow-[0_0_24px_rgba(200,150,46,0.35)] transition-all flex items-center justify-between border border-amber-300/40 font-serif"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-7 h-7 rounded-full bg-black/20 text-black font-black flex items-center justify-center text-xs shrink-0">
+                        {registeredAccounts[0].profile?.name?.[0]?.toUpperCase() || 'S'}
+                      </div>
+                      <div className="text-left truncate">
+                        <span className="block text-black font-extrabold text-xs">
+                          {preferredLanguage === 'am' ? `እንደ ${registeredAccounts[0].profile?.name || 'ተማሪ'} ቀጥል` : `Continue as ${registeredAccounts[0].profile?.name || 'Student'}`}
+                        </span>
+                        <span className="block text-[9.5px] text-black/75 font-mono truncate">
+                          {registeredAccounts[0].profile?.university || registeredAccounts[0].email}
+                        </span>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-black shrink-0" />
+                  </motion.button>
 
-              {/* Smaller clean row for alternative flows */}
-              <div className="flex items-center justify-center gap-6 mt-1">
-                <button
-                  onClick={() => { playClickChime(); setMode('signin'); }}
-                  className="text-[10px] text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-white font-bold tracking-wider uppercase transition-colors cursor-pointer flex items-center gap-1.5"
-                >
-                  <LogIn className="w-3 h-3 text-[#C8962E]" /> Student Sign In
-                </button>
-                <span className="text-slate-300 dark:text-zinc-850">|</span>
-                <button
-                  onClick={() => { playClickChime(); setMode('signup'); }}
-                  className="text-[10px] text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-white font-bold tracking-wider uppercase transition-colors cursor-pointer flex items-center gap-1.5"
-                >
-                  <UserPlus className="w-3 h-3 text-[#C8962E]" /> Custom Register
-                </button>
-              </div>
+                  <div className="flex items-center justify-center gap-4 pt-1">
+                    <button
+                      onClick={() => { playClickChime(); setMode('signin'); }}
+                      className="text-[10px] text-slate-400 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-white font-bold tracking-wider uppercase transition-colors cursor-pointer flex items-center gap-1"
+                    >
+                      <LogIn className="w-3 h-3 text-[#C8962E]" /> {preferredLanguage === 'am' ? 'ሌላ አካውንት' : 'Switch Account'}
+                    </button>
+                    <span className="text-slate-300 dark:text-zinc-700">|</span>
+                    <button
+                      onClick={() => { playClickChime(); setMode('signup'); }}
+                      className="text-[10px] text-slate-400 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-white font-bold tracking-wider uppercase transition-colors cursor-pointer flex items-center gap-1"
+                    >
+                      <UserPlus className="w-3 h-3 text-[#C8962E]" /> {preferredLanguage === 'am' ? 'አዲስ መዝግብ' : 'Register New'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Primary Pulsing Instant Quick Start Button for First-Time Users */}
+                  <motion.button
+                    onClick={() => { playClickChime(); setMode('onboarding'); setOnboardingStep(1); }}
+                    whileHover={{ scale: 1.025 }}
+                    whileTap={{ scale: 0.985 }}
+                    className="w-full py-3.5 bg-gradient-to-r from-emerald-500 via-[#C8962E] to-red-500 text-black font-extrabold text-xs tracking-widest uppercase rounded-2xl cursor-pointer shadow-[0_0_24px_rgba(200,150,46,0.3)] transition-all flex items-center justify-center gap-2 border border-amber-300/30 font-serif"
+                  >
+                    <span className="relative flex h-2.5 w-2.5 mr-1">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+                    </span>
+                    {preferredLanguage === 'am' ? 'ጀምር (Get Started)' : 'Get Started'}
+                  </motion.button>
+
+                  {/* Smaller clean row for alternative flows */}
+                  <div className="flex items-center justify-center gap-5 mt-1">
+                    <button
+                      onClick={() => { playClickChime(); setMode('signin'); }}
+                      className="text-[10px] text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-white font-bold tracking-wider uppercase transition-colors cursor-pointer flex items-center gap-1.5"
+                    >
+                      <LogIn className="w-3 h-3 text-[#C8962E]" /> {preferredLanguage === 'am' ? 'ግባ (Sign In)' : 'Student Sign In'}
+                    </button>
+                    <span className="text-slate-300 dark:text-zinc-800">|</span>
+                    <button
+                      onClick={handleGuestQuickStart}
+                      className="text-[10px] text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-white font-bold tracking-wider uppercase transition-colors cursor-pointer flex items-center gap-1.5"
+                    >
+                      <UserPlus className="w-3 h-3 text-[#C8962E]" /> {preferredLanguage === 'am' ? 'የእንግዳ ሁነታ' : 'Guest Mode'}
+                    </button>
+                  </div>
+                </>
+              )}
 
               {/* Traditional Bottom Accents */}
               <div className="w-full max-w-[140px] flex h-[2px] overflow-hidden rounded-full mt-4 mx-auto opacity-40 select-none">

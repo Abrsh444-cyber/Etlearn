@@ -131,52 +131,48 @@ function getCurrentStreak(): number {
 }
 
 export default function App() {
-  // Load profile with default 'light' theme preference
+  // Load profile with multi-layer fallback to reliably remember the student
   const [profile, setProfile] = useState<StudentProfile | null>(() => {
+    // 1. Check primary current profile
     const saved = safeStorage.getItem('ethiolearn_current_profile');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && Array.isArray(parsed.subjects)) {
-          const all22 = [
-            "Emerging Technologies",
-            "Introduction to Economics",
-            "General Biology",
-            "Communicative English",
-            "Moral and Civic Education",
-            "Mathematics",
-            "Inclusive Education",
-            "Geography",
-            "Logic and Critical Thinking",
-            "History",
-            "Chemistry",
-            "Aptitude",
-            "General Physics",
-            "Entrepreneurship",
-            "Social Anthropology",
-            "C++ Programming",
-            "Civics",
-            "Agriculture",
-            "Business",
-            "Moral and Civics",
-            "Emerging Tech",
-            "Applied Math"
-          ];
-          let updated = false;
-          all22.forEach(s => {
-            if (!parsed.subjects.includes(s)) {
-              parsed.subjects.push(s);
-              updated = true;
+        if (parsed && typeof parsed === 'object') {
+          return parsed;
+        }
+      } catch (e) {}
+    }
+
+    // 2. Fallback to active email matching in registered accounts
+    const activeEmail = safeStorage.getItem('ethiolearn_active_email');
+    const accountsRaw = safeStorage.getItem('ethiolearn_accounts');
+    if (accountsRaw) {
+      try {
+        const accounts = JSON.parse(accountsRaw);
+        if (Array.isArray(accounts) && accounts.length > 0) {
+          if (activeEmail) {
+            const match = accounts.find(a => a.email && a.email.toLowerCase() === activeEmail.toLowerCase());
+            if (match?.profile) {
+              safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(match.profile));
+              return match.profile;
             }
-          });
-          if (updated) {
-            safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(parsed));
+          }
+          // If any account has rememberMe active
+          const remembered = accounts.find(a => a.rememberMe);
+          if (remembered?.profile) {
+            safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(remembered.profile));
+            safeStorage.setItem('ethiolearn_active_email', remembered.email);
+            return remembered.profile;
+          }
+          // If only 1 account exists on device, restore it automatically
+          if (accounts.length === 1 && accounts[0].profile) {
+            safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(accounts[0].profile));
+            safeStorage.setItem('ethiolearn_active_email', accounts[0].email);
+            return accounts[0].profile;
           }
         }
-        return parsed;
-      } catch (e) {
-        return null;
-      }
+      } catch (e) {}
     }
     return null;
   });

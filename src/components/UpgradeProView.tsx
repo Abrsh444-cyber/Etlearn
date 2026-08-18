@@ -1,16 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Check, Shield, Clock, HelpCircle, Phone, CreditCard, Send, Sparkles, CheckCircle, ExternalLink, HelpCircle as HelpIcon, Star,
-  Zap, Lock, BookOpen, FileText, Smartphone, AlertCircle, ArrowRight, RefreshCw, ShieldCheck, Upload, Image as ImageIcon, Trash2, Scale,
-  Tag, Gift, Percent, X
+  Check, Shield, Clock, Phone, CreditCard, Send, Sparkles, CheckCircle, ExternalLink, Star,
+  Zap, Lock, BookOpen, FileText, Smartphone, AlertCircle, ArrowRight, ShieldCheck, Upload, Image as ImageIcon, Trash2, Scale
 } from 'lucide-react';
-import { StudentProfile, SubscriptionTier, PaymentProvider, PaymentRecord, CouponCode, Promotion } from '../types';
+import { StudentProfile, SubscriptionTier, PaymentProvider, PaymentRecord } from '../types';
 import { playClickChime, playSuccessChime, playFailureChime } from '../utils/audio';
 import { safeStorage } from '../utils/safeStorage';
 import { addPaymentRecordLocal, getPaymentHistoryLocal } from '../utils/monetization';
-import { validateCoupon, incrementCouponUsage } from '../utils/supabaseCourses';
-import { validatePromotionInDatabase, incrementPromotionUsage, fetchPromotionsFromFirestore } from '../utils/firebaseStore';
 import TermsModal from './TermsModal';
 
 interface UpgradeProViewProps {
@@ -39,25 +36,6 @@ export default function UpgradeProView({
   const [agreedToTerms, setAgreedToTerms] = useState<boolean>(profile.agreedToTerms || false);
   const [showTermsModal, setShowTermsModal] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Coupon / Promo Code States
-  const [couponInput, setCouponInput] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState<CouponCode | Promotion | null>(null);
-  const [couponDiscountETB, setCouponDiscountETB] = useState(0);
-  const [couponMessage, setCouponMessage] = useState('');
-  const [couponStatus, setCouponStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
-  const [availablePromotions, setAvailablePromotions] = useState<Promotion[]>([]);
-
-  // Load available active promotions for easy 1-click selection
-  useEffect(() => {
-    fetchPromotionsFromFirestore().then(promos => {
-      if (Array.isArray(promos) && promos.length > 0) {
-        setAvailablePromotions(promos.filter(p => p.isActive));
-      }
-    }).catch(err => {
-      console.warn('[UpgradePro] Notice fetching promotions:', err);
-    });
-  }, []);
   
   // Handle receipt image file select
   const handleReceiptImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -90,86 +68,7 @@ export default function UpgradeProView({
   };
 
   const currentPrice = getTierPrice(selectedTier);
-  const finalPayableETB = Math.max(0, currentPrice.etb - couponDiscountETB);
-
-  // Reset coupon if tier changes
-  useEffect(() => {
-    if (appliedCoupon) {
-      // Re-validate against new tier price using database validator
-      validatePromotionInDatabase(appliedCoupon.code, currentPrice.etb, selectedTier).then(res => {
-        if (res.valid) {
-          setCouponDiscountETB(res.discountETB);
-        } else {
-          // Fallback check legacy coupon
-          validateCoupon(appliedCoupon.code, currentPrice.etb).then(legacyRes => {
-            if (legacyRes.valid) {
-              setCouponDiscountETB(legacyRes.discountETB);
-            } else {
-              setAppliedCoupon(null);
-              setCouponDiscountETB(0);
-              setCouponStatus('idle');
-              setCouponMessage('');
-            }
-          });
-        }
-      });
-    }
-  }, [selectedTier]);
-
-  const handleApplyCoupon = async (codeOverride?: string, e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const clean = (codeOverride || couponInput).trim().toUpperCase();
-    if (!clean) {
-      setCouponMessage(language === 'en' ? 'Please enter a promo code' : 'እባክዎ የቅናሽ ወይም ፕሮሞ ኮድ ያስገቡ');
-      setCouponStatus('invalid');
-      return;
-    }
-
-    setCouponStatus('checking');
-    try {
-      // 1. Primary: Validate against promotions database
-      const dbPromoRes = await validatePromotionInDatabase(clean, currentPrice.etb, selectedTier);
-      if (dbPromoRes.valid && dbPromoRes.promotion) {
-        setAppliedCoupon(dbPromoRes.promotion);
-        setCouponDiscountETB(dbPromoRes.discountETB);
-        setCouponMessage(dbPromoRes.message);
-        setCouponStatus('valid');
-        setCouponInput(clean);
-        playSuccessChime();
-        return;
-      }
-
-      // 2. Secondary fallback: check coupon table
-      const res = await validateCoupon(clean, currentPrice.etb);
-      if (res.valid && res.coupon) {
-        setAppliedCoupon(res.coupon);
-        setCouponDiscountETB(res.discountETB);
-        setCouponMessage(res.message);
-        setCouponStatus('valid');
-        setCouponInput(clean);
-        playSuccessChime();
-      } else {
-        setAppliedCoupon(null);
-        setCouponDiscountETB(0);
-        setCouponMessage(dbPromoRes.message || res.message || (language === 'en' ? `Promo code "${clean}" not found.` : `የፕሮሞ ኮድ "${clean}" አልተገኘም።`));
-        setCouponStatus('invalid');
-        playFailureChime();
-      }
-    } catch (err: any) {
-      setCouponStatus('invalid');
-      setCouponMessage(language === 'en' ? 'Error validating promo code with database' : 'የቅናሽ ኮዱን ማረጋገጥ አልተቻለም');
-      playFailureChime();
-    }
-  };
-
-  const handleRemoveCoupon = () => {
-    setAppliedCoupon(null);
-    setCouponDiscountETB(0);
-    setCouponMessage('');
-    setCouponStatus('idle');
-    setCouponInput('');
-    playClickChime();
-  };
+  const finalPayableETB = currentPrice.etb;
 
   const handleSubmitPayment = (e: React.FormEvent) => {
     e.preventDefault();
@@ -203,14 +102,12 @@ export default function UpgradeProView({
       endDate = end.toISOString();
     }
 
-    // Save payment record with coupon & promotion data
+    // Save payment record with pending status for administrator review
     const paymentRecord: PaymentRecord = {
       id: `PAY-${Date.now()}`,
       userId: profile.email || profile.name || 'student',
       amount: finalPayableETB,
       originalAmount: currentPrice.etb,
-      couponCode: appliedCoupon ? appliedCoupon.code : undefined,
-      discountETB: couponDiscountETB > 0 ? couponDiscountETB : undefined,
       currency: 'ETB',
       provider: paymentMethod,
       providerTxnId: txnRef.trim(),
@@ -223,18 +120,12 @@ export default function UpgradeProView({
     };
     
     addPaymentRecordLocal(paymentRecord);
-
-    // If coupon / promotion was used, increment usage count in DB
-    if (appliedCoupon) {
-      incrementPromotionUsage(appliedCoupon.code);
-      incrementCouponUsage(appliedCoupon.code);
-    }
     
-    // Save payment submission details inside student profile
+    // Save payment submission details inside student profile (pending admin review)
     const updatedProfile: StudentProfile = {
       ...profile,
       tier: selectedTier,
-      isPro: false, // Pending verification
+      isPro: false, // Pending verification by admin
       proStatus: 'pending',
       proPaymentTxn: txnRef.trim(),
       proPaymentDate: startDate,
@@ -255,53 +146,6 @@ export default function UpgradeProView({
     setIsSubmitting(false);
     setActiveTab('status');
     playSuccessChime();
-  };
-
-  const handleInstantApprove = () => {
-    const code = prompt(language === 'en' 
-      ? 'ADMIN OVERRIDE: Enter Administrative approval code:' 
-      : 'ለአስተዳዳሪ ብቻ፡ ክፍያውን ለማጽደቅ የአድሚን ማለፊያ ኮድ ያስገቡ፡');
-    
-    if (code === '207' || code === '2070' || code?.toLowerCase() === 'abreham' || code === '0101') {
-      playSuccessChime();
-      
-      const startDate = new Date().toISOString();
-      const end = new Date();
-      end.setDate(end.getDate() + 30); // 30 days
-      const endDate = end.toISOString();
-
-      const updatedProfile: StudentProfile = {
-        ...profile,
-        tier: selectedTier === 'free' ? 'pro_monthly' : selectedTier,
-        isPro: true,
-        proStatus: 'active',
-        proPaymentTxn: txnRef || 'ADM_MANUAL_APPROVE_207',
-        proPaymentDate: startDate,
-        proStartDate: startDate,
-        proEndDate: endDate
-      };
-
-      // Also record completed payment
-      addPaymentRecordLocal({
-        id: `PAY-APPROVED-${Date.now()}`,
-        userId: profile.email || 'student',
-        amount: currentPrice.etb || 200,
-        currency: 'ETB',
-        provider: paymentMethod,
-        providerTxnId: txnRef || 'ADM_2070_APPROVED',
-        senderName: senderName || 'Abreham Alemayehu',
-        status: 'completed',
-        createdAt: new Date().toISOString()
-      });
-
-      onUpdateProfile(updatedProfile);
-      alert(language === 'en' 
-        ? 'Manual payment approved successfully! Pro status activated.' 
-        : 'ክፍያው በአስተዳዳሪው ጸድቋል! የፕሮ አባልነት በስኬት በርትቷል።');
-      if (onClose) onClose();
-    } else if (code !== null) {
-      alert(language === 'en' ? 'Invalid Administrative Code!' : 'የተሳሳተ የአስተዳዳሪ ማለፊያ ኮድ!');
-    }
   };
 
   return (
@@ -548,7 +392,7 @@ export default function UpgradeProView({
               {language === 'en' ? 'Step 1: Send Mobile Money Transfer' : 'ደረጃ 1፡ በሞባይል ገንዘብ ያስተላልፉ'}
             </h3>
 
-            {/* Price Badge & Live Discount Breakdown */}
+            {/* Price Badge & Official Verification Notice */}
             <div className="p-4 bg-slate-900/90 rounded-2xl border border-amber-500/30 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
@@ -556,120 +400,18 @@ export default function UpgradeProView({
                   <p className="text-sm font-black font-serif text-white uppercase">{selectedTier.replace('_', ' ')}</p>
                 </div>
                 <div className="text-right">
-                  {appliedCoupon && couponDiscountETB > 0 ? (
-                    <div>
-                      <span className="text-xs line-through text-slate-400 font-mono block">{currentPrice.etb} ETB</span>
-                      <span className="text-2xl font-black font-serif text-emerald-400">{finalPayableETB} ETB</span>
-                    </div>
-                  ) : (
-                    <span className="text-2xl font-black font-serif text-amber-400">{currentPrice.etb} ETB</span>
-                  )}
+                  <span className="text-2xl font-black font-serif text-amber-400">{currentPrice.etb} ETB</span>
+                  <p className="text-[10px] text-slate-400">{currentPrice.label}</p>
                 </div>
               </div>
 
-              {/* Coupon / Promo Code Input Box */}
-              <div className="pt-3 border-t border-slate-800 space-y-2">
-                <label className="text-xs font-bold text-amber-400 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <Tag className="w-3.5 h-3.5" />
-                    {language === 'en' ? 'Have a Promo or Coupon Code?' : 'የቅናሽ ወይም ፕሮሞ ኮድ አለዎት?'}
-                  </span>
-                  {appliedCoupon && (
-                    <span className="text-[10px] text-emerald-400 font-mono font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
-                      {appliedCoupon.code} APPLIED
-                    </span>
-                  )}
-                </label>
-
-                {appliedCoupon ? (
-                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
-                    <div className="flex items-center gap-2">
-                      <Percent className="w-4 h-4 text-emerald-400" />
-                      <div>
-                        <p className="text-xs font-bold text-white font-mono">{appliedCoupon.code}</p>
-                        <p className="text-[10px] text-emerald-300">{couponMessage}</p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleRemoveCoupon}
-                      className="px-2 py-1 text-xs text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 cursor-pointer"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                      <span>{language === 'en' ? 'Remove' : 'አስወግድ'}</span>
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Tag className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="text"
-                        value={couponInput}
-                        onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleApplyCoupon();
-                          }
-                        }}
-                        placeholder={language === 'en' ? 'Enter code (e.g. WKU2026)' : 'የፕሮሞ ኮድ ያስገቡ'}
-                        className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs uppercase font-mono text-white placeholder-slate-500 focus:ring-1 focus:ring-amber-400 outline-none"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleApplyCoupon()}
-                      disabled={couponStatus === 'checking' || !couponInput.trim()}
-                      className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5"
-                    >
-                      {couponStatus === 'checking' ? (
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Check className="w-3.5 h-3.5" />
-                      )}
-                      <span>{language === 'en' ? 'Apply' : 'ተግብር'}</span>
-                    </button>
-                  </div>
-                )}
-
-                {couponStatus === 'invalid' && couponMessage && (
-                  <p className="text-[11px] text-rose-400 flex items-center gap-1">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                    <span>{couponMessage}</span>
-                  </p>
-                )}
-
-                {/* Available Verified Promotion Chips from Database */}
-                {!appliedCoupon && (
-                  <div className="pt-2 border-t border-slate-800/80">
-                    <p className="text-[10px] uppercase font-mono text-slate-400 font-bold mb-1.5 flex items-center gap-1">
-                      <Sparkles className="w-3 h-3 text-amber-400" />
-                      {language === 'en' ? 'Available Student Discounts (Tap to apply):' : 'ለተማሪዎች የተዘጋጁ ቅናሾች (ለመጠቀም ይንኩ):'}
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {(availablePromotions.length > 0 ? availablePromotions : [
-                        { code: 'WKU2026', discountPercentage: 30, description: 'Wolkite University 30% OFF' },
-                        { code: 'ETHIOLEARN50', discountPercentage: 50, description: '50% Early Bird' },
-                        { code: 'FRESHMAN25', discountPercentage: 25, description: '25% Freshman Discount' },
-                        { code: 'EXAMPASS40', fixedDiscountETB: 40, description: '40 ETB OFF Pass' },
-                      ]).map((promo: any) => (
-                        <button
-                          key={promo.code}
-                          type="button"
-                          onClick={() => handleApplyCoupon(promo.code)}
-                          className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 hover:border-amber-400 text-[11px] font-mono font-bold text-amber-300 flex items-center gap-1.5 transition-all cursor-pointer"
-                        >
-                          <Gift className="w-3 h-3 text-amber-400" />
-                          <span>{promo.code}</span>
-                          <span className="text-[10px] text-slate-400 font-normal">
-                            ({promo.discountPercentage ? `${promo.discountPercentage}% OFF` : `${promo.fixedDiscountETB} ETB OFF`})
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+              <div className="pt-3 border-t border-slate-800/80 flex items-center gap-2 text-xs text-slate-300">
+                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>
+                  {language === 'en'
+                    ? 'Official fixed rate. Pro membership is activated strictly after administrator bank verification.'
+                    : 'ትክክለኛ ዋጋ። ክፍያው በአስተዳዳሪው የባንክ መዝገብ ከተረጋገጠ በኋላ ብቻ አካውንቱ ይበራል።'}
+                </span>
               </div>
             </div>
 
@@ -917,15 +659,17 @@ export default function UpgradeProView({
             )}
           </div>
 
-          {/* Admin Fast-Test Control */}
-          <div className="pt-6 border-t border-slate-800 max-w-sm mx-auto">
-            <p className="text-[10px] text-slate-500 font-mono mb-3">🛠️ ADMIN / LAUNCH TEST CODE (FAST-APPROVE):</p>
-            <button
-              onClick={handleInstantApprove}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer font-mono"
-            >
-              Instant Approve (Code: 2070)
-            </button>
+          {/* Security & Admin Confirmation Notice */}
+          <div className="pt-6 border-t border-slate-800 max-w-md mx-auto text-center space-y-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-bold">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>{language === 'en' ? 'Protected Administrator Verification' : 'በአስተዳዳሪ ብቻ የሚረጋገጥ'}</span>
+            </div>
+            <p className="text-[11px] text-slate-400">
+              {language === 'en'
+                ? 'All subscriptions are reviewed and authorized directly by the EthioLearn platform administrator. No automated or third-party bypass is allowed.'
+                : 'ሁሉም የፕሮ አባልነት ጥያቄዎች በቀጥታ በዋናው አስተዳዳሪ ተመርምረው ይጸድቃሉ። ያለ አስተዳዳሪ ፈቃድ ማንም ማብራት አይችልም።'}
+            </p>
           </div>
         </div>
       )}
