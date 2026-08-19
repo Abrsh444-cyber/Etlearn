@@ -28,6 +28,7 @@ import InAppViewerModal from './components/InAppViewerModal';
 import AdminDashboardView from './components/AdminDashboardView';
 import CourseExperienceView from './components/CourseExperienceView';
 import ExamEngineView from './components/ExamEngineView';
+import GoogleAdBanner from './components/GoogleAdBanner';
 
 import { 
   testFirestoreConnection, 
@@ -1236,6 +1237,16 @@ export default function App() {
             )}
           </motion.div>
         </AnimatePresence>
+
+        {/* Free Tier Google AdSense Banner (Only displayed for students who have not upgraded to Pro) */}
+        {currentPage !== 'upgrade' && !profile.isPro && (
+          <GoogleAdBanner 
+            profile={profile}
+            language={language}
+            onUpgradeClick={() => setCurrentPage('upgrade')}
+            positionContext={`app-${currentPage}-footer`}
+          />
+        )}
       </main>
 
       {/* PERSISTENT BOTTOM NAVIGATION TAB BAR (Requirement) */}

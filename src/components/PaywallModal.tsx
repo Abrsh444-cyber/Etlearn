@@ -109,6 +109,12 @@ export default function PaywallModal({
               <div className="p-1 rounded-full bg-emerald-500/20 text-emerald-400 shrink-0">
                 <Check className="w-3.5 h-3.5" />
               </div>
+              <span>{language === 'en' ? '100% Ad-Free Experience (No Google Ad interruptions)' : '100% ማስታወቂያ-አልባ የጥናት ድባብ'}</span>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <div className="p-1 rounded-full bg-emerald-500/20 text-emerald-400 shrink-0">
+                <Check className="w-3.5 h-3.5" />
+              </div>
               <span>{language === 'en' ? 'Pay easily via Telebirr or CBE Birr (80 - 200 ETB)' : 'በቴሌብር ወይም በሲቢኢ ብር በቀላሉ ይክፈሉ (80 - 200 ETB)'}</span>
             </div>
           </div>
