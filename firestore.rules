@@ -21,6 +21,14 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'ezrat2116@gmail.com' ||
+        request.auth.token.role == 'admin' ||
+        request.auth.token.role == 'super_admin'
+      );
+    }
+
     function isValidId(id) {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
@@ -61,33 +69,39 @@ service cloud.firestore {
 
     // 2. Profiles Collection
     match /profiles/{userId} {
-      allow get: if isOwner(userId);
+      allow get: if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId) && isValidProfile(request.resource.data);
-      allow update: if isOwner(userId) && isValidProfile(request.resource.data);
-      allow delete: if isOwner(userId);
+      allow update: if (isOwner(userId) && isValidProfile(request.resource.data)) || isAdmin();
+      allow delete: if isOwner(userId) || isAdmin();
 
       // 3. Notes Subcollection
       match /notes/{noteId} {
-        allow list, get: if isOwner(userId);
+        allow list, get: if isOwner(userId) || isAdmin();
         allow create: if isOwner(userId) && isValidId(noteId) && isValidNote(request.resource.data);
         allow update: if isOwner(userId) && isValidId(noteId) && isValidNote(request.resource.data);
-        allow delete: if isOwner(userId) && isValidId(noteId);
+        allow delete: if isOwner(userId) || isAdmin();
       }
 
       // 4. Study Sessions Subcollection
       match /study_sessions/{sessionId} {
-        allow list, get: if isOwner(userId);
+        allow list, get: if isOwner(userId) || isAdmin();
         allow create: if isOwner(userId) && isValidId(sessionId) && isValidStudySession(request.resource.data);
         allow update: if isOwner(userId) && isValidId(sessionId) && isValidStudySession(request.resource.data);
-        allow delete: if isOwner(userId) && isValidId(sessionId);
+        allow delete: if isOwner(userId) || isAdmin();
       }
     }
 
-    // 5. Promotions Collection - readable by active users for checkout discount validation
+    // 5. Promotions Collection - Read-only for normal users, write strictly restricted to Admin
     match /promotions/{promoId} {
       allow list, get: if true;
-      allow create, update: if isSignedIn() && isValidPromotion(request.resource.data);
-      allow delete: if isSignedIn();
+      allow create, update: if isAdmin() && isValidPromotion(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // 6. Announcements Collection - Read-only for all, write strictly restricted to Admin
+    match /announcements/{announcementId} {
+      allow list, get: if true;
+      allow create, update, delete: if isAdmin();
     }
   }
 }

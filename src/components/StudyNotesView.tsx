@@ -16,6 +16,7 @@ import { User } from 'firebase/auth';
 import { exportNoteToGoogleDoc, exportNotesToGoogleSheets } from '../utils/workspace';
 import { jsPDF } from 'jspdf';
 import { safeStorage } from '../utils/safeStorage';
+import DOMPurify from 'dompurify';
 
 interface StudyNotesViewProps {
   apiKey: string;
@@ -879,7 +880,7 @@ export default function StudyNotesView({
                 className="w-full h-64 bg-[#0D0D0D] border border-[#2A2A2A] rounded-xl p-4 text-xs overflow-y-auto leading-relaxed outline-none focus:border-zinc-750 font-sans text-zinc-300"
                 placeholder="Compose your structured study summary guidelines here..."
                 onInput={(e) => setNoteContent(e.currentTarget.innerHTML)}
-                dangerouslySetInnerHTML={{ __html: noteContent }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(noteContent) }}
               />
 
               {/* Save triggers */}

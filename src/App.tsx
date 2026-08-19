@@ -45,7 +45,7 @@ import { getEthiopianDate } from './utils/ethiopianCalendar';
 import { playClickChime, playSuccessChime, playFailureChime } from './utils/audio';
 import { initAuth, googleSignIn, googleSignInRedirect, logoutGoogle, exportAnalyticsToGoogleSheets } from './utils/workspace';
 import { User as FirebaseUser } from 'firebase/auth';
-import { initSupabaseConfig, getSupabase } from './utils/supabaseClient';
+import { initSupabaseConfig, getSupabase, clearSessionToken, syncAuthSessionWithServer } from './utils/supabaseClient';
 import { safeStorage } from './utils/safeStorage';
 import { isAdministratorEmail, ADMIN_EMAIL } from './utils/adminAuth';
 import { 
@@ -650,10 +650,18 @@ export default function App() {
     }
   }, [googleUser]);
 
-  // Load server-side configured Supabase secrets automatically at startup
+  // Load server-side configured Supabase secrets automatically at startup and sync active session token
   useEffect(() => {
-    initSupabaseConfig();
-  }, []);
+    initSupabaseConfig().then(() => {
+      if (profile?.email) {
+        syncAuthSessionWithServer({
+          email: profile.email,
+          role: isAdministratorEmail(profile.email) ? 'admin' : 'student',
+          displayName: profile.name
+        }).catch(() => {});
+      }
+    });
+  }, [profile?.email]);
 
   // PWA standard installer hook
   useEffect(() => {
@@ -762,6 +770,7 @@ export default function App() {
     // Clear local profile and authentication variables
     safeStorage.removeItem('ethiolearn_current_profile');
     safeStorage.removeItem('ethiolearn_active_email');
+    clearSessionToken();
     setProfile(null);
     
     // Clear Google Workspace auth session if active

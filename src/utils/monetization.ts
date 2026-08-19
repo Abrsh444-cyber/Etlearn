@@ -1,6 +1,6 @@
 import { StudentProfile, SubscriptionTier, SubscriptionStatus, PaymentProvider, PaymentRecord, FeatureUsageRecord } from '../types';
 import { safeStorage } from './safeStorage';
-import { getSupabase } from './supabaseClient';
+import { getSupabase, getAuthHeaders } from './supabaseClient';
 
 export const FREE_DAILY_AI_LIMIT = 5;
 
@@ -150,6 +150,23 @@ export function addPaymentRecordLocal(record: PaymentRecord): void {
   const updated = [record, ...existing.filter(r => r.providerTxnId !== record.providerTxnId)];
   const key = `ethiolearn_payments_${record.userId || 'guest'}`;
   safeStorage.setItem(key, JSON.stringify(updated));
+
+  // Dispatch securely to hardened server payments API
+  fetch('/api/payments/submit', {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({
+      provider: record.provider,
+      providerTxnId: record.providerTxnId,
+      senderName: record.senderName,
+      senderPhone: record.senderPhone,
+      amount: record.amount,
+      plan: record.amount >= 200 ? 'pro_monthly' : record.amount >= 100 ? 'exam_season_pass' : 'subject_bundle',
+      receiptImage: record.receiptImage
+    })
+  }).catch((err) => {
+    console.warn('[Server Payments Notice]:', err);
+  });
 
   // Sync to Supabase if client available
   const client = getSupabase();

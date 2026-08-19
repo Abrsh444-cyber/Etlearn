@@ -3,17 +3,17 @@ import { safeStorage } from './safeStorage';
 
 let supabaseInstance: SupabaseClient | null = null;
 
-export const ETHIOLEARN_SUPABASE_SQL_SCRIPT = `-- EthioLearn 1-Click Supabase Database Setup Script
--- Copy and paste this directly into your Supabase SQL Editor (https://supabase.com/dashboard/project/_/sql)
+export const ETHIOLEARN_SUPABASE_SQL_SCRIPT = `-- EthioLearn Production Hardened Supabase Database Setup Script
+-- Zero-Trust Architecture with Row Level Security (RLS) and Role Validation
 
--- 1. Create ethiolearn_sync table for full cloud study backup
+-- 1. Create ethiolearn_sync table
 CREATE TABLE IF NOT EXISTS public.ethiolearn_sync (
   email TEXT PRIMARY KEY,
   data JSONB NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 2. Create student_profiles table for profile metrics
+-- 2. Create student_profiles table
 CREATE TABLE IF NOT EXISTS public.student_profiles (
   email TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS public.student_profiles (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3. Create courses table (Single Source of Truth for Published & Draft Courses)
+-- 3. Create courses table
 CREATE TABLE IF NOT EXISTS public.courses (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS public.courses (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. Create lessons table (Unique lessons per course)
+-- 4. Create lessons table
 CREATE TABLE IF NOT EXISTS public.lessons (
   id TEXT PRIMARY KEY,
   course_id TEXT NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS public.payments (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 8. Create books table for dynamic digital textbooks
+-- 8. Create books table
 CREATE TABLE IF NOT EXISTS public.books (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
@@ -116,24 +116,28 @@ CREATE TABLE IF NOT EXISTS public.books (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 9. Enable public read/write access for anonymous & authenticated key
-ALTER TABLE public.ethiolearn_sync DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.student_profiles DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.courses DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.lessons DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.coupons DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.announcements DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.payments DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.books DISABLE ROW LEVEL SECURITY;
+-- 9. Enable RLS
+ALTER TABLE public.courses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.lessons ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.books ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.student_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.coupons ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ethiolearn_sync ENABLE ROW LEVEL SECURITY;
 
-GRANT ALL ON public.ethiolearn_sync TO anon, authenticated;
-GRANT ALL ON public.student_profiles TO anon, authenticated;
-GRANT ALL ON public.courses TO anon, authenticated;
-GRANT ALL ON public.lessons TO anon, authenticated;
-GRANT ALL ON public.coupons TO anon, authenticated;
-GRANT ALL ON public.announcements TO anon, authenticated;
-GRANT ALL ON public.payments TO anon, authenticated;
-GRANT ALL ON public.books TO anon, authenticated;
+-- 10. Public Read Policies
+DROP POLICY IF EXISTS "Public can view published courses" ON public.courses;
+CREATE POLICY "Public can view published courses" ON public.courses FOR SELECT USING (status = 'published');
+
+DROP POLICY IF EXISTS "Public can view published lessons" ON public.lessons;
+CREATE POLICY "Public can view published lessons" ON public.lessons FOR SELECT USING (status = 'published');
+
+DROP POLICY IF EXISTS "Public can view published announcements" ON public.announcements;
+CREATE POLICY "Public can view published announcements" ON public.announcements FOR SELECT USING (status = 'published');
+
+DROP POLICY IF EXISTS "Public can view books" ON public.books;
+CREATE POLICY "Public can view books" ON public.books FOR SELECT USING (true);
 `;
 
 /**
@@ -483,6 +487,76 @@ export function initSupabaseConfig(): Promise<void> {
       resolve();
     }
   });
+}
+
+const SESSION_TOKEN_KEY = 'ethiolearn_server_session_token';
+
+/**
+ * Get stored cryptographic server session token
+ */
+export function getSessionToken(): string | null {
+  return safeStorage.getItem(SESSION_TOKEN_KEY);
+}
+
+/**
+ * Store cryptographic server session token
+ */
+export function setSessionToken(token: string): void {
+  if (token) {
+    safeStorage.setItem(SESSION_TOKEN_KEY, token);
+  }
+}
+
+/**
+ * Clear stored server session token
+ */
+export function clearSessionToken(): void {
+  safeStorage.removeItem(SESSION_TOKEN_KEY);
+}
+
+/**
+ * Construct standard Authorization / Session headers for all API requests
+ */
+export function getAuthHeaders(extraHeaders: Record<string, string> = {}): Record<string, string> {
+  const token = getSessionToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...extraHeaders
+  };
+  if (token) {
+    headers['x-ethiolearn-session-token'] = token;
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+/**
+ * Request/refresh a cryptographically signed session token from the backend
+ */
+export async function syncAuthSessionWithServer(params: {
+  email?: string;
+  uid?: string;
+  role?: string;
+  displayName?: string;
+  initData?: string;
+}): Promise<{ success: boolean; token?: string; user?: any }> {
+  try {
+    const res = await fetch('/api/auth/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.token) {
+        setSessionToken(data.token);
+        return data;
+      }
+    }
+  } catch (err) {
+    console.warn('[Auth Session Sync Notice]:', err);
+  }
+  return { success: false };
 }
 
 

@@ -1,6 +1,5 @@
 -- ====================================================================
--- ETHIOLEARN PRO - COMPLETE DATABASE SCHEMA (POSTGRESQL 14+ / SUPABASE)
--- Single Source of Truth for Courses, Lessons, Users, Payments & Admin
+-- ETHIOLEARN PRO - PRODUCTION HARDENED DATABASE SCHEMA & ZERO-TRUST RLS
 -- ====================================================================
 
 -- 1. ENUM TYPES
@@ -20,7 +19,7 @@ DO $$ BEGIN
     CREATE TYPE payment_status AS ENUM ('pending', 'completed', 'failed', 'refunded');
 EXCEPTION WHEN duplicate_object THEN null; END $$;
 
--- 2. STUDENT PROFILES TABLE (Single Source of Truth for Users)
+-- 2. STUDENT PROFILES TABLE
 CREATE TABLE IF NOT EXISTS public.student_profiles (
     email TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -38,7 +37,7 @@ CREATE TABLE IF NOT EXISTS public.student_profiles (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 3. COURSES TABLE (Single Source of Truth for Published & Draft Courses)
+-- 3. COURSES TABLE
 CREATE TABLE IF NOT EXISTS public.courses (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -55,7 +54,7 @@ CREATE TABLE IF NOT EXISTS public.courses (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 4. LESSONS TABLE (Unique lessons per course)
+-- 4. LESSONS TABLE
 CREATE TABLE IF NOT EXISTS public.lessons (
     id TEXT PRIMARY KEY,
     course_id TEXT NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
@@ -94,7 +93,7 @@ CREATE TABLE IF NOT EXISTS public.announcements (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 7. BOOKS TABLE (Digital Textbook Catalog)
+-- 7. BOOKS TABLE
 CREATE TABLE IF NOT EXISTS public.books (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -107,7 +106,7 @@ CREATE TABLE IF NOT EXISTS public.books (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 8. ETHIOLEARN SYNC (Backup Snapshot Table)
+-- 8. ETHIOLEARN SYNC TABLE
 CREATE TABLE IF NOT EXISTS public.ethiolearn_sync (
     email TEXT PRIMARY KEY,
     data JSONB NOT NULL,
@@ -160,7 +159,7 @@ CREATE TABLE IF NOT EXISTS public.feature_usage (
     CONSTRAINT unique_user_feature UNIQUE (user_id, feature_type)
 );
 
--- 12. INDEXES FOR PERFORMANCE
+-- 12. INDEXES
 CREATE INDEX IF NOT EXISTS idx_courses_status ON public.courses(status);
 CREATE INDEX IF NOT EXISTS idx_courses_level ON public.courses(level);
 CREATE INDEX IF NOT EXISTS idx_lessons_course ON public.lessons(course_id);
@@ -178,105 +177,322 @@ END;
 $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS update_courses_updated_at ON public.courses;
-CREATE TRIGGER update_courses_updated_at
-    BEFORE UPDATE ON public.courses
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_courses_updated_at BEFORE UPDATE ON public.courses FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 DROP TRIGGER IF EXISTS update_lessons_updated_at ON public.lessons;
-CREATE TRIGGER update_lessons_updated_at
-    BEFORE UPDATE ON public.lessons
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_lessons_updated_at BEFORE UPDATE ON public.lessons FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 DROP TRIGGER IF EXISTS update_student_profiles_updated_at ON public.student_profiles;
-CREATE TRIGGER update_student_profiles_updated_at
-    BEFORE UPDATE ON public.student_profiles
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_student_profiles_updated_at BEFORE UPDATE ON public.student_profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 DROP TRIGGER IF EXISTS update_payments_updated_at ON public.payments;
-CREATE TRIGGER update_payments_updated_at
-    BEFORE UPDATE ON public.payments
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_payments_updated_at BEFORE UPDATE ON public.payments FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ====================================================================
--- ROW LEVEL SECURITY (RLS) POLICIES
+-- 14. AUTHORIZATION HELPER FUNCTIONS
 -- ====================================================================
 
--- Courses RLS
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN (
+        auth.role() = 'service_role' OR
+        auth.jwt() ->> 'email' = 'ezrat2116@gmail.com' OR
+        EXISTS (
+            SELECT 1 FROM public.student_profiles
+            WHERE email = auth.jwt() ->> 'email'
+              AND user_role IN ('admin', 'super_admin')
+        )
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ====================================================================
+-- 15. ZERO-TRUST ROW LEVEL SECURITY (RLS) POLICIES
+-- ====================================================================
+
+-- 15.1 Courses RLS
 ALTER TABLE public.courses ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Anyone can view published courses" ON public.courses;
+DROP POLICY IF EXISTS "Admins full access to courses" ON public.courses;
+DROP POLICY IF EXISTS "courses_select" ON public.courses;
+DROP POLICY IF EXISTS "courses_admin_all" ON public.courses;
 
-CREATE POLICY "Anyone can view published courses"
+CREATE POLICY "courses_select"
     ON public.courses FOR SELECT
-    USING (status = 'published' OR auth.role() = 'service_role');
+    USING (status = 'published' OR public.is_admin());
 
-CREATE POLICY "Admins full access to courses"
-    ON public.courses FOR ALL
-    USING (true)
-    WITH CHECK (true);
+CREATE POLICY "courses_admin_insert"
+    ON public.courses FOR INSERT
+    WITH CHECK (public.is_admin());
 
--- Lessons RLS
+CREATE POLICY "courses_admin_update"
+    ON public.courses FOR UPDATE
+    USING (public.is_admin())
+    WITH CHECK (public.is_admin());
+
+CREATE POLICY "courses_admin_delete"
+    ON public.courses FOR DELETE
+    USING (public.is_admin());
+
+-- 15.2 Lessons RLS
 ALTER TABLE public.lessons ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Anyone can view published lessons" ON public.lessons;
+DROP POLICY IF EXISTS "Admins full access to lessons" ON public.lessons;
+DROP POLICY IF EXISTS "lessons_select" ON public.lessons;
+DROP POLICY IF EXISTS "lessons_admin_insert" ON public.lessons;
+DROP POLICY IF EXISTS "lessons_admin_update" ON public.lessons;
+DROP POLICY IF EXISTS "lessons_admin_delete" ON public.lessons;
 
-CREATE POLICY "Anyone can view published lessons"
+CREATE POLICY "lessons_select"
     ON public.lessons FOR SELECT
-    USING (status = 'published' OR auth.role() = 'service_role');
+    USING (status = 'published' OR public.is_admin());
 
-CREATE POLICY "Admins full access to lessons"
-    ON public.lessons FOR ALL
-    USING (true)
-    WITH CHECK (true);
+CREATE POLICY "lessons_admin_insert"
+    ON public.lessons FOR INSERT
+    WITH CHECK (public.is_admin());
 
--- Student Profiles RLS
+CREATE POLICY "lessons_admin_update"
+    ON public.lessons FOR UPDATE
+    USING (public.is_admin())
+    WITH CHECK (public.is_admin());
+
+CREATE POLICY "lessons_admin_delete"
+    ON public.lessons FOR DELETE
+    USING (public.is_admin());
+
+-- 15.3 Student Profiles RLS (Strict Owner & Admin only - NO public snooping)
 ALTER TABLE public.student_profiles ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow public read of student profiles" ON public.student_profiles;
+DROP POLICY IF EXISTS "Allow profile upserts" ON public.student_profiles;
+DROP POLICY IF EXISTS "student_profiles_select" ON public.student_profiles;
+DROP POLICY IF EXISTS "student_profiles_insert" ON public.student_profiles;
+DROP POLICY IF EXISTS "student_profiles_update" ON public.student_profiles;
+DROP POLICY IF EXISTS "student_profiles_delete" ON public.student_profiles;
 
-CREATE POLICY "Allow public read of student profiles"
+CREATE POLICY "student_profiles_select"
     ON public.student_profiles FOR SELECT
-    USING (true);
+    USING (
+        auth.role() = 'service_role' OR
+        auth.jwt() ->> 'email' = email OR
+        auth.uid()::text = email OR
+        public.is_admin()
+    );
 
-CREATE POLICY "Allow profile upserts"
-    ON public.student_profiles FOR ALL
-    USING (true)
-    WITH CHECK (true);
+CREATE POLICY "student_profiles_insert"
+    ON public.student_profiles FOR INSERT
+    WITH CHECK (
+        auth.role() = 'service_role' OR
+        (
+            (auth.jwt() ->> 'email' = email OR auth.uid()::text = email)
+            AND user_role = 'student'
+            AND is_pro = FALSE
+        ) OR
+        public.is_admin()
+    );
 
--- Payments RLS
+CREATE POLICY "student_profiles_update"
+    ON public.student_profiles FOR UPDATE
+    USING (
+        auth.role() = 'service_role' OR
+        auth.jwt() ->> 'email' = email OR
+        auth.uid()::text = email OR
+        public.is_admin()
+    )
+    WITH CHECK (
+        auth.role() = 'service_role' OR
+        public.is_admin() OR
+        (
+            -- Normal users can update non-privilege profile fields but CANNOT change role or is_pro
+            (auth.jwt() ->> 'email' = email OR auth.uid()::text = email)
+            AND user_role = (SELECT user_role FROM public.student_profiles WHERE email = student_profiles.email)
+            AND is_pro = (SELECT is_pro FROM public.student_profiles WHERE email = student_profiles.email)
+        )
+    );
+
+CREATE POLICY "student_profiles_delete"
+    ON public.student_profiles FOR DELETE
+    USING (public.is_admin());
+
+-- 15.4 Payments RLS
 ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow payments access" ON public.payments;
+DROP POLICY IF EXISTS "payments_select" ON public.payments;
+DROP POLICY IF EXISTS "payments_insert" ON public.payments;
+DROP POLICY IF EXISTS "payments_update" ON public.payments;
+DROP POLICY IF EXISTS "payments_delete" ON public.payments;
 
-CREATE POLICY "Allow payments access"
-    ON public.payments FOR ALL
-    USING (true)
-    WITH CHECK (true);
+CREATE POLICY "payments_select"
+    ON public.payments FOR SELECT
+    USING (
+        auth.role() = 'service_role' OR
+        auth.jwt() ->> 'email' = user_id OR
+        auth.uid()::text = user_id OR
+        public.is_admin()
+    );
 
--- Coupons RLS
+CREATE POLICY "payments_insert"
+    ON public.payments FOR INSERT
+    WITH CHECK (
+        auth.role() = 'service_role' OR
+        auth.jwt() ->> 'email' = user_id OR
+        auth.uid()::text = user_id OR
+        public.is_admin()
+    );
+
+CREATE POLICY "payments_update"
+    ON public.payments FOR UPDATE
+    USING (public.is_admin())
+    WITH CHECK (public.is_admin());
+
+CREATE POLICY "payments_delete"
+    ON public.payments FOR DELETE
+    USING (public.is_admin());
+
+-- 15.5 Coupons RLS
 ALTER TABLE public.coupons ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow coupons access" ON public.coupons;
+DROP POLICY IF EXISTS "coupons_select" ON public.coupons;
+DROP POLICY IF EXISTS "coupons_admin_all" ON public.coupons;
 
-CREATE POLICY "Allow coupons access"
-    ON public.coupons FOR ALL
-    USING (true)
-    WITH CHECK (true);
+CREATE POLICY "coupons_select"
+    ON public.coupons FOR SELECT
+    USING (is_active = TRUE OR public.is_admin());
 
--- Announcements RLS
+CREATE POLICY "coupons_admin_insert"
+    ON public.coupons FOR INSERT
+    WITH CHECK (public.is_admin());
+
+CREATE POLICY "coupons_admin_update"
+    ON public.coupons FOR UPDATE
+    USING (public.is_admin())
+    WITH CHECK (public.is_admin());
+
+CREATE POLICY "coupons_admin_delete"
+    ON public.coupons FOR DELETE
+    USING (public.is_admin());
+
+-- 15.6 Announcements RLS
 ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Anyone can view announcements" ON public.announcements;
+DROP POLICY IF EXISTS "Admins manage announcements" ON public.announcements;
+DROP POLICY IF EXISTS "announcements_select" ON public.announcements;
+DROP POLICY IF EXISTS "announcements_admin_insert" ON public.announcements;
+DROP POLICY IF EXISTS "announcements_admin_update" ON public.announcements;
+DROP POLICY IF EXISTS "announcements_admin_delete" ON public.announcements;
 
-CREATE POLICY "Anyone can view announcements"
+CREATE POLICY "announcements_select"
     ON public.announcements FOR SELECT
-    USING (true);
+    USING (status = 'published' OR public.is_admin());
 
-CREATE POLICY "Admins manage announcements"
-    ON public.announcements FOR ALL
-    USING (true)
-    WITH CHECK (true);
+CREATE POLICY "announcements_admin_insert"
+    ON public.announcements FOR INSERT
+    WITH CHECK (public.is_admin());
 
--- Books RLS
+CREATE POLICY "announcements_admin_update"
+    ON public.announcements FOR UPDATE
+    USING (public.is_admin())
+    WITH CHECK (public.is_admin());
+
+CREATE POLICY "announcements_admin_delete"
+    ON public.announcements FOR DELETE
+    USING (public.is_admin());
+
+-- 15.7 Books RLS
 ALTER TABLE public.books ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public read and write books" ON public.books;
+DROP POLICY IF EXISTS "books_select" ON public.books;
+DROP POLICY IF EXISTS "books_admin_insert" ON public.books;
+DROP POLICY IF EXISTS "books_admin_update" ON public.books;
+DROP POLICY IF EXISTS "books_admin_delete" ON public.books;
 
-CREATE POLICY "Public read and write books"
-    ON public.books FOR ALL
-    USING (true)
-    WITH CHECK (true);
+CREATE POLICY "books_select"
+    ON public.books FOR SELECT
+    USING (TRUE);
 
--- Ethiolearn Sync RLS
+CREATE POLICY "books_admin_insert"
+    ON public.books FOR INSERT
+    WITH CHECK (public.is_admin());
+
+CREATE POLICY "books_admin_update"
+    ON public.books FOR UPDATE
+    USING (public.is_admin())
+    WITH CHECK (public.is_admin());
+
+CREATE POLICY "books_admin_delete"
+    ON public.books FOR DELETE
+    USING (public.is_admin());
+
+-- 15.8 Ethiolearn Sync (Backup Snapshot Table) RLS
 ALTER TABLE public.ethiolearn_sync ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public sync access" ON public.ethiolearn_sync;
+DROP POLICY IF EXISTS "sync_select" ON public.ethiolearn_sync;
+DROP POLICY IF EXISTS "sync_insert" ON public.ethiolearn_sync;
+DROP POLICY IF EXISTS "sync_update" ON public.ethiolearn_sync;
+DROP POLICY IF EXISTS "sync_delete" ON public.ethiolearn_sync;
 
-CREATE POLICY "Public sync access"
-    ON public.ethiolearn_sync FOR ALL
-    USING (true)
-    WITH CHECK (true);
+CREATE POLICY "sync_select"
+    ON public.ethiolearn_sync FOR SELECT
+    USING (
+        auth.role() = 'service_role' OR
+        auth.jwt() ->> 'email' = email OR
+        public.is_admin()
+    );
+
+CREATE POLICY "sync_insert"
+    ON public.ethiolearn_sync FOR INSERT
+    WITH CHECK (
+        auth.role() = 'service_role' OR
+        auth.jwt() ->> 'email' = email OR
+        public.is_admin()
+    );
+
+CREATE POLICY "sync_update"
+    ON public.ethiolearn_sync FOR UPDATE
+    USING (
+        auth.role() = 'service_role' OR
+        auth.jwt() ->> 'email' = email OR
+        public.is_admin()
+    )
+    WITH CHECK (
+        auth.role() = 'service_role' OR
+        auth.jwt() ->> 'email' = email OR
+        public.is_admin()
+    );
+
+CREATE POLICY "sync_delete"
+    ON public.ethiolearn_sync FOR DELETE
+    USING (
+        auth.role() = 'service_role' OR
+        auth.jwt() ->> 'email' = email OR
+        public.is_admin()
+    );
+
+-- 15.9 Subscriptions RLS
+ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "subscriptions_select" ON public.subscriptions;
+DROP POLICY IF EXISTS "subscriptions_admin_insert" ON public.subscriptions;
+DROP POLICY IF EXISTS "subscriptions_admin_update" ON public.subscriptions;
+DROP POLICY IF EXISTS "subscriptions_admin_delete" ON public.subscriptions;
+
+CREATE POLICY "subscriptions_select"
+    ON public.subscriptions FOR SELECT
+    USING (
+        auth.role() = 'service_role' OR
+        auth.jwt() ->> 'email' = email OR
+        auth.uid() = user_id OR
+        public.is_admin()
+    );
+
+CREATE POLICY "subscriptions_admin_insert"
+    ON public.subscriptions FOR INSERT
+    WITH CHECK (public.is_admin());
+
+CREATE POLICY "subscriptions_admin_update"
+    ON public.subscriptions FOR UPDATE
+    USING (public.is_admin())
+    WITH CHECK (public.is_admin());
+
+CREATE POLICY "subscriptions_admin_delete"
+    ON public.subscriptions FOR DELETE
+    USING (public.is_admin());

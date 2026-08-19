@@ -1,4 +1,4 @@
-import { getSupabase } from './supabaseClient';
+import { getSupabase, getAuthHeaders } from './supabaseClient';
 import { safeStorage } from './safeStorage';
 import { isAdministratorEmail, ADMIN_EMAIL } from './adminAuth';
 import { CourseRecord, LessonRecord, AdminDashboardStats, CouponCode, PlatformAnnouncement, CourseStatus } from '../types';
@@ -526,6 +526,21 @@ export async function saveLesson(
 // ----------------------------------------------------------------------------
 
 export async function fetchAdminDashboardStats(): Promise<AdminDashboardStats> {
+  // 1. Try server-side verified aggregate stats endpoint
+  try {
+    const res = await fetch('/api/admin/stats', {
+      headers: getAuthHeaders()
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.success && data.stats) {
+        return data.stats;
+      }
+    }
+  } catch (e) {
+    // Graceful fallback to client-side computation
+  }
+
   const supabase = getSupabase();
 
   let totalStudents = 0;
@@ -1066,6 +1081,38 @@ export async function fetchAdminPayments(): Promise<any[]> {
 }
 
 export async function updatePaymentStatus(paymentId: string, status: 'completed' | 'failed' | 'pending'): Promise<{ success: boolean; error?: string }> {
+  // 1. Try server-side verified admin action endpoint
+  try {
+    const action = status === 'completed' ? 'approve' : (status === 'failed' ? 'reject' : null);
+    if (action) {
+      const res = await fetch('/api/admin/payments/action', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ paymentId, action })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success) {
+          // Update local cache
+          try {
+            const raw = safeStorage.getItem(LOCAL_STORAGE_PAYMENTS_KEY);
+            if (raw) {
+              const list: any[] = JSON.parse(raw);
+              const index = list.findIndex(p => p.id === paymentId || p.providerTxnId === paymentId);
+              if (index !== -1) {
+                list[index].status = status;
+                safeStorage.setItem(LOCAL_STORAGE_PAYMENTS_KEY, JSON.stringify(list));
+              }
+            }
+          } catch {}
+          return { success: true };
+        }
+      }
+    }
+  } catch (e) {
+    // Fallback to direct supabase / local update
+  }
+
   const supabase = getSupabase();
   let paymentRecord: any = null;
 

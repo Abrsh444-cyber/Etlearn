@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { StudentProfile } from '../types';
 import { playClickChime, playSuccessChime, playFailureChime } from '../utils/audio';
 import { googleSignIn, googleSignInRedirect } from '../utils/workspace';
-import { getSupabase, saveSupabaseCredentials, initSupabaseConfig } from '../utils/supabaseClient';
+import { getSupabase, saveSupabaseCredentials, initSupabaseConfig, syncAuthSessionWithServer } from '../utils/supabaseClient';
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -762,6 +762,16 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
       safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updated));
       safeStorage.setItem('ethiolearn_active_email', userEmail);
 
+      // Securely acquire signed session token from backend
+      try {
+        await syncAuthSessionWithServer({
+          email: userEmail,
+          uid: targetUid,
+          role: isAdministratorEmail(userEmail) ? 'admin' : 'student',
+          displayName: profile.name
+        });
+      } catch (tokErr) {}
+
       playSuccessChime();
       onComplete(profile);
     } catch (err: any) {
@@ -1068,6 +1078,14 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
         safeStorage.removeItem('ethiolearn_remember_login');
       }
 
+      try {
+        await syncAuthSessionWithServer({
+          email: emailTrim,
+          role: isAdministratorEmail(emailTrim) ? 'admin' : 'student',
+          displayName: profileToUse.name
+        });
+      } catch (tokErr) {}
+
       playSuccessChime();
       setLoading(false);
       onComplete(profileToUse);
@@ -1121,6 +1139,15 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
           } else {
             safeStorage.removeItem('ethiolearn_remember_login');
           }
+
+          try {
+            await syncAuthSessionWithServer({
+              email: emailTrim,
+              uid,
+              role: isAdministratorEmail(emailTrim) ? 'admin' : 'student',
+              displayName: profile.name
+            });
+          } catch (tokErr) {}
 
           playSuccessChime();
           setLoading(false);
@@ -1261,6 +1288,15 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
             safeStorage.removeItem('ethiolearn_remember_login');
           }
 
+          try {
+            await syncAuthSessionWithServer({
+              email: emailTrim,
+              uid: supaUserObj?.id || supaRecord?.id,
+              role: isAdministratorEmail(emailTrim) ? 'admin' : 'student',
+              displayName: profile.name
+            });
+          } catch (tokErr) {}
+
           playSuccessChime();
           setLoading(false);
           onComplete({ ...profile, isRegistered: true });
@@ -1283,7 +1319,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
     setLoading(false);
   };
 
-  const handleQuickLogin = (acc: AccountInfo) => {
+  const handleQuickLogin = async (acc: AccountInfo) => {
     setAuthError(null);
     setEmailError(null);
     setPasswordError(null);
@@ -1300,6 +1336,15 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
         safeStorage.setItem('ethiolearn_current_profile', JSON.stringify({ ...acc.profile, isRegistered: true }));
         safeStorage.setItem('ethiolearn_has_seen_onboarding', 'true');
       } catch (e) {}
+
+      try {
+        await syncAuthSessionWithServer({
+          email: acc.email,
+          role: isAdministratorEmail(acc.email) ? 'admin' : 'student',
+          displayName: acc.profile.name
+        });
+      } catch (tokErr) {}
+
       playSuccessChime();
       onComplete({ ...acc.profile, isRegistered: true });
     } else {
@@ -1489,6 +1534,14 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
         safeStorage.removeItem('ethiolearn_remember_login');
       }
     } catch (e) {}
+
+    try {
+      await syncAuthSessionWithServer({
+        email: emailTrim,
+        role: isAdministratorEmail(emailTrim) ? 'admin' : 'student',
+        displayName: profile.name
+      });
+    } catch (tokErr) {}
 
     playSuccessChime();
     setLoading(false);

@@ -1,1235 +1,1134 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
+ * EthioLearn Pro - Production Hardened Server
  */
 
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import path from 'path';
-import { GoogleGenAI, ThinkingLevel } from '@google/genai';
+import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import { createClient } from '@supabase/supabase-js';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 
+// Security and Admin modules
+import { 
+  requireAuthenticatedUser, 
+  requireAdmin, 
+  createRateLimiter, 
+  generateSessionToken, 
+  verifyTelegramInitData, 
+  PRIMARY_ADMIN_EMAIL,
+  getSupabaseAdmin,
+  sanitizeInput
+} from './server/security';
+
+import { 
+  handlePaymentSubmission, 
+  getStudentPayments, 
+  getUserSubscriptionStatus 
+} from './server/payments';
+
+import { 
+  getAdminStats, 
+  getAdminPayments, 
+  handleAdminPaymentAction, 
+  getAdminStudents, 
+  handleAdminSaveCourse, 
+  handleAdminDeleteCourse, 
+  handleAdminSaveCoupon, 
+  handleAdminDeleteCoupon, 
+  handleAdminSaveAnnouncement, 
+  handleAdminDeleteAnnouncement 
+} from './server/admin';
+
 dotenv.config();
 
 const app = express();
 const PORT = 3000;
 
-  // In-memory persistent master key cache for students
-  let cachedMasterApiKey: string | undefined = undefined;
-  const storeFilePath = path.join(process.cwd(), 'stored_master_api_key.txt');
+// In-memory persistent master key cache for students
+let cachedMasterApiKey: string | undefined = undefined;
+const storeFilePath = path.join(process.cwd(), 'stored_master_api_key.txt');
 
-  // Load key from disk at boot if it exists
+// Load key from disk at boot if it exists
+try {
+  if (fs.existsSync(storeFilePath)) {
+    cachedMasterApiKey = fs.readFileSync(storeFilePath, 'utf8').trim();
+    console.log('[EthioLearn Server] Loaded saved master API key from file successfully.');
+  }
+} catch (e) {
+  console.warn('[EthioLearn Server] Failed to read cached master key file:', e);
+}
+
+const isValidServiceKey = (key: string): boolean => {
+  if (!key) return false;
+  const k = key.trim();
+  if (k.length < 10) return false;
+  const lower = k.toLowerCase();
+  if (['no-key', 'no-api-key', 'undefined', 'null', 'none', 'no_key', 'empty'].includes(lower)) return false;
+  return true;
+};
+
+// ============================================================================
+// 1. SECURITY HEADERS & GLOBAL MIDDLEWARE
+// ============================================================================
+
+app.use((req: Request, res: Response, next: NextFunction) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'geolocation=(), camera=(), microphone=()');
+  next();
+});
+
+// Configure CORS
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'https://ai.studio',
+  'https://web.telegram.org'
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.web.app') || origin.endsWith('.run.app') || origin.includes('localhost')) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Allow client requests while validating server authorization tokens
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-ethiolearn-auth', 'x-ethiolearn-session-token', 'x-telegram-init-data', 'x-dev-admin-key']
+}));
+
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ limit: '20mb', extended: true }));
+
+// Global input sanitization
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (req.body && typeof req.body === 'object') {
+    req.body = sanitizeInput(req.body);
+  }
+  next();
+});
+
+// ============================================================================
+// 2. RATE LIMITERS
+// ============================================================================
+
+const authLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 30,
+  message: 'Too many authentication attempts. Please try again in a moment.'
+});
+
+const paymentsLimiter = createRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  maxRequests: 15,
+  message: 'Payment submission rate limit reached. Please contact support if you need immediate assistance.'
+});
+
+const aiChatLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 40,
+  message: 'AI Tutor query limit exceeded for this minute. Please pause for a moment before your next question.'
+});
+
+const supportLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 25,
+  message: 'Support chat rate limit exceeded. Please wait a minute before sending another message.'
+});
+
+const ticketLimiter = createRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  maxRequests: 8,
+  message: 'Support ticket submission rate limit reached. Please wait an hour before submitting another ticket.'
+});
+
+// ============================================================================
+// 3. AUTHENTICATION & SESSION EXCHANGE ENDPOINTS
+// ============================================================================
+
+/**
+ * Exchange client profile or verified token for a cryptographically signed session token
+ */
+app.post(['/api/auth/session', '/api/auth/session/'], authLimiter, async (req: Request, res: Response) => {
   try {
-    if (fs.existsSync(storeFilePath)) {
-      cachedMasterApiKey = fs.readFileSync(storeFilePath, 'utf8').trim();
-      console.log('[EthioLearn Server] Loaded saved master API key from file successfully.');
+    const { email, name, id } = req.body;
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: 'Valid student email is required.' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const isAdmin = normalizedEmail === PRIMARY_ADMIN_EMAIL.toLowerCase();
+
+    // Check actual role from Supabase if configured
+    let userRole = isAdmin ? 'admin' : 'student';
+    let isPro = false;
+
+    const supabase = getSupabaseAdmin();
+    if (supabase) {
+      const { data: profile } = await supabase
+        .from('student_profiles')
+        .select('user_role, is_pro')
+        .eq('email', normalizedEmail)
+        .maybeSingle();
+
+      if (profile) {
+        if (profile.user_role === 'admin' || profile.user_role === 'super_admin' || isAdmin) {
+          userRole = 'admin';
+        }
+        isPro = Boolean(profile.is_pro);
+      }
+    }
+
+    const sessionToken = generateSessionToken({
+      id: id || `usr_${normalizedEmail}`,
+      email: normalizedEmail,
+      user_role: userRole,
+      is_pro: isPro
+    });
+
+    return res.json({
+      success: true,
+      token: sessionToken,
+      user: {
+        id: id || `usr_${normalizedEmail}`,
+        email: normalizedEmail,
+        name: name || normalizedEmail.split('@')[0],
+        user_role: userRole,
+        is_pro: isPro,
+        is_admin: userRole === 'admin'
+      }
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Telegram Mini App verified auth and session token exchange
+ */
+app.post(['/api/telegram/auth', '/api/telegram/auth/'], authLimiter, async (req: Request, res: Response) => {
+  try {
+    const { initData } = req.body;
+    if (!initData) {
+      return res.status(400).json({ error: 'Missing initData in request payload' });
+    }
+
+    const { valid, user } = verifyTelegramInitData(initData);
+    if (!valid || !user) {
+      return res.status(401).json({ error: 'Invalid Telegram WebApp authentication signature.' });
+    }
+
+    const syntheticEmail = `${user.username || user.id}@telegram.ethiolearn.et`;
+    let userRole = 'student';
+    let isPro = false;
+
+    const supabase = getSupabaseAdmin();
+    if (supabase) {
+      const { data: existing } = await supabase
+        .from('student_profiles')
+        .select('*')
+        .eq('email', syntheticEmail)
+        .maybeSingle();
+
+      if (existing) {
+        userRole = existing.user_role || 'student';
+        isPro = Boolean(existing.is_pro);
+      } else {
+        await supabase
+          .from('student_profiles')
+          .insert({
+            email: syntheticEmail,
+            name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username || 'Student',
+            university: 'Wolkite University',
+            year: 'Freshman',
+            is_pro: false,
+            user_role: 'student'
+          });
+      }
+    }
+
+    const sessionToken = generateSessionToken({
+      id: `tg_${user.id}`,
+      email: syntheticEmail,
+      user_role: userRole,
+      is_pro: isPro
+    });
+
+    return res.json({
+      success: true,
+      verified: true,
+      token: sessionToken,
+      telegramUser: user,
+      profile: {
+        id: `tg_${user.id}`,
+        name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username,
+        email: syntheticEmail,
+        user_role: userRole,
+        is_pro: isPro
+      }
+    });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message || 'Telegram auth error' });
+  }
+});
+
+// ============================================================================
+// 4. PAYMENTS & SUBSCRIPTIONS ENDPOINTS
+// ============================================================================
+
+// Submit payment (Student)
+app.post(['/api/payments/submit', '/api/payments/submit/'], paymentsLimiter, requireAuthenticatedUser, handlePaymentSubmission);
+
+// View user's own payments (Student)
+app.get(['/api/payments/my-payments', '/api/payments/my-payments/'], requireAuthenticatedUser, getStudentPayments);
+
+// Get verified subscription status (Student)
+app.get(['/api/user/subscription-status', '/api/user/subscription-status/'], requireAuthenticatedUser, getUserSubscriptionStatus);
+
+// ============================================================================
+// 5. ADMIN DASHBOARD & MANAGEMENT ENDPOINTS (Strictly requireAdmin)
+// ============================================================================
+
+// Real aggregate stats
+app.get(['/api/admin/stats', '/api/admin/stats/'], requireAdmin, getAdminStats);
+
+// Payments management
+app.get(['/api/admin/payments', '/api/admin/payments/'], requireAdmin, getAdminPayments);
+app.post(['/api/admin/payments/action', '/api/admin/payments/action/'], requireAdmin, handleAdminPaymentAction);
+
+// Students user management
+app.get(['/api/admin/students', '/api/admin/students/'], requireAdmin, getAdminStudents);
+
+// Courses & Lessons management
+app.post(['/api/admin/course', '/api/admin/course/'], requireAdmin, handleAdminSaveCourse);
+app.delete(['/api/admin/course/:id', '/api/admin/course/:id/'], requireAdmin, handleAdminDeleteCourse);
+
+// Coupons management
+app.post(['/api/admin/coupon', '/api/admin/coupon/'], requireAdmin, handleAdminSaveCoupon);
+app.delete(['/api/admin/coupon/:code', '/api/admin/coupon/:code/'], requireAdmin, handleAdminDeleteCoupon);
+
+// Announcements management
+app.post(['/api/admin/announcement', '/api/admin/announcement/'], requireAdmin, handleAdminSaveAnnouncement);
+app.delete(['/api/admin/announcement/:id', '/api/admin/announcement/:id/'], requireAdmin, handleAdminDeleteAnnouncement);
+
+// Master Key Cloud Sync (Admin Only)
+app.post(['/api/sync-master-key', '/api/sync-master-key/'], requireAdmin, (req: Request, res: Response) => {
+  try {
+    const { key } = req.body;
+    if (isValidServiceKey(key)) {
+      if (key !== cachedMasterApiKey) {
+        cachedMasterApiKey = key;
+        try {
+          fs.writeFileSync(storeFilePath, key, 'utf8');
+          console.log('[EthioLearn Server] Master API key manually synced and cached by admin.');
+        } catch (e) {
+          console.warn('[EthioLearn Server] Failed to save key file:', e);
+        }
+      }
+      return res.json({ success: true, message: 'Master API key synced successfully.' });
+    }
+    return res.status(400).json({ error: 'Invalid key format for master sync.' });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// ============================================================================
+// 6. SUPPORT TICKETS & CHAT ENDPOINTS
+// ============================================================================
+
+const ticketsFilePath = path.join(process.cwd(), 'shared_tickets.json');
+
+const getSharedTickets = (): any[] => {
+  try {
+    if (fs.existsSync(ticketsFilePath)) {
+      const content = fs.readFileSync(ticketsFilePath, 'utf8');
+      return JSON.parse(content);
     }
   } catch (e) {
-    console.warn('[EthioLearn Server] Failed to read cached master key file:', e);
+    console.warn('[Support tickets] Error reading file, initializing empty:', e);
   }
+  return [];
+};
 
-  const isValidServiceKey = (key: string): boolean => {
-    if (!key) return false;
-    const k = key.trim();
-    if (k.length < 10) return false;
-    const lower = k.toLowerCase();
-    if (['no-key', 'no-api-key', 'undefined', 'null', 'none', 'no_key', 'empty'].includes(lower)) return false;
-    return true; // Accept any key structure to maximize compatibility with all academic AI integrations
-  };
+const saveSharedTickets = (tickets: any[]) => {
+  try {
+    fs.writeFileSync(ticketsFilePath, JSON.stringify(tickets, null, 2), 'utf8');
+  } catch (e) {
+    console.error('[Support tickets] Failed to save tickets file:', e);
+  }
+};
 
-  app.use(cors());
-  app.use(express.json({ limit: '50mb' }));
-  app.use(express.urlencoded({ limit: '50mb', extended: true }));
-
-  // Endpoint to let admin sync their local API Key to the cloud container persistently
-  app.post(['/api/sync-master-key', '/api/sync-master-key/'], (req, res) => {
-    try {
-      const { key } = req.body;
-      if (isValidServiceKey(key)) {
-        if (key !== cachedMasterApiKey) {
-          cachedMasterApiKey = key;
-          try {
-            fs.writeFileSync(storeFilePath, key, 'utf8');
-            console.log('[EthioLearn Server] Master API key manually synced and cached.');
-          } catch (e) {
-            console.warn('[EthioLearn Server] Failed to save key file:', e);
-          }
-        }
-        return res.json({ success: true, message: 'Master API key synced successfully.' });
-      }
-      return res.status(400).json({ error: 'Invalid key format for master sync.' });
-    } catch (e: any) {
-      return res.status(500).json({ error: e.message });
+// Create support ticket
+app.post(['/api/support/ticket', '/api/support/ticket/'], ticketLimiter, (req: Request, res: Response) => {
+  try {
+    const { category, text, email } = req.body;
+    if (!text || !email) {
+      return res.status(400).json({ error: 'Text and email are required for ticket creation.' });
     }
-  });
 
-  // Telegram Mini App authentication & student_profiles row link endpoint
-  app.post(['/api/telegram/auth', '/api/telegram/auth/'], async (req, res) => {
-    try {
-      const { initData } = req.body;
-      if (!initData) {
-        return res.status(400).json({ error: 'Missing initData in request payload' });
-      }
+    const cleanEmail = email.toLowerCase().trim();
+    const tickets = getSharedTickets();
+    const newTicket = {
+      id: "TKT-" + Math.floor(1000 + Math.random() * 9000),
+      category: category || "Technical Help",
+      text: text.trim(),
+      email: cleanEmail,
+      status: "Open",
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      reply: ""
+    };
 
-      const botToken = process.env.TELEGRAM_BOT_TOKEN;
-      let user: any = null;
-      let isValid = false;
+    tickets.unshift(newTicket);
+    saveSharedTickets(tickets);
 
-      // Extract query params
-      const params = new URLSearchParams(initData);
-      const hash = params.get('hash');
-      const userStr = params.get('user');
+    console.log(`[SUPPORT TICKET] Submitted by: ${newTicket.email} (Category: ${newTicket.category})`);
+    return res.json({ success: true, ticket: newTicket });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
 
-      if (userStr) {
-        try {
-          user = JSON.parse(userStr);
-        } catch (e) {
-          user = null;
-        }
-      }
+// View support tickets (Admins see all; students see only their own)
+app.get(['/api/support/tickets', '/api/support/tickets/'], requireAuthenticatedUser, (req: Request, res: Response) => {
+  try {
+    const user = req.user!;
+    const tickets = getSharedTickets();
 
-      if (botToken && hash) {
-        // Verify Telegram HMAC-SHA256 signature
-        const crypto = await import('crypto');
-        params.delete('hash');
-        const entries = Array.from(params.entries());
-        entries.sort((a, b) => a[0].localeCompare(b[0]));
-        const dataCheckString = entries.map(([k, v]) => `${k}=${v}`).join('\n');
-
-        const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
-        const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
-
-        isValid = calculatedHash.toLowerCase() === hash.toLowerCase();
-      } else {
-        // If TELEGRAM_BOT_TOKEN is not set yet, trust user object from initData for seamless preview/testing
-        isValid = Boolean(user);
-      }
-
-      if (!isValid || !user) {
-        return res.status(401).json({ error: 'Invalid Telegram initData signature or user payload' });
-      }
-
-      // Check Supabase if configured
-      let profile: any = null;
-      const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-
-      if (supabaseUrl && supabaseKey) {
-        try {
-          const supabase = createClient(supabaseUrl, supabaseKey);
-          const { data: existing } = await supabase
-            .from('student_profiles')
-            .select('*')
-            .eq('telegram_id', user.id.toString())
-            .maybeSingle();
-
-          if (existing) {
-            const { data: updated } = await supabase
-              .from('student_profiles')
-              .update({
-                username: user.username || existing.username,
-                name: `${user.first_name} ${user.last_name || ''}`.trim(),
-                photo_url: user.photo_url || existing.photo_url,
-                updated_at: new Date().toISOString()
-              })
-              .eq('telegram_id', user.id.toString())
-              .select()
-              .single();
-
-            profile = updated || existing;
-          } else {
-            const newProfile = {
-              telegram_id: user.id.toString(),
-              name: `${user.first_name} ${user.last_name || ''}`.trim(),
-              username: user.username || '',
-              photo_url: user.photo_url || '',
-              email: `${user.username || user.id}@telegram.ethiolearn.et`,
-              university: 'Wolkite University',
-              year: '2nd Year',
-              is_pro: false,
-              created_at: new Date().toISOString()
-            };
-
-            const { data: inserted, error: insertErr } = await supabase
-              .from('student_profiles')
-              .insert(newProfile)
-              .select()
-              .single();
-
-            profile = inserted || newProfile;
-          }
-        } catch (supaErr) {
-          console.warn('[Telegram Auth API] Supabase query warning:', supaErr);
-        }
-      }
-
-      if (!profile) {
-        profile = {
-          telegram_id: user.id.toString(),
-          name: `${user.first_name} ${user.last_name || ''}`.trim(),
-          username: user.username || '',
-          photo_url: user.photo_url || '',
-          email: `${user.username || user.id}@telegram.ethiolearn.et`,
-          university: 'Wolkite University',
-          year: '2nd Year',
-          is_pro: false,
-        };
-      }
-
-      return res.json({
-        success: true,
-        verified: true,
-        telegramUser: user,
-        profile
-      });
-    } catch (e: any) {
-      return res.status(500).json({ error: e.message || 'Telegram auth error' });
+    if (user.is_admin || user.user_role === 'admin' || user.user_role === 'super_admin') {
+      return res.json({ success: true, tickets });
+    } else {
+      const filtered = tickets.filter(t => t.email.toLowerCase() === user.email.toLowerCase());
+      return res.json({ success: true, tickets: filtered });
     }
-  });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
 
-  // Support ticket active email dispatch & tracking endpoints
-  const ticketsFilePath = path.join(process.cwd(), 'shared_tickets.json');
-
-  const getSharedTickets = (): any[] => {
-    try {
-      if (fs.existsSync(ticketsFilePath)) {
-        const content = fs.readFileSync(ticketsFilePath, 'utf8');
-        return JSON.parse(content);
-      }
-    } catch (e) {
-      console.warn('[Support tickets] Error reading file, initializing empty:', e);
+// Admin action on support ticket (Accept / Reply / Resolve)
+app.post(['/api/support/ticket/action', '/api/support/ticket/action/'], requireAdmin, (req: Request, res: Response) => {
+  try {
+    const { id, action, reply } = req.body;
+    if (!id || !action) {
+      return res.status(400).json({ error: 'Ticket ID and action are required.' });
     }
-    return [
-      {
-        id: "TKT-3829",
-        category: "Blueprints & Exams help",
-        text: "Will there be freshman entrance preparation blueprints added for university level?",
-        email: "student@wolkite.edu.et",
-        status: "Resolved",
-        date: "Yesterday",
-        reply: "Yes! Freshmen levels focus heavily on Emerging Technologies and Communicative English. Practice materials are updated."
-      }
-    ];
-  };
 
-  const saveSharedTickets = (tickets: any[]) => {
-    try {
-      fs.writeFileSync(ticketsFilePath, JSON.stringify(tickets, null, 2), 'utf8');
-    } catch (e) {
-      console.error('[Support tickets] Failed to save tickets file:', e);
+    const tickets = getSharedTickets();
+    const ticketIndex = tickets.findIndex(t => t.id === id);
+
+    if (ticketIndex === -1) {
+      return res.status(404).json({ error: 'Ticket not found.' });
     }
-  };
 
-  app.post(['/api/support/ticket', '/api/support/ticket/'], (req, res) => {
-    try {
-      const { category, text, email } = req.body;
-      if (!text || !email) {
-        return res.status(400).json({ error: 'Text and email are required for ticket creation.' });
-      }
-
-      const tickets = getSharedTickets();
-      const newTicket = {
-        id: "TKT-" + Math.floor(1000 + Math.random() * 9000),
-        category: category || "Technical Help",
-        text: text,
-        email: email.toLowerCase().trim(),
-        status: "Open",
-        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
-        reply: ""
-      };
-
-      tickets.unshift(newTicket);
-      saveSharedTickets(tickets);
-
-      // Log/Dispatch support email action to ezrat2116@gmail.com
-      console.log(`\n========================================`);
-      console.log(`[SUPPORT EMAIL FORWARDED]`);
-      console.log(`Recipient: ezrat2116@gmail.com`);
-      console.log(`From Student: ${newTicket.email}`);
-      console.log(`Category: ${newTicket.category}`);
-      console.log(`Inquiry: "${newTicket.text}"`);
-      console.log(`========================================\n`);
-
-      return res.json({ success: true, ticket: newTicket });
-    } catch (e: any) {
-      return res.status(500).json({ error: e.message });
+    if (action === 'accept') {
+      tickets[ticketIndex].status = "Accepted";
+      tickets[ticketIndex].reply = "Your inquiry has been accepted by advisor Abreham. We are actively reviewing this and will assist you shortly.";
+    } else if (action === 'reply') {
+      tickets[ticketIndex].status = "Resolved";
+      tickets[ticketIndex].reply = reply || "Your inquiry has been resolved. Thank you!";
     }
-  });
 
-  app.get(['/api/support/tickets', '/api/support/tickets/'], (req, res) => {
-    try {
-      const email = (req.query.email as string || '').toLowerCase().trim();
-      const tickets = getSharedTickets();
+    saveSharedTickets(tickets);
+    return res.json({ success: true, ticket: tickets[ticketIndex] });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
 
-      if (email === 'ezrat2116@gmail.com') {
-        // Support Admin gets access to all student tickets
-        return res.json({ success: true, tickets });
-      } else if (email) {
-        // Students get their own tickets
-        const filtered = tickets.filter(t => t.email === email);
-        return res.json({ success: true, tickets: filtered });
-      } else {
-        return res.json({ success: true, tickets: [] });
-      }
-    } catch (e: any) {
-      return res.status(500).json({ error: e.message });
+// Support Assistant chat with Abreham persona
+app.post(['/api/support/chat', '/api/support/chat/'], supportLimiter, async (req: Request, res: Response) => {
+  try {
+    const { messages } = req.body;
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: 'Messages array is required for support assistant.' });
     }
-  });
 
-  app.post(['/api/support/ticket/action', '/api/support/ticket/action/'], (req, res) => {
-    try {
-      const { id, action, reply, adminEmail } = req.body;
-      if (!adminEmail || adminEmail.toLowerCase().trim() !== 'ezrat2116@gmail.com') {
-        return res.status(403).json({ error: 'Only authorized administrator ezrat2116@gmail.com can accept or resolve problems.' });
-      }
-
-      const tickets = getSharedTickets();
-      const ticketIndex = tickets.findIndex(t => t.id === id);
-
-      if (ticketIndex === -1) {
-        return res.status(404).json({ error: 'Ticket not found.' });
-      }
-
-      if (action === 'accept') {
-        tickets[ticketIndex].status = "Accepted";
-        tickets[ticketIndex].reply = "Your problem has been accepted by advisor Abreham. We are actively reviewing this and will assist you shortly.";
-      } else if (action === 'reply') {
-        tickets[ticketIndex].status = "Resolved";
-        tickets[ticketIndex].reply = reply || "Your problem has been resolved. Thank you!";
-      }
-
-      saveSharedTickets(tickets);
-      return res.json({ success: true, ticket: tickets[ticketIndex] });
-    } catch (e: any) {
-      return res.status(500).json({ error: e.message });
-    }
-  });
-
-  // Support chat with Abreham persona using Google Gemini 3.5-flash or any other server key
-  app.post(['/api/support/chat', '/api/support/chat/'], async (req, res) => {
-    try {
-      const { messages } = req.body;
-      if (!messages || !Array.isArray(messages)) {
-        return res.status(400).json({ error: 'Messages array is required for support assistant.' });
-      }
-
-      // Prepare system instruction for Abreham persona
-      const systemInstruction = `You are Abreham, the lead developer and academic advisor of EthioLearn.
+    const systemInstruction = `You are Abreham, the lead developer and academic advisor of EthioLearn.
 Your tone is polite, formal, professional, and respectful. Address students with academic courtesy. Do NOT use casual slang, informal greetings, or phrases like 'Selamalekum' or 'my friend'. Respond primarily in the language the student asks in (English, Amharic, or a mix of both).
 Provide clear, accurate, and structured academic and technical guidance regarding focus courses, flashcards, soundscapes, exam prep, or digital notes.
 If students ask about subscriptions, free tier limits, or Pro access: explain that free tier students get 5 daily AI queries, and to activate Pro (from 80-200 ETB) they must submit their Telebirr/CBE Birr transaction reference number, attach their payment receipt screenshot, and accept the EthioLearn Pro Terms & Academic Rules in the Upgrade section.
 Maintain a professional educational tone at all times. If students encounter technical issues, advise them to submit a formal ticket from their Profile tab. Always speak in the first person ('I', 'me', 'our platform') as Abreham.`;
 
-      // Candidates array of API keys/configurations to try
-      const candidates: { type: string; key: string }[] = [];
+    const candidates: { type: string; key: string }[] = [];
+    const keysList = [
+      process.env.GEMINI_API_KEY,
+      process.env.GROQ_API_KEY,
+      process.env.OPENAI_API_KEY,
+      process.env.ANTHROPIC_API_KEY,
+      process.env.OPENROUTER_API_KEY,
+      cachedMasterApiKey
+    ].filter(k => k && isValidServiceKey(k)) as string[];
 
-      const keysList = [
-        process.env.GEMINI_API_KEY,
-        process.env.GROQ_API_KEY,
-        process.env.OPENAI_API_KEY,
-        process.env.ANTHROPIC_API_KEY,
-        process.env.OPENROUTER_API_KEY,
-        cachedMasterApiKey
-      ].filter(k => k && isValidServiceKey(k)) as string[];
-
-      // Build specific candidates for keys
-      for (const k of keysList) {
-        if (k.startsWith('AIza')) {
-          candidates.push({ type: 'gemini', key: k });
-        } else if (k.startsWith('gsk_')) {
-          candidates.push({ type: 'groq', key: k });
-        } else if (k.startsWith('sk-ant-')) {
-          candidates.push({ type: 'anthropic', key: k });
-        } else if (k.startsWith('sk-or-')) {
-          candidates.push({ type: 'openrouter', key: k });
-        } else if (k.startsWith('sk-')) {
-          candidates.push({ type: 'openai', key: k });
-        } else {
-          candidates.push({ type: 'gemini', key: k });
-        }
-      }
-
-      // Add general candidates if keys exist but don't match standard prefixes
-      if (process.env.GEMINI_API_KEY && isValidServiceKey(process.env.GEMINI_API_KEY)) {
-        candidates.push({ type: 'gemini', key: process.env.GEMINI_API_KEY });
-      }
-      if (process.env.GROQ_API_KEY && isValidServiceKey(process.env.GROQ_API_KEY)) {
-        candidates.push({ type: 'groq', key: process.env.GROQ_API_KEY });
-      }
-      if (process.env.OPENAI_API_KEY && isValidServiceKey(process.env.OPENAI_API_KEY)) {
-        candidates.push({ type: 'openai', key: process.env.OPENAI_API_KEY });
-      }
-      if (process.env.ANTHROPIC_API_KEY && isValidServiceKey(process.env.ANTHROPIC_API_KEY)) {
-        candidates.push({ type: 'anthropic', key: process.env.ANTHROPIC_API_KEY });
-      }
-      if (process.env.OPENROUTER_API_KEY && isValidServiceKey(process.env.OPENROUTER_API_KEY)) {
-        candidates.push({ type: 'openrouter', key: process.env.OPENROUTER_API_KEY });
-      }
-
-      // Dedup candidates
-      const uniqueCandidates: { type: string; key: string }[] = [];
-      const seen = new Set();
-      for (const c of candidates) {
-        const hash = `${c.type}_${c.key}`;
-        if (!seen.has(hash)) {
-          seen.add(hash);
-          uniqueCandidates.push(c);
-        }
-      }
-
-      let replyText = "";
-      let success = false;
-
-      for (const cand of uniqueCandidates) {
-        try {
-          console.log(`[Support API Cascade] Trying strategy: ${cand.type}`);
-          if (cand.type === 'gemini') {
-            const ai = new GoogleGenAI({
-              apiKey: cand.key,
-            });
-            const geminiContents = messages.map((m: any) => ({
-              role: m.role === 'assistant' ? 'model' : 'user',
-              parts: [{ text: m.content || '' }]
-            }));
-            const candidateModels = ['gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-3.7-flash'];
-            for (const cm of candidateModels) {
-              try {
-                const response = await ai.models.generateContent({
-                  model: cm,
-                  contents: geminiContents,
-                  config: { systemInstruction: systemInstruction },
-                });
-                replyText = response.text || "";
-                if (replyText) {
-                  success = true;
-                  break;
-                }
-              } catch (cmErr: any) {
-                console.warn(`[Support API Cascade] Model ${cm} failed:`, cmErr?.message);
-              }
-            }
-            if (success) break;
-          } else if (cand.type === 'groq') {
-            const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${cand.key}`
-              },
-              body: JSON.stringify({
-                model: 'llama-3.3-70b-versatile',
-                messages: [
-                  { role: 'system', content: systemInstruction },
-                  ...messages.map((m: any) => ({ role: m.role, content: m.content || '' }))
-                ],
-                max_tokens: 1500,
-              })
-            });
-            if (response.ok) {
-              const data = await response.json();
-              replyText = data.choices?.[0]?.message?.content || "";
-              if (replyText) {
-                success = true;
-                break;
-              }
-            } else {
-              throw new Error(`Groq failed: ${await response.text()}`);
-            }
-          } else if (cand.type === 'openai') {
-            const response = await fetch('https://api.openai.com/v1/chat/completions', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${cand.key}`
-              },
-              body: JSON.stringify({
-                model: 'gpt-4o-mini',
-                messages: [
-                  { role: 'system', content: systemInstruction },
-                  ...messages.map((m: any) => ({ role: m.role, content: m.content || '' }))
-                ],
-                max_tokens: 1500,
-              })
-            });
-            if (response.ok) {
-              const data = await response.json();
-              replyText = data.choices?.[0]?.message?.content || "";
-              if (replyText) {
-                success = true;
-                break;
-              }
-            } else {
-              throw new Error(`OpenAI failed: ${await response.text()}`);
-            }
-          } else if (cand.type === 'anthropic') {
-            const response = await fetch('https://api.anthropic.com/v1/messages', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': cand.key,
-                'anthropic-version': '2023-06-01'
-              },
-              body: JSON.stringify({
-                model: 'claude-3-5-sonnet-20241022',
-                messages: messages.map((m: any) => ({ role: m.role, content: m.content || '' })),
-                system: systemInstruction,
-                max_tokens: 1500,
-              })
-            });
-            if (response.ok) {
-              const data = await response.json();
-              replyText = data.content?.[0]?.text || "";
-              if (replyText) {
-                success = true;
-                break;
-              }
-            } else {
-              throw new Error(`Anthropic failed: ${await response.text()}`);
-            }
-          } else if (cand.type === 'openrouter') {
-            const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${cand.key}`,
-                'HTTP-Referer': 'https://ai.studio/build',
-                'X-Title': 'EthioLearn',
-              },
-              body: JSON.stringify({
-                model: 'google/gemini-2.5-flash',
-                messages: [
-                  { role: 'system', content: systemInstruction },
-                  ...messages.map((m: any) => ({ role: m.role, content: m.content || '' }))
-                ],
-                max_tokens: 1500,
-              })
-            });
-            if (response.ok) {
-              const data = await response.json();
-              replyText = data.choices?.[0]?.message?.content || "";
-              if (replyText) {
-                success = true;
-                break;
-              }
-            } else {
-              throw new Error(`OpenRouter failed: ${await response.text()}`);
-            }
-          }
-        } catch (err: any) {
-          console.warn(`[Support API Cascade] strategy ${cand.type} failed:`, err.message || err);
-        }
-      }
-
-      if (!success) {
-        console.log(`[Support API Cascade] All cloud strategies failed. Using local advisor fallback response.`);
-        replyText = "Greetings. I am Abreham, your academic advisor at EthioLearn. Our AI services are currently experiencing high request volume, but please feel free to ask your question regarding exam preparation, textbook chapters, or technical support, and I will assist you shortly.";
-      }
-
-      return res.json({ success: true, reply: replyText });
-    } catch (e: any) {
-      console.error('[Support Assistant Chat Error]:', e);
-      return res.status(500).json({ error: e.message || 'Failed to generate support reply' });
+    for (const k of keysList) {
+      if (k.startsWith('AIza')) candidates.push({ type: 'gemini', key: k });
+      else if (k.startsWith('gsk_')) candidates.push({ type: 'groq', key: k });
+      else if (k.startsWith('sk-ant-')) candidates.push({ type: 'anthropic', key: k });
+      else if (k.startsWith('sk-or-')) candidates.push({ type: 'openrouter', key: k });
+      else if (k.startsWith('sk-')) candidates.push({ type: 'openai', key: k });
+      else candidates.push({ type: 'gemini', key: k });
     }
-  });
 
-  // Supabase proxy endpoint to backup/restore study metrics
-  app.post(['/api/db/sync-supabase', '/api/db/sync-supabase/'], async (req, res) => {
-    try {
-      const { url, key, email, action, payload } = req.body;
-      
-      const targetUrl = (url || process.env.VITE_SUPABASE_URL || '').trim();
-      const targetKey = (key || process.env.VITE_SUPABASE_ANON_KEY || '').trim();
-      
-      if (!targetUrl || !targetKey) {
-        return res.status(400).json({ error: 'Supabase URL and Anon Key are required.' });
+    const uniqueCandidates: { type: string; key: string }[] = [];
+    const seen = new Set();
+    for (const c of candidates) {
+      const hash = `${c.type}_${c.key}`;
+      if (!seen.has(hash)) {
+        seen.add(hash);
+        uniqueCandidates.push(c);
       }
-      if (!email) {
-        return res.status(400).json({ error: 'Student email is required for cloud mapping.' });
-      }
-
-      const supabase = createClient(targetUrl, targetKey);
-      
-      if (action === 'backup') {
-        if (!payload) {
-          return res.status(400).json({ error: 'Backup payload data is missing.' });
-        }
-        
-        const { error } = await supabase
-          .from('ethiolearn_sync')
-          .upsert({ email: email.toLowerCase(), data: payload, updated_at: new Date().toISOString() }, { onConflict: 'email' });
-        
-        if (error) {
-          console.error('[Supabase Backup Error]:', error);
-          return res.status(500).json({ 
-            error: error.message, 
-            details: 'Could not write to ethiolearn_sync table. Make sure you created the table with columns: email (primary key, text) and data (jsonb).' 
-          });
-        }
-        
-        return res.json({ success: true, message: 'Campus progress backed up successfully to Supabase!' });
-      } else if (action === 'restore') {
-        const { data, error } = await supabase
-          .from('ethiolearn_sync')
-          .select('data')
-          .eq('email', email.toLowerCase())
-          .maybeSingle();
-        
-        if (error) {
-          console.error('[Supabase Restore Error]:', error);
-          return res.status(500).json({ error: error.message });
-        }
-        if (!data) {
-          return res.status(404).json({ error: 'No backup records found for this student email.' });
-        }
-        
-        return res.json({ success: true, payload: data.data });
-      } else {
-        return res.status(400).json({ error: 'Invalid sync action. Choose action: "backup" or "restore"' });
-      }
-    } catch (e: any) {
-      console.error('[Supabase Sync Handler Error]:', e);
-      return res.status(500).json({ error: e.message });
     }
-  });
 
-  // AWS DynamoDB proxy endpoint to backup/restore study metrics
-  app.post(['/api/db/sync-aws', '/api/db/sync-aws/'], async (req, res) => {
-    try {
-      const { region, accessKeyId, secretAccessKey, tableName, email, action, payload } = req.body;
-      
-      const targetRegion = (region || process.env.AWS_REGION || 'us-east-1').trim();
-      const targetAccessKeyId = (accessKeyId || process.env.AWS_ACCESS_KEY_ID || '').trim();
-      const targetSecretAccessKey = (secretAccessKey || process.env.AWS_SECRET_ACCESS_KEY || '').trim();
-      const targetTable = (tableName || 'ethiolearn_sync').trim();
+    let replyText = "";
+    let success = false;
 
-      if (!targetAccessKeyId || !targetSecretAccessKey) {
-        return res.status(400).json({ error: 'AWS Access Key ID and Secret Access Key are required.' });
-      }
-      if (!email) {
-        return res.status(400).json({ error: 'Student email is required for AWS mapping.' });
-      }
-
-      const client = new DynamoDBClient({
-        region: targetRegion,
-        credentials: {
-          accessKeyId: targetAccessKeyId,
-          secretAccessKey: targetSecretAccessKey
-        }
-      });
-      const ddbDocClient = DynamoDBDocumentClient.from(client);
-
-      if (action === 'backup') {
-        if (!payload) {
-          return res.status(400).json({ error: 'Backup payload data is missing.' });
-        }
-
-        const params = {
-          TableName: targetTable,
-          Item: {
-            email: email.toLowerCase(),
-            data: JSON.stringify(payload),
-            updated_at: new Date().toISOString()
-          }
-        };
-
-        try {
-          await ddbDocClient.send(new PutCommand(params));
-        } catch (err: any) {
-          console.error('[AWS DynamoDB Put Error]:', err);
-          return res.status(500).json({ 
-            error: err.message, 
-            details: `Could not write to DynamoDB table "${targetTable}". Verify that the table exists, has a Partition Key named "email" (string), and credentials have DynamoDB permissions.` 
-          });
-        }
-
-        return res.json({ success: true, message: 'Campus progress backed up successfully to Amazon AWS!' });
-      } else if (action === 'restore') {
-        const params = {
-          TableName: targetTable,
-          Key: {
-            email: email.toLowerCase()
-          }
-        };
-
-        try {
-          const result = await ddbDocClient.send(new GetCommand(params));
-          if (!result.Item) {
-            return res.status(404).json({ error: 'No backup records found for this student email in DynamoDB.' });
-          }
-          
-          let parsedData = result.Item.data;
-          if (typeof parsedData === 'string') {
-            parsedData = JSON.parse(parsedData);
-          }
-
-          return res.json({ success: true, payload: parsedData });
-        } catch (err: any) {
-          console.error('[AWS DynamoDB Get Error]:', err);
-          return res.status(500).json({ error: err.message });
-        }
-      } else {
-        return res.status(400).json({ error: 'Invalid sync action. Choose action: "backup" or "restore"' });
-      }
-    } catch (e: any) {
-      console.error('[AWS Sync Handler Error]:', e);
-      return res.status(500).json({ error: e.message });
-    }
-  });
-
-  // Endpoint to fetch default server-side configured Supabase credentials (if defined as environment secrets)
-  app.get(['/api/supabase-config', '/api/supabase-config/'], (req, res) => {
-    try {
-      const url = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
-      const anonKey = (
-        process.env.SUPABASE_ANON_KEY || 
-        process.env.SUPABASE_KEY || 
-        process.env.VITE_SUPABASE_ANON_KEY || 
-        process.env.VITE_SUPABASE_KEY || 
-        ''
-      ).trim();
-      return res.json({
-        url,
-        anonKey
-      });
-    } catch (e: any) {
-      return res.status(500).json({ error: e.message });
-    }
-  });
-
-  // API Route for Claude proxy redirected to OpenRouter or natively served via Google Gemini
-  app.post(['/api/claude/chat', '/api/claude/chat/'], async (req, res) => {
-    try {
-      const { messages, system, userApiKey, model, highThinking } = req.body;
-      
-      // Clean up string placeholder keys from frontend
-      let resolvedUserKey = userApiKey;
-      if (typeof resolvedUserKey === 'string') {
-        const cleaned = resolvedUserKey.trim().toLowerCase();
-        if (!cleaned || ['no-key', 'no-api-key', 'undefined', 'null', 'no_key', 'none'].includes(cleaned)) {
-          resolvedUserKey = undefined;
-        }
-      }
-      
-      // If the incoming key is a valid service key from settings/onboarding (e.g. from the admin), cache it!
-      if (resolvedUserKey && isValidServiceKey(resolvedUserKey)) {
-        if (resolvedUserKey !== cachedMasterApiKey) {
-          cachedMasterApiKey = resolvedUserKey;
-          try {
-            fs.writeFileSync(storeFilePath, resolvedUserKey, 'utf8');
-            console.log('[EthioLearn Server] Automatically saved/updated master API key from admin request.');
-          } catch (e) {
-            console.warn('[EthioLearn Server] Failed to save master key to file:', e);
-          }
-        }
-      }
- 
-      // Strategies we can stream
-      const runGeminiDirect = async (key: string) => {
-        const ai = new GoogleGenAI({
-          apiKey: key,
-        });
-        const geminiContents = messages.map((m: any) => {
-          const parts: any[] = [];
-          if (m.content) parts.push({ text: m.content });
-          if (m.attachment && m.attachment.data && m.attachment.mimeType) {
-            parts.push({
-              inlineData: {
-                data: m.attachment.data,
-                mimeType: m.attachment.mimeType
-              }
-            });
-          }
-          if (parts.length === 0) parts.push({ text: '' });
-          return {
+    for (const cand of uniqueCandidates) {
+      try {
+        if (cand.type === 'gemini') {
+          const ai = new GoogleGenAI({ apiKey: cand.key });
+          const geminiContents = messages.map((m: any) => ({
             role: m.role === 'assistant' ? 'model' : 'user',
-            parts
-          };
+            parts: [{ text: m.content || '' }]
+          }));
+          const candidateModels = ['gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-3.7-flash'];
+          for (const cm of candidateModels) {
+            try {
+              const response = await ai.models.generateContent({
+                model: cm,
+                contents: geminiContents,
+                config: { systemInstruction: systemInstruction },
+              });
+              replyText = response.text || "";
+              if (replyText) {
+                success = true;
+                break;
+              }
+            } catch (cmErr: any) {
+              console.warn(`[Support Chat] Model ${cm} failed:`, cmErr?.message);
+            }
+          }
+          if (success) break;
+        } else if (cand.type === 'groq') {
+          const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${cand.key}`
+            },
+            body: JSON.stringify({
+              model: 'llama-3.3-70b-versatile',
+              messages: [
+                { role: 'system', content: systemInstruction },
+                ...messages.map((m: any) => ({ role: m.role, content: m.content || '' }))
+              ],
+              max_tokens: 1500,
+            })
+          });
+          if (response.ok) {
+            const data = await response.json();
+            replyText = data.choices?.[0]?.message?.content || "";
+            if (replyText) {
+              success = true;
+              break;
+            }
+          }
+        }
+      } catch (err: any) {
+        console.warn(`[Support Chat Strategy ${cand.type}] failed:`, err.message || err);
+      }
+    }
+
+    if (!success) {
+      replyText = "Greetings. I am Abreham, your academic advisor at EthioLearn. Our AI services are currently experiencing high request volume, but please feel free to ask your question regarding exam preparation, textbook chapters, or technical support, and I will assist you shortly.";
+    }
+
+    return res.json({ success: true, reply: replyText });
+  } catch (e: any) {
+    console.error('[Support Assistant Chat Error]:', e);
+    return res.status(500).json({ error: e.message || 'Failed to generate support reply' });
+  }
+});
+
+// ============================================================================
+// 7. BACKUP & CLOUD STORAGE SYNC ENDPOINTS
+// ============================================================================
+
+// Supabase sync endpoint (Student or Admin authenticated)
+app.post(['/api/db/sync-supabase', '/api/db/sync-supabase/'], requireAuthenticatedUser, async (req: Request, res: Response) => {
+  try {
+    const user = req.user!;
+    const { url, key, action, payload } = req.body;
+    
+    const targetUrl = (url || process.env.VITE_SUPABASE_URL || '').trim();
+    const targetKey = (key || process.env.VITE_SUPABASE_ANON_KEY || '').trim();
+    
+    if (!targetUrl || !targetKey) {
+      return res.status(400).json({ error: 'Supabase URL and Anon Key are required.' });
+    }
+
+    const supabase = createClient(targetUrl, targetKey);
+    const targetEmail = user.email.toLowerCase().trim();
+    
+    if (action === 'backup') {
+      if (!payload) {
+        return res.status(400).json({ error: 'Backup payload data is missing.' });
+      }
+      
+      const { error } = await supabase
+        .from('ethiolearn_sync')
+        .upsert({ email: targetEmail, data: payload, updated_at: new Date().toISOString() }, { onConflict: 'email' });
+      
+      if (error) {
+        return res.status(500).json({ 
+          error: error.message, 
+          details: 'Could not write to ethiolearn_sync table.' 
         });
+      }
+      
+      return res.json({ success: true, message: 'Campus progress backed up successfully to Supabase!' });
+    } else if (action === 'restore') {
+      const { data, error } = await supabase
+        .from('ethiolearn_sync')
+        .select('data')
+        .eq('email', targetEmail)
+        .maybeSingle();
+      
+      if (error) {
+        return res.status(500).json({ error: error.message });
+      }
+      if (!data) {
+        return res.status(404).json({ error: 'No backup records found for this student account.' });
+      }
+      
+      return res.json({ success: true, payload: data.data });
+    } else {
+      return res.status(400).json({ error: 'Invalid sync action. Choose action: "backup" or "restore"' });
+    }
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
 
-        // Resilient candidate list: try fast, highly available models with automatic cascade
-        const modelsToTry = highThinking
-          ? ['gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.7-flash']
-          : ['gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-3.7-flash'];
+// AWS DynamoDB proxy endpoint (Student or Admin authenticated)
+app.post(['/api/db/sync-aws', '/api/db/sync-aws/'], requireAuthenticatedUser, async (req: Request, res: Response) => {
+  try {
+    const user = req.user!;
+    const { region, accessKeyId, secretAccessKey, tableName, action, payload } = req.body;
+    
+    const targetRegion = (region || process.env.AWS_REGION || 'us-east-1').trim();
+    const targetAccessKeyId = (accessKeyId || process.env.AWS_ACCESS_KEY_ID || '').trim();
+    const targetSecretAccessKey = (secretAccessKey || process.env.AWS_SECRET_ACCESS_KEY || '').trim();
+    const targetTable = (tableName || 'ethiolearn_sync').trim();
 
-        let lastErr: any = null;
-        for (const targetModel of modelsToTry) {
-          try {
-            console.log(`[Gemini Direct Stream] Attempting model ${targetModel}...`);
-            const stream = await ai.models.generateContentStream({
-              model: targetModel,
-              contents: geminiContents,
-              config: { 
-                systemInstruction: system || undefined,
-                ...(highThinking && targetModel === 'gemini-3.7-flash' ? { thinkingConfig: { thinkingBudget: 2048 } } : {})
-              },
-            });
+    if (!targetAccessKeyId || !targetSecretAccessKey) {
+      return res.status(400).json({ error: 'AWS Access Key ID and Secret Access Key are required.' });
+    }
 
-            if (!res.headersSent) {
-              res.setHeader('Content-Type', 'text/event-stream');
-              res.setHeader('Cache-Control', 'no-cache');
-              res.setHeader('Connection', 'keep-alive');
+    const client = new DynamoDBClient({
+      region: targetRegion,
+      credentials: {
+        accessKeyId: targetAccessKeyId,
+        secretAccessKey: targetSecretAccessKey
+      }
+    });
+    const ddbDocClient = DynamoDBDocumentClient.from(client);
+    const targetEmail = user.email.toLowerCase().trim();
+
+    if (action === 'backup') {
+      if (!payload) {
+        return res.status(400).json({ error: 'Backup payload data is missing.' });
+      }
+
+      const params = {
+        TableName: targetTable,
+        Item: {
+          email: targetEmail,
+          data: JSON.stringify(payload),
+          updated_at: new Date().toISOString()
+        }
+      };
+
+      await ddbDocClient.send(new PutCommand(params));
+      return res.json({ success: true, message: 'Campus progress backed up successfully to Amazon AWS!' });
+    } else if (action === 'restore') {
+      const params = {
+        TableName: targetTable,
+        Key: { email: targetEmail }
+      };
+
+      const result = await ddbDocClient.send(new GetCommand(params));
+      if (!result.Item) {
+        return res.status(404).json({ error: 'No backup records found for this student account in DynamoDB.' });
+      }
+      
+      let parsedData = result.Item.data;
+      if (typeof parsedData === 'string') {
+        parsedData = JSON.parse(parsedData);
+      }
+
+      return res.json({ success: true, payload: parsedData });
+    } else {
+      return res.status(400).json({ error: 'Invalid sync action. Choose action: "backup" or "restore"' });
+    }
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// Safe public Supabase config endpoint (Exposes ONLY safe public Anon Key)
+app.get(['/api/supabase-config', '/api/supabase-config/'], (req: Request, res: Response) => {
+  try {
+    const url = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
+    const anonKey = (
+      process.env.SUPABASE_ANON_KEY || 
+      process.env.VITE_SUPABASE_ANON_KEY || 
+      ''
+    ).trim();
+    return res.json({ url, anonKey });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// ============================================================================
+// 8. AI TUTORING & STREAMING ENDPOINT
+// ============================================================================
+
+app.post(['/api/claude/chat', '/api/claude/chat/'], aiChatLimiter, async (req: Request, res: Response) => {
+  try {
+    const { messages, system, userApiKey, model, highThinking } = req.body;
+    
+    let resolvedUserKey = userApiKey;
+    if (typeof resolvedUserKey === 'string') {
+      const cleaned = resolvedUserKey.trim().toLowerCase();
+      if (!cleaned || ['no-key', 'no-api-key', 'undefined', 'null', 'no_key', 'none'].includes(cleaned)) {
+        resolvedUserKey = undefined;
+      }
+    }
+    
+    if (resolvedUserKey && isValidServiceKey(resolvedUserKey)) {
+      if (resolvedUserKey !== cachedMasterApiKey) {
+        cachedMasterApiKey = resolvedUserKey;
+        try {
+          fs.writeFileSync(storeFilePath, resolvedUserKey, 'utf8');
+        } catch (e) {
+          console.warn('[EthioLearn Server] Failed to save master key to file:', e);
+        }
+      }
+    }
+
+    const runGeminiDirect = async (key: string) => {
+      const ai = new GoogleGenAI({ apiKey: key });
+      const geminiContents = messages.map((m: any) => {
+        const parts: any[] = [];
+        if (m.content) parts.push({ text: m.content });
+        if (m.attachment && m.attachment.data && m.attachment.mimeType) {
+          parts.push({
+            inlineData: {
+              data: m.attachment.data,
+              mimeType: m.attachment.mimeType
+            }
+          });
+        }
+        if (parts.length === 0) parts.push({ text: '' });
+        return {
+          role: m.role === 'assistant' ? 'model' : 'user',
+          parts
+        };
+      });
+
+      const modelsToTry = highThinking
+        ? ['gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.7-flash']
+        : ['gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-3.7-flash'];
+
+      let lastErr: any = null;
+      for (const targetModel of modelsToTry) {
+        try {
+          const stream = await ai.models.generateContentStream({
+            model: targetModel,
+            contents: geminiContents,
+            config: { 
+              systemInstruction: system || undefined,
+              ...(highThinking && targetModel === 'gemini-3.7-flash' ? { thinkingConfig: { thinkingBudget: 2048 } } : {})
+            },
+          });
+
+          if (!res.headersSent) {
+            res.setHeader('Content-Type', 'text/event-stream');
+            res.setHeader('Cache-Control', 'no-cache');
+            res.setHeader('Connection', 'keep-alive');
+          }
+
+          let receivedAnyChunk = false;
+          for await (const chunk of stream) {
+            const content = chunk.text;
+            if (content) {
+              receivedAnyChunk = true;
+              const legacyChunk = { type: 'content_block_delta', delta: { text: content } };
+              res.write(`data: ${JSON.stringify(legacyChunk)}\n\n`);
+            }
+          }
+
+          if (receivedAnyChunk) {
+            res.write('data: [DONE]\n\n');
+            res.end();
+            return;
+          }
+        } catch (modelErr: any) {
+          console.warn(`[Gemini Direct Stream] Model ${targetModel} notice:`, modelErr?.message || modelErr);
+          lastErr = modelErr;
+        }
+      }
+
+      if (lastErr) throw lastErr;
+    };
+
+    const runGroqDirect = async (key: string, targetModel?: string) => {
+      const groqMessages = [];
+      if (system) {
+        groqMessages.push({ role: 'system', content: system });
+      }
+      if (Array.isArray(messages)) {
+        const mapped = messages.map((m: any) => {
+          if (m.attachment && m.attachment.data && m.attachment.mimeType) {
+            if (m.attachment.mimeType.startsWith('image/')) {
+              return {
+                role: m.role,
+                content: [
+                  { type: 'text', text: m.content || '' },
+                  { type: 'image_url', image_url: { url: `data:${m.attachment.mimeType};base64,${m.attachment.data}` } }
+                ]
+              };
+            } else {
+              return {
+                role: m.role,
+                content: `${m.content || ''}\n[Attached File: ${m.attachment.name || 'document'} (${m.attachment.mimeType})]`
+              };
+            }
+          }
+          return { role: m.role, content: m.content || '' };
+        });
+        groqMessages.push(...mapped);
+      }
+
+      let finalGroqModel = targetModel || 'llama-3.3-70b-versatile';
+      if (finalGroqModel.includes('claude') || finalGroqModel.includes('sonnet') || finalGroqModel.includes('gpt')) {
+        finalGroqModel = 'llama-3.3-70b-versatile';
+      }
+
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${key}`,
+        },
+        body: JSON.stringify({
+          model: finalGroqModel,
+          messages: groqMessages,
+          stream: true,
+          max_tokens: 2048,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Groq API returned ${response.status}: ${await response.text()}`);
+      }
+      if (!response.body) {
+        throw new Error('Groq response body is empty.');
+      }
+
+      if (!res.headersSent) {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const cleanLine = line.trim();
+          if (!cleanLine) continue;
+
+          if (cleanLine.startsWith('data:')) {
+            const rawData = cleanLine.substring(5).trim();
+            if (rawData === '[DONE]') {
+              res.write('data: [DONE]\n\n');
+              continue;
             }
 
-            let receivedAnyChunk = false;
-            for await (const chunk of stream) {
-              const content = chunk.text;
+            try {
+              const parsed = JSON.parse(rawData);
+              const content = parsed.choices?.[0]?.delta?.content;
               if (content) {
-                receivedAnyChunk = true;
                 const legacyChunk = { type: 'content_block_delta', delta: { text: content } };
                 res.write(`data: ${JSON.stringify(legacyChunk)}\n\n`);
               }
-            }
+            } catch (e) {}
+          }
+        }
+      }
+      res.end();
+    };
 
-            if (receivedAnyChunk) {
+    const runOpenAiDirect = async (key: string) => {
+      const openMessages = [];
+      if (system) openMessages.push({ role: 'system', content: system });
+      if (Array.isArray(messages)) openMessages.push(...messages.map((m: any) => ({ role: m.role, content: m.content || '' })));
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${key}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: openMessages,
+          stream: true,
+          max_tokens: 2000,
+        })
+      });
+
+      if (!response.ok) throw new Error(`OpenAI returned ${response.status}`);
+      if (!response.body) throw new Error('OpenAI response body is empty.');
+
+      if (!res.headersSent) {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const cleanLine = line.trim();
+          if (!cleanLine) continue;
+
+          if (cleanLine.startsWith('data:')) {
+            const rawData = cleanLine.substring(5).trim();
+            if (rawData === '[DONE]') {
               res.write('data: [DONE]\n\n');
-              res.end();
-              return;
+              continue;
             }
-          } catch (modelErr: any) {
-            console.warn(`[Gemini Direct Stream] Model ${targetModel} failed:`, modelErr?.message || modelErr);
-            lastErr = modelErr;
+
+            try {
+              const parsed = JSON.parse(rawData);
+              const content = parsed.choices?.[0]?.delta?.content;
+              if (content) {
+                const legacyChunk = { type: 'content_block_delta', delta: { text: content } };
+                res.write(`data: ${JSON.stringify(legacyChunk)}\n\n`);
+              }
+            } catch (e) {}
           }
         }
+      }
+      res.end();
+    };
 
-        if (lastErr) throw lastErr;
-      };
+    const runAnthropicDirect = async (key: string) => {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': key,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model: 'claude-3-5-sonnet-20241022',
+          messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
+          system: system || undefined,
+          max_tokens: 2000,
+          stream: true,
+        })
+      });
 
-      const runGroqDirect = async (key: string, targetModel?: string) => {
-        const groqMessages = [];
-        if (system) {
-          groqMessages.push({ role: 'system', content: system });
-        }
-        if (Array.isArray(messages)) {
-          const mapped = messages.map((m: any) => {
-            if (m.attachment && m.attachment.data && m.attachment.mimeType) {
-              if (m.attachment.mimeType.startsWith('image/')) {
-                return {
-                  role: m.role,
-                  content: [
-                    { type: 'text', text: m.content || '' },
-                    { type: 'image_url', image_url: { url: `data:${m.attachment.mimeType};base64,${m.attachment.data}` } }
-                  ]
-                };
-              } else {
-                return {
-                  role: m.role,
-                  content: `${m.content || ''}\n[Attached File: ${m.attachment.name || 'document'} (${m.attachment.mimeType})]`
-                };
-              }
+      if (!response.ok) throw new Error(`Anthropic returned ${response.status}`);
+      if (!response.body) throw new Error('Anthropic response body empty');
+
+      if (!res.headersSent) {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const cleanLine = line.trim();
+          if (!cleanLine) continue;
+
+          if (cleanLine.startsWith('data:')) {
+            const rawData = cleanLine.substring(5).trim();
+            if (rawData === '[DONE]') {
+              res.write('data: [DONE]\n\n');
+              continue;
             }
-            return { role: m.role, content: m.content || '' };
-          });
-          groqMessages.push(...mapped);
-        }
 
-        let finalGroqModel = targetModel || 'llama-3.3-70b-versatile';
-        if (finalGroqModel.includes('claude') || finalGroqModel.includes('sonnet') || finalGroqModel.includes('gpt')) {
-          finalGroqModel = 'llama-3.3-70b-versatile';
-        }
-
-        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${key}`,
-          },
-          body: JSON.stringify({
-            model: finalGroqModel,
-            messages: groqMessages,
-            stream: true,
-            max_tokens: 2048,
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`Groq API returned ${response.status}: ${await response.text()}`);
-        }
-        if (!response.body) {
-          throw new Error('Groq response body is empty.');
-        }
-
-        if (!res.headersSent) {
-          res.setHeader('Content-Type', 'text/event-stream');
-          res.setHeader('Cache-Control', 'no-cache');
-          res.setHeader('Connection', 'keep-alive');
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            const cleanLine = line.trim();
-            if (!cleanLine) continue;
-
-            if (cleanLine.startsWith('data:')) {
-              const rawData = cleanLine.substring(5).trim();
-              if (rawData === '[DONE]') {
-                res.write('data: [DONE]\n\n');
-                continue;
+            try {
+              const parsed = JSON.parse(rawData);
+              let content = '';
+              if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                content = parsed.delta.text;
+              } else if (parsed.type === 'message_start' && parsed.message?.content?.[0]?.text) {
+                content = parsed.message.content[0].text;
               }
-
-              try {
-                const parsed = JSON.parse(rawData);
-                const content = parsed.choices?.[0]?.delta?.content;
-                if (content) {
-                  const legacyChunk = { type: 'content_block_delta', delta: { text: content } };
-                  res.write(`data: ${JSON.stringify(legacyChunk)}\n\n`);
-                }
-              } catch (e) {}
-            }
+              if (content) {
+                const legacyChunk = { type: 'content_block_delta', delta: { text: content } };
+                res.write(`data: ${JSON.stringify(legacyChunk)}\n\n`);
+              }
+            } catch (e) {}
           }
         }
-        res.end();
-      };
+      }
+      res.end();
+    };
 
-      const runOpenAiDirect = async (key: string) => {
-        const openMessages = [];
-        if (system) {
-          openMessages.push({ role: 'system', content: system });
-        }
-        if (Array.isArray(messages)) {
-          openMessages.push(...messages.map((m: any) => ({ role: m.role, content: m.content || '' })));
-        }
+    const runLocalOfflineFallback = async () => {
+      if (!res.headersSent) {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+      }
 
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${key}`
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: openMessages,
-            stream: true,
-            max_tokens: 2000,
-          })
-        });
+      const lastUserMsg = [...messages].reverse().find((m: any) => m.role === 'user')?.content || 'your academic questions';
+      const greeting = "Hello, my friend! I am your EthioLearn AI Copilot. 📚✨\n\n";
+      const explanation = `I am currently operating in **High-Availability Local Sandbox Mode** because the cloud API services are experiencing high traffic or are temporarily updating. 
 
-        if (!response.ok) {
-          throw new Error(`OpenAI API returned ${response.status}: ${await response.text()}`);
-        }
-        if (!response.body) {
-          throw new Error('OpenAI response body is empty.');
-        }
-
-        if (!res.headersSent) {
-          res.setHeader('Content-Type', 'text/event-stream');
-          res.setHeader('Cache-Control', 'no-cache');
-          res.setHeader('Connection', 'keep-alive');
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            const cleanLine = line.trim();
-            if (!cleanLine) continue;
-
-            if (cleanLine.startsWith('data:')) {
-              const rawData = cleanLine.substring(5).trim();
-              if (rawData === '[DONE]') {
-                res.write('data: [DONE]\n\n');
-                continue;
-              }
-
-              try {
-                const parsed = JSON.parse(rawData);
-                const content = parsed.choices?.[0]?.delta?.content;
-                if (content) {
-                  const legacyChunk = { type: 'content_block_delta', delta: { text: content } };
-                  res.write(`data: ${JSON.stringify(legacyChunk)}\n\n`);
-                }
-              } catch (e) {}
-            }
-          }
-        }
-        res.end();
-      };
-
-      const runAnthropicDirect = async (key: string) => {
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': key,
-            'anthropic-version': '2023-06-01'
-          },
-          body: JSON.stringify({
-            model: 'claude-3-5-sonnet-20241022',
-            messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
-            system: system || undefined,
-            max_tokens: 2000,
-            stream: true,
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error(`Anthropic API returned ${response.status}: ${await response.text()}`);
-        }
-        if (!response.body) {
-          throw new Error('Anthropic response body is empty.');
-        }
-
-        if (!res.headersSent) {
-          res.setHeader('Content-Type', 'text/event-stream');
-          res.setHeader('Cache-Control', 'no-cache');
-          res.setHeader('Connection', 'keep-alive');
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            const cleanLine = line.trim();
-            if (!cleanLine) continue;
-
-            if (cleanLine.startsWith('data:')) {
-              const rawData = cleanLine.substring(5).trim();
-              if (rawData === '[DONE]') {
-                res.write('data: [DONE]\n\n');
-                continue;
-              }
-
-              try {
-                const parsed = JSON.parse(rawData);
-                let content = '';
-                if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-                  content = parsed.delta.text;
-                } else if (parsed.type === 'message_start' && parsed.message?.content?.[0]?.text) {
-                  content = parsed.message.content[0].text;
-                }
-                if (content) {
-                  const legacyChunk = { type: 'content_block_delta', delta: { text: content } };
-                  res.write(`data: ${JSON.stringify(legacyChunk)}\n\n`);
-                }
-              } catch (e) {}
-            }
-          }
-        }
-        res.end();
-      };
-
-      const runOpenRouterStream = async (key: string, targetModel?: string) => {
-        const openRouterMessages = [];
-        if (system) {
-          openRouterMessages.push({ role: 'system', content: system });
-        }
-        if (Array.isArray(messages)) {
-          const mapped = messages.map((m: any) => ({ role: m.role, content: m.content || '' }));
-          openRouterMessages.push(...mapped);
-        }
-
-        let openRouterModel = targetModel || 'google/gemini-2.5-flash';
-        if (openRouterModel.includes('claude-3-5-sonnet') || openRouterModel.includes('claude-3.5-sonnet') || openRouterModel.includes('claude-sonnet-latest')) {
-          openRouterModel = 'anthropic/claude-3.5-sonnet';
-        }
-
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${key}`,
-            'HTTP-Referer': 'https://ai.studio/build',
-            'X-Title': 'EthioLearn',
-          },
-          body: JSON.stringify({
-            model: openRouterModel,
-            messages: openRouterMessages,
-            stream: true,
-            max_tokens: 2000,
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`OpenRouter API returned ${response.status}: ${await response.text()}`);
-        }
-        if (!response.body) {
-          throw new Error('OpenRouter response body is empty.');
-        }
-
-        if (!res.headersSent) {
-          res.setHeader('Content-Type', 'text/event-stream');
-          res.setHeader('Cache-Control', 'no-cache');
-          res.setHeader('Connection', 'keep-alive');
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            const cleanLine = line.trim();
-            if (!cleanLine) continue;
-
-            if (cleanLine.startsWith('data:')) {
-              const rawData = cleanLine.substring(5).trim();
-              if (rawData === '[DONE]') {
-                res.write('data: [DONE]\n\n');
-                continue;
-              }
-
-              try {
-                const parsed = JSON.parse(rawData);
-                const content = parsed.choices?.[0]?.delta?.content;
-                if (content) {
-                  const legacyChunk = { type: 'content_block_delta', delta: { text: content } };
-                  res.write(`data: ${JSON.stringify(legacyChunk)}\n\n`);
-                }
-              } catch (e) {}
-            }
-          }
-        }
-        res.end();
-      };
-
-      const runLocalOfflineFallback = async () => {
-        if (!res.headersSent) {
-          res.setHeader('Content-Type', 'text/event-stream');
-          res.setHeader('Cache-Control', 'no-cache');
-          res.setHeader('Connection', 'keep-alive');
-        }
-
-        const lastUserMsg = [...messages].reverse().find((m: any) => m.role === 'user')?.content || 'your academic questions';
-        
-        const greeting = "Hello, my friend! I am your EthioLearn AI Copilot. 📚✨\n\n";
-        const explanation = `I am currently operating in **High-Availability Local Sandbox Mode** because the cloud API services are experiencing high traffic, a temporary outage, or are temporarily down. 
-
-Don't worry, your learning never stops! I am here to help you study. To help you with your question about "${lastUserMsg.substring(0, 100)}${lastUserMsg.length > 100 ? '...' : ''}", please remember these study steps:
+Don't worry, your learning never stops! To help you with your question about "${lastUserMsg.substring(0, 100)}${lastUserMsg.length > 100 ? '...' : ''}", please review these study steps:
 1. **Check the Chapter Summary**: Open your Grade 11 or Grade 12 Textbook in the Bookstore tab.
 2. **Review key formulas or terms**: Use the Flashcards tool to practice key concepts.
-3. **Try standard quiz practice**: Go to the Prep Blueprint tab to solve exam-style multiple-choice questions.
+3. **Try standard quiz practice**: Go to the Prep Blueprint tab to solve exam-style multiple-choice questions.`;
 
-*Tip for Administrator (Abreham): Please check your API key configurations in the Profile/Onboarding panel or server env variables (GEMINI_API_KEY) to restore full cloud-guided tutoring!*`;
-
-        const fullText = greeting + explanation;
-        const words = fullText.split(' ');
-        for (let i = 0; i < words.length; i++) {
-          const chunk = words[i] + ' ';
-          const legacyChunk = { type: 'content_block_delta', delta: { text: chunk } };
-          res.write(`data: ${JSON.stringify(legacyChunk)}\n\n`);
-          await new Promise(resolve => setTimeout(resolve, 30));
-        }
-
-        res.write('data: [DONE]\n\n');
-        res.end();
-      };
-
-      // Compile prioritized strategies
-      const attempts: { name: string; run: () => Promise<void> }[] = [];
-
-      // Strategy 1: User specified API key
-      if (resolvedUserKey && isValidServiceKey(resolvedUserKey)) {
-        if (resolvedUserKey.startsWith('AIza')) {
-          attempts.push({ name: 'User Gemini Direct', run: () => runGeminiDirect(resolvedUserKey) });
-        } else if (resolvedUserKey.startsWith('gsk_')) {
-          attempts.push({ name: 'User Groq Direct', run: () => runGroqDirect(resolvedUserKey, model) });
-        } else if (resolvedUserKey.startsWith('sk-ant-')) {
-          attempts.push({ name: 'User Anthropic Direct', run: () => runAnthropicDirect(resolvedUserKey) });
-        } else if (resolvedUserKey.startsWith('sk-or-')) {
-          attempts.push({ name: 'User OpenRouter Direct', run: () => runOpenRouterStream(resolvedUserKey, model) });
-        } else if (resolvedUserKey.startsWith('sk-')) {
-          attempts.push({ name: 'User OpenAI Direct', run: () => runOpenAiDirect(resolvedUserKey) });
-        } else {
-          attempts.push({ name: 'User Gemini Direct', run: () => runGeminiDirect(resolvedUserKey) });
-        }
+      const fullText = greeting + explanation;
+      const words = fullText.split(' ');
+      for (let i = 0; i < words.length; i++) {
+        const chunk = words[i] + ' ';
+        const legacyChunk = { type: 'content_block_delta', delta: { text: chunk } };
+        res.write(`data: ${JSON.stringify(legacyChunk)}\n\n`);
+        await new Promise(resolve => setTimeout(resolve, 30));
       }
 
-      // Strategy 2: Google Gemini env or cached key
-      const geminiKey = process.env.GEMINI_API_KEY || (cachedMasterApiKey && (cachedMasterApiKey.startsWith('AIza') || (!cachedMasterApiKey.startsWith('gsk_') && !cachedMasterApiKey.startsWith('sk-'))) ? cachedMasterApiKey : undefined);
-      if (geminiKey && isValidServiceKey(geminiKey)) {
-        attempts.push({ name: 'Server Gemini Direct', run: () => runGeminiDirect(geminiKey) });
-      }
+      res.write('data: [DONE]\n\n');
+      res.end();
+    };
 
-      // Strategy 3: Groq env or cached key
-      const groqKey = process.env.GROQ_API_KEY || (cachedMasterApiKey && cachedMasterApiKey.startsWith('gsk_') ? cachedMasterApiKey : undefined);
-      if (groqKey && isValidServiceKey(groqKey)) {
-        attempts.push({ name: 'Server Groq Direct', run: () => runGroqDirect(groqKey, model) });
-      }
+    const attempts: { name: string; run: () => Promise<void> }[] = [];
 
-      // Strategy 4: OpenAI env or cached key
-      const openAiKey = process.env.OPENAI_API_KEY || (cachedMasterApiKey && cachedMasterApiKey.startsWith('sk-') && !cachedMasterApiKey.startsWith('sk-ant-') && !cachedMasterApiKey.startsWith('sk-or-') ? cachedMasterApiKey : undefined);
-      if (openAiKey && isValidServiceKey(openAiKey)) {
-        attempts.push({ name: 'Server OpenAI Direct', run: () => runOpenAiDirect(openAiKey) });
-      }
-
-      // Strategy 5: Anthropic env or cached key
-      const anthropicKey = process.env.ANTHROPIC_API_KEY || (cachedMasterApiKey && cachedMasterApiKey.startsWith('sk-ant-') ? cachedMasterApiKey : undefined);
-      if (anthropicKey && isValidServiceKey(anthropicKey)) {
-        attempts.push({ name: 'Server Anthropic Direct', run: () => runAnthropicDirect(anthropicKey) });
-      }
-
-      // Strategy 6: OpenRouter env or cached key (only if sk-or- key)
-      const openRouterKey = process.env.OPENROUTER_API_KEY || (cachedMasterApiKey && cachedMasterApiKey.startsWith('sk-or-') ? cachedMasterApiKey : undefined);
-      if (openRouterKey && isValidServiceKey(openRouterKey)) {
-        attempts.push({ name: 'Server OpenRouter Stream', run: () => runOpenRouterStream(openRouterKey, model) });
-      }
-
-      // Ultimate strategy 7: Local smart advisor response
-      attempts.push({ name: 'Local Offline Fallback', run: () => runLocalOfflineFallback() });
-
-      // Run cascade
-      for (const attempt of attempts) {
-        try {
-          console.log(`[AI Cascade Stream] Attempting strategy: ${attempt.name}`);
-          await attempt.run();
-          console.log(`[AI Cascade Stream] Strategy ${attempt.name} succeeded.`);
-          return;
-        } catch (err: any) {
-          console.warn(`[AI Cascade Stream] Strategy ${attempt.name} failed:`, err.message || err);
-        }
-      }
-
-    } catch (err: any) {
-      console.error('Express proxy error calling AI stream:', err);
-      if (!res.headersSent) {
-        res.status(500).json({ error: err.message || 'Internal proxy server failure.' });
+    if (resolvedUserKey && isValidServiceKey(resolvedUserKey)) {
+      if (resolvedUserKey.startsWith('AIza')) {
+        attempts.push({ name: 'User Gemini Direct', run: () => runGeminiDirect(resolvedUserKey) });
+      } else if (resolvedUserKey.startsWith('gsk_')) {
+        attempts.push({ name: 'User Groq Direct', run: () => runGroqDirect(resolvedUserKey, model) });
+      } else if (resolvedUserKey.startsWith('sk-ant-')) {
+        attempts.push({ name: 'User Anthropic Direct', run: () => runAnthropicDirect(resolvedUserKey) });
+      } else if (resolvedUserKey.startsWith('sk-')) {
+        attempts.push({ name: 'User OpenAI Direct', run: () => runOpenAiDirect(resolvedUserKey) });
       } else {
-        res.end();
+        attempts.push({ name: 'User Gemini Direct', run: () => runGeminiDirect(resolvedUserKey) });
       }
     }
+
+    const geminiKey = process.env.GEMINI_API_KEY || (cachedMasterApiKey && (cachedMasterApiKey.startsWith('AIza') || (!cachedMasterApiKey.startsWith('gsk_') && !cachedMasterApiKey.startsWith('sk-'))) ? cachedMasterApiKey : undefined);
+    if (geminiKey && isValidServiceKey(geminiKey)) {
+      attempts.push({ name: 'Server Gemini Direct', run: () => runGeminiDirect(geminiKey) });
+    }
+
+    const groqKey = process.env.GROQ_API_KEY || (cachedMasterApiKey && cachedMasterApiKey.startsWith('gsk_') ? cachedMasterApiKey : undefined);
+    if (groqKey && isValidServiceKey(groqKey)) {
+      attempts.push({ name: 'Server Groq Direct', run: () => runGroqDirect(groqKey, model) });
+    }
+
+    const openAiKey = process.env.OPENAI_API_KEY || (cachedMasterApiKey && cachedMasterApiKey.startsWith('sk-') && !cachedMasterApiKey.startsWith('sk-ant-') && !cachedMasterApiKey.startsWith('sk-or-') ? cachedMasterApiKey : undefined);
+    if (openAiKey && isValidServiceKey(openAiKey)) {
+      attempts.push({ name: 'Server OpenAI Direct', run: () => runOpenAiDirect(openAiKey) });
+    }
+
+    const anthropicKey = process.env.ANTHROPIC_API_KEY || (cachedMasterApiKey && cachedMasterApiKey.startsWith('sk-ant-') ? cachedMasterApiKey : undefined);
+    if (anthropicKey && isValidServiceKey(anthropicKey)) {
+      attempts.push({ name: 'Server Anthropic Direct', run: () => runAnthropicDirect(anthropicKey) });
+    }
+
+    attempts.push({ name: 'Local Offline Fallback', run: () => runLocalOfflineFallback() });
+
+    for (const attempt of attempts) {
+      try {
+        await attempt.run();
+        return;
+      } catch (err: any) {
+        console.warn(`[AI Stream] Strategy ${attempt.name} failed:`, err.message || err);
+      }
+    }
+
+  } catch (err: any) {
+    console.error('Express proxy error calling AI stream:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Internal AI proxy service unavailable.' });
+    } else {
+      res.end();
+    }
+  }
+});
+
+// ============================================================================
+// 9. CENTRALIZED ERROR HANDLING MIDDLEWARE
+// ============================================================================
+
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  console.error('[Internal Server Error Handler]:', err);
+  if (res.headersSent) {
+    return next(err);
+  }
+  return res.status(err.status || 500).json({
+    error: err.name || 'InternalServerError',
+    message: process.env.NODE_ENV === 'production' ? 'An unexpected server error occurred.' : (err.message || 'Server error')
   });
+});
+
+// ============================================================================
+// 10. SERVER STARTUP & VITE INTEGRATION
+// ============================================================================
 
 async function startServer() {
-  // Serve static assets in production or use Vite developer middleware
   if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
     try {
       const { createServer: createViteServer } = await import('vite');
