@@ -470,3 +470,73 @@ export async function handleAdminDeleteAnnouncement(req: Request, res: Response)
     return res.status(500).json({ error: error.message });
   }
 }
+
+/**
+ * Admin Student Management: Update Pro status, role, or subscription
+ */
+export async function handleAdminUpdateStudent(req: Request, res: Response) {
+  try {
+    const { email, isPro, userRole, durationDays } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Student email is required.' });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const supabase = getSupabaseAdmin();
+    if (!supabase) {
+      return res.status(500).json({ error: 'Database service unavailable' });
+    }
+
+    const updates: any = {
+      updated_at: new Date().toISOString()
+    };
+
+    if (typeof isPro === 'boolean') {
+      updates.is_pro = isPro;
+      updates.pro_status = isPro ? 'active' : 'inactive';
+    }
+
+    if (userRole && ['student', 'admin', 'faculty', 'super_admin'].includes(userRole)) {
+      updates.user_role = userRole;
+    }
+
+    const { data: updatedProfile, error: profErr } = await supabase
+      .from('student_profiles')
+      .update(updates)
+      .eq('email', cleanEmail)
+      .select()
+      .maybeSingle();
+
+    if (profErr) {
+      return res.status(500).json({ error: profErr.message });
+    }
+
+    // If upgrading to Pro, create active subscription record
+    if (isPro) {
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + (Number(durationDays) || 30));
+
+      await supabase
+        .from('subscriptions')
+        .upsert({
+          email: cleanEmail,
+          tier: 'pro_semester',
+          status: 'active',
+          start_date: new Date().toISOString(),
+          end_date: endDate.toISOString(),
+          payment_method: 'admin_manual_grant',
+          auto_renew: false
+        }, { onConflict: 'email' });
+    }
+
+    return res.json({
+      success: true,
+      message: `Student ${cleanEmail} updated successfully.`,
+      student: updatedProfile || { email: cleanEmail, ...updates }
+    });
+  } catch (error: any) {
+    console.error('[Admin API] Update student error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+

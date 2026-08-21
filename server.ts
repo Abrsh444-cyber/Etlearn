@@ -37,6 +37,7 @@ import {
   getAdminPayments, 
   handleAdminPaymentAction, 
   getAdminStudents, 
+  handleAdminUpdateStudent,
   handleAdminSaveCourse, 
   handleAdminDeleteCourse, 
   handleAdminSaveCoupon, 
@@ -308,6 +309,7 @@ app.post(['/api/admin/payments/action', '/api/admin/payments/action/'], requireA
 
 // Students user management
 app.get(['/api/admin/students', '/api/admin/students/'], requireAdmin, getAdminStudents);
+app.post(['/api/admin/student/update', '/api/admin/student/update/'], requireAdmin, handleAdminUpdateStudent);
 
 // Courses & Lessons management
 app.post(['/api/admin/course', '/api/admin/course/'], requireAdmin, handleAdminSaveCourse);

@@ -20,6 +20,7 @@ import StudentAvatarSelector from './StudentAvatarSelector';
 import PWADownloadAssistant from './PWADownloadAssistant';
 import BillingAccountSection from './BillingAccountSection';
 import { safeStorage } from '../utils/safeStorage';
+import { isAdministratorEmail } from '../utils/adminAuth';
 
 interface StudentProfileViewProps {
   profile: StudentProfile;
@@ -34,6 +35,7 @@ interface StudentProfileViewProps {
   triggerPWAInstall?: () => Promise<void>;
   onSignOut?: () => void;
   onNavigateToUpgrade?: () => void;
+  onOpenAdmin?: () => void;
 }
 
 export default function StudentProfileView({
@@ -48,7 +50,8 @@ export default function StudentProfileView({
   isInstallable,
   triggerPWAInstall,
   onSignOut,
-  onNavigateToUpgrade
+  onNavigateToUpgrade,
+  onOpenAdmin
 }: StudentProfileViewProps) {
   
   // Tab Navigation State
@@ -553,8 +556,18 @@ export default function StudentProfileView({
             </div>
           </div>
 
-          {/* Action Triggers: Edit Profile & Sign Out */}
-          <div className="flex items-center gap-2.5 shrink-0">
+          {/* Action Triggers: Admin Dashboard, Edit Profile & Sign Out */}
+          <div className="flex items-center gap-2.5 shrink-0 flex-wrap justify-end">
+            {isAdministratorEmail(activeProfileData.email) && onOpenAdmin && (
+              <button
+                onClick={onOpenAdmin}
+                className="px-3.5 py-2.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-md active:scale-95"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                <span>Admin Console</span>
+              </button>
+            )}
+
             <button
               onClick={handleStartEdit}
               className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-md active:scale-95"

@@ -1328,6 +1328,101 @@ export async function fetchAdminStudents(searchQuery = ''): Promise<any[]> {
   return list;
 }
 
+export async function adminUpdateStudentProfile(
+  email: string, 
+  updates: { isPro?: boolean; userRole?: string; durationDays?: number }
+): Promise<{ success: boolean; error?: string; student?: any }> {
+  const cleanEmail = email.toLowerCase().trim();
+  
+  // 1. Try server-side verified admin endpoint first
+  try {
+    const res = await fetch('/api/admin/student/update', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ email: cleanEmail, ...updates })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.success) {
+        // Sync local storage state
+        syncLocalProfileAfterAdminUpdate(cleanEmail, updates);
+        return { success: true, student: data.student };
+      }
+    }
+  } catch (e) {
+    console.warn('[Admin API] Server student update error, using fallback:', e);
+  }
+
+  // 2. Direct Supabase fallback
+  const supabase = getSupabase();
+  if (supabase) {
+    try {
+      const dbUpdates: any = { updated_at: new Date().toISOString() };
+      if (typeof updates.isPro === 'boolean') {
+        dbUpdates.is_pro = updates.isPro;
+        dbUpdates.pro_status = updates.isPro ? 'active' : 'inactive';
+      }
+      if (updates.userRole) {
+        dbUpdates.user_role = updates.userRole;
+      }
+      await supabase
+        .from('student_profiles')
+        .update(dbUpdates)
+        .eq('email', cleanEmail);
+    } catch (e: any) {
+      console.warn('Supabase student update error:', e.message);
+    }
+  }
+
+  // 3. Update local cache
+  syncLocalProfileAfterAdminUpdate(cleanEmail, updates);
+  return { success: true };
+}
+
+function syncLocalProfileAfterAdminUpdate(cleanEmail: string, updates: { isPro?: boolean; userRole?: string }) {
+  try {
+    const rawAccs = safeStorage.getItem('ethiolearn_accounts');
+    if (rawAccs) {
+      const accs: any[] = JSON.parse(rawAccs);
+      const updatedAccs = accs.map(acc => {
+        if (acc.email && acc.email.toLowerCase().trim() === cleanEmail) {
+          return {
+            ...acc,
+            profile: {
+              ...acc.profile,
+              ...(typeof updates.isPro === 'boolean' ? { 
+                isPro: updates.isPro, 
+                tier: updates.isPro ? 'pro_semester' : 'free',
+                proStatus: updates.isPro ? 'active' : 'inactive' 
+              } : {}),
+              ...(updates.userRole ? { userRole: updates.userRole } : {})
+            }
+          };
+        }
+        return acc;
+      });
+      safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updatedAccs));
+    }
+
+    const rawProf = safeStorage.getItem('ethiolearn_current_profile');
+    if (rawProf) {
+      const cur = JSON.parse(rawProf);
+      if (cur.email && cur.email.toLowerCase().trim() === cleanEmail) {
+        const upgraded = {
+          ...cur,
+          ...(typeof updates.isPro === 'boolean' ? { 
+            isPro: updates.isPro, 
+            tier: updates.isPro ? 'pro_semester' : 'free',
+            proStatus: updates.isPro ? 'active' : 'inactive' 
+          } : {}),
+          ...(updates.userRole ? { userRole: updates.userRole } : {})
+        };
+        safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(upgraded));
+      }
+    }
+  } catch (e) {}
+}
+
 // ----------------------------------------------------------------------------
 // 6. STUDENT COURSE PROGRESS & COMPLETION TRACKING (Supabase + Local Fallback)
 // ----------------------------------------------------------------------------

@@ -1187,6 +1187,7 @@ export default function App() {
                 triggerPWAInstall={triggerPWAInstall}
                 onSignOut={handleSignOut}
                 onNavigateToUpgrade={() => setCurrentPage('upgrade')}
+                onOpenAdmin={() => setIsAdminOpen(true)}
               />
             )}
 

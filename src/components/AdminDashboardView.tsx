@@ -14,7 +14,7 @@ import { playClickChime, playSuccessChime, playFailureChime } from '../utils/aud
 import { 
   fetchAdminDashboardStats, fetchAdminCourses, createCourse, updateCourse, 
   publishCourse, unpublishCourse, archiveCourse, deleteCourse, fetchCourseLessons, 
-  saveLesson, fetchAdminStudents, fetchAdminPayments, updatePaymentStatus, 
+  saveLesson, fetchAdminStudents, adminUpdateStudentProfile, fetchAdminPayments, updatePaymentStatus, 
   fetchCoupons, createCoupon, deleteCoupon, fetchAnnouncements, createAnnouncement, 
   deleteAnnouncement 
 } from '../utils/supabaseCourses';
@@ -96,13 +96,17 @@ export default function AdminDashboardView({
   // --------------------------------------------------------------------------
   const [students, setStudents] = useState<any[]>([]);
   const [userSearch, setUserSearch] = useState('');
+  const [userFilter, setUserFilter] = useState<'all' | 'pro' | 'free' | 'admin'>('all');
   const [loadingStudents, setLoadingStudents] = useState(false);
+  const [studentActionLoading, setStudentActionLoading] = useState<Record<string, boolean>>({});
 
   // --------------------------------------------------------------------------
   // PAYMENTS STATE
   // --------------------------------------------------------------------------
   const [payments, setPayments] = useState<any[]>([]);
+  const [paymentFilter, setPaymentFilter] = useState<'all' | 'pending' | 'completed' | 'failed'>('all');
   const [paymentActionLoading, setPaymentActionLoading] = useState<Record<string, boolean>>({});
+  const [selectedReceiptImage, setSelectedReceiptImage] = useState<string | null>(null);
 
   // --------------------------------------------------------------------------
   // COUPONS STATE
@@ -507,6 +511,45 @@ export default function AdminDashboardView({
   };
 
   // --------------------------------------------------------------------------
+  // STUDENT USER ACTIONS (1-Click Pro Toggle)
+  // --------------------------------------------------------------------------
+  const handleToggleStudentPro = async (student: any) => {
+    const studentEmail = (student.email || '').toLowerCase().trim();
+    if (!studentEmail) return;
+
+    const currentPro = Boolean(student.is_pro || student.isPro);
+    const newPro = !currentPro;
+
+    playClickChime();
+    setStudentActionLoading(prev => ({ ...prev, [studentEmail]: true }));
+
+    try {
+      const res = await adminUpdateStudentProfile(studentEmail, { isPro: newPro });
+      if (res.success) {
+        if (newPro) playSuccessChime();
+        else playClickChime();
+
+        setStudents(prev => prev.map(s => {
+          if ((s.email || '').toLowerCase().trim() === studentEmail) {
+            return {
+              ...s,
+              is_pro: newPro,
+              isPro: newPro
+            };
+          }
+          return s;
+        }));
+
+        loadAllAdminData(true);
+      } else {
+        alert(res.error || 'Failed to update student Pro status.');
+      }
+    } finally {
+      setStudentActionLoading(prev => ({ ...prev, [studentEmail]: false }));
+    }
+  };
+
+  // --------------------------------------------------------------------------
   // FILTERED LISTS
   // --------------------------------------------------------------------------
   const filteredCourses = courses.filter(c => {
@@ -518,10 +561,25 @@ export default function AdminDashboardView({
 
   const filteredStudents = students.filter(s => {
     const q = userSearch.toLowerCase().trim();
-    return !q || 
+    const matchesSearch = !q || 
       (s.name && s.name.toLowerCase().includes(q)) || 
       (s.email && s.email.toLowerCase().includes(q)) ||
       (s.university && s.university.toLowerCase().includes(q));
+
+    const isPro = Boolean(s.is_pro || s.isPro);
+    const isAdmin = isAdministratorEmail(s.email) || s.user_role === 'admin' || s.userRole === 'admin';
+
+    let matchesType = true;
+    if (userFilter === 'pro') matchesType = isPro;
+    else if (userFilter === 'free') matchesType = !isPro;
+    else if (userFilter === 'admin') matchesType = isAdmin;
+
+    return matchesSearch && matchesType;
+  });
+
+  const filteredPayments = payments.filter(p => {
+    if (paymentFilter === 'all') return true;
+    return p.status === paymentFilter;
   });
 
   // Security Guard: Prevent unauthorized viewers
@@ -995,14 +1053,27 @@ export default function AdminDashboardView({
                   />
                 </div>
 
-                <span className="text-xs text-slate-400 font-mono">
-                  Showing {filteredStudents.length} of {stats.totalStudents} students
-                </span>
+                {/* Filter chips */}
+                <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+                  {(['all', 'pro', 'free', 'admin'] as const).map(f => (
+                    <button
+                      key={f}
+                      onClick={() => setUserFilter(f)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                        userFilter === f 
+                          ? 'bg-amber-500 text-slate-950 shadow-xs' 
+                          : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
+                      }`}
+                    >
+                      {f === 'all' ? `All (${students.length})` : f === 'pro' ? 'Pro Pass' : f === 'free' ? 'Free Tier' : 'Admins'}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {filteredStudents.length === 0 ? (
                 <div className="py-12 text-center bg-slate-900/50 rounded-2xl border border-slate-800 text-slate-500 text-xs">
-                  {userSearch ? 'No students matched your search.' : 'No registered student profiles found in Supabase yet.'}
+                  {userSearch ? 'No students matched your search or filter.' : 'No registered student profiles found in Supabase yet.'}
                 </div>
               ) : (
                 <div className="bg-slate-900/90 rounded-2xl border border-slate-800 overflow-x-auto">
@@ -1014,31 +1085,53 @@ export default function AdminDashboardView({
                         <th className="px-4 py-3">University / Campus</th>
                         <th className="px-4 py-3">Tier</th>
                         <th className="px-4 py-3">Role</th>
+                        <th className="px-4 py-3 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800 text-slate-200">
-                      {filteredStudents.map((st, idx) => (
-                        <tr key={st.email || idx} className="hover:bg-slate-800/40 transition-colors">
-                          <td className="px-4 py-3 font-semibold text-white flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-black flex items-center justify-center">
-                              {(st.name || 'S')[0]}
-                            </div>
-                            <span>{st.name || 'Student'}</span>
-                          </td>
-                          <td className="px-4 py-3 font-mono text-slate-400">{st.email || 'N/A'}</td>
-                          <td className="px-4 py-3">{st.university || 'Wolkite University'}</td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              st.is_pro || st.isPro 
-                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' 
-                                : 'bg-slate-800 text-slate-400'
-                            }`}>
-                              {st.is_pro || st.isPro ? 'PRO PASS' : 'FREE TIER'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 font-mono text-slate-400 capitalize">{st.user_role || st.userRole || 'Student'}</td>
-                        </tr>
-                      ))}
+                      {filteredStudents.map((st, idx) => {
+                        const isPro = Boolean(st.is_pro || st.isPro);
+                        const isStudentUpdating = Boolean(studentActionLoading[st.email?.toLowerCase()]);
+                        const isUserAdmin = isAdministratorEmail(st.email);
+
+                        return (
+                          <tr key={st.email || idx} className="hover:bg-slate-800/40 transition-colors">
+                            <td className="px-4 py-3 font-semibold text-white flex items-center gap-2">
+                              <div className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-black flex items-center justify-center shrink-0">
+                                {(st.name || 'S')[0]}
+                              </div>
+                              <span className="truncate max-w-[140px]">{st.name || 'Student'}</span>
+                            </td>
+                            <td className="px-4 py-3 font-mono text-slate-400">{st.email || 'N/A'}</td>
+                            <td className="px-4 py-3 text-slate-300">{st.university || 'Wolkite University'}</td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                isPro 
+                                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' 
+                                  : 'bg-slate-800 text-slate-400'
+                              }`}>
+                                {isPro ? 'PRO PASS' : 'FREE TIER'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 font-mono text-slate-400 capitalize">{st.user_role || st.userRole || 'Student'}</td>
+                            <td className="px-4 py-3 text-right">
+                              {!isUserAdmin && (
+                                <button
+                                  onClick={() => handleToggleStudentPro(st)}
+                                  disabled={isStudentUpdating}
+                                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer border disabled:opacity-50 ${
+                                    isPro
+                                      ? 'bg-slate-950 border-slate-800 text-slate-400 hover:text-red-400 hover:border-red-500/30'
+                                      : 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500 hover:text-slate-950'
+                                  }`}
+                                >
+                                  {isStudentUpdating ? 'Saving...' : isPro ? 'Revoke Pro' : 'Grant Pro Pass'}
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1051,22 +1144,41 @@ export default function AdminDashboardView({
           {/* ================================================================ */}
           {activeTab === 'payments' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-300">
-                  Payment Reconciliation & Receipt Approval Queue
-                </h3>
-                <span className="text-xs font-mono text-amber-400 font-bold">
-                  {payments.filter(p => p.status === 'pending').length} Pending Review
-                </span>
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-300">
+                    Payment Reconciliation & Receipt Approval Queue
+                  </h3>
+                  <span className="text-xs font-mono text-amber-400 font-bold">
+                    {payments.filter(p => p.status === 'pending').length} Pending
+                  </span>
+                </div>
+
+                {/* Filter chips */}
+                <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto">
+                  {(['all', 'pending', 'completed', 'failed'] as const).map(f => (
+                    <button
+                      key={f}
+                      onClick={() => setPaymentFilter(f)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                        paymentFilter === f 
+                          ? 'bg-amber-500 text-slate-950 shadow-xs' 
+                          : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
+                      }`}
+                    >
+                      {f === 'all' ? `All (${payments.length})` : f}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {payments.length === 0 ? (
+              {filteredPayments.length === 0 ? (
                 <div className="py-12 text-center bg-slate-900/50 rounded-2xl border border-slate-800 text-slate-500 text-xs">
-                  No payment transactions recorded in database yet.
+                  No payment transactions matched this filter.
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {payments.map(p => {
+                  {filteredPayments.map(p => {
                     const isProcessing = Boolean(paymentActionLoading[p.id]);
                     const couponCode = p.couponCode || p.coupon_code;
                     const originalAmt = p.originalAmount || p.original_amount;
@@ -1119,22 +1231,20 @@ export default function AdminDashboardView({
                         </div>
 
                         {receiptImg && (
-                          <div className="p-2 bg-slate-950 rounded-xl border border-slate-800/80 flex items-center gap-3">
+                          <div 
+                            onClick={() => setSelectedReceiptImage(receiptImg)}
+                            className="p-2 bg-slate-950 hover:bg-slate-900/80 rounded-xl border border-slate-800/80 flex items-center gap-3 cursor-pointer transition-colors"
+                          >
                             <img 
                               src={receiptImg} 
                               alt="Receipt" 
-                              className="w-10 h-10 object-cover rounded-lg border border-slate-700" 
+                              className="w-10 h-10 object-cover rounded-lg border border-slate-700 shrink-0" 
                             />
                             <div className="text-xs">
                               <span className="font-bold text-slate-300 block">Bank / Telebirr Receipt Attached</span>
-                              <a 
-                                href={receiptImg} 
-                                target="_blank" 
-                                rel="noreferrer" 
-                                className="text-[10px] text-amber-400 hover:underline"
-                              >
-                                View full receipt image
-                              </a>
+                              <span className="text-[10px] text-amber-400 hover:underline flex items-center gap-1">
+                                <Eye className="w-3 h-3" /> Click to view receipt preview
+                              </span>
                             </div>
                           </div>
                         )}
@@ -1565,6 +1675,56 @@ export default function AdminDashboardView({
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* ─── RECEIPT IMAGE PREVIEW MODAL ─── */}
+      {selectedReceiptImage && (
+        <div 
+          className="fixed inset-0 z-70 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 cursor-pointer"
+          onClick={() => setSelectedReceiptImage(null)}
+        >
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="relative max-w-xl max-h-[85vh] bg-slate-950 border border-slate-800 rounded-3xl p-4 overflow-hidden shadow-2xl flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-full flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <CreditCard className="w-4 h-4 text-amber-400" />
+                Payment Proof Receipt Inspection
+              </span>
+              <button 
+                onClick={() => setSelectedReceiptImage(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="overflow-auto max-h-[70vh] rounded-xl border border-slate-800 bg-black/50 p-1 flex items-center justify-center">
+              <img 
+                src={selectedReceiptImage} 
+                alt="Receipt Inspection" 
+                className="max-w-full max-h-[65vh] object-contain rounded-lg shadow-lg"
+              />
+            </div>
+            <div className="w-full pt-3 flex items-center justify-between">
+              <span className="text-[11px] text-slate-400 font-mono">
+                Inspect reference/transaction ID before verification
+              </span>
+              <a 
+                href={selectedReceiptImage} 
+                target="_blank" 
+                rel="noreferrer"
+                className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-amber-400 text-xs font-bold flex items-center gap-1.5"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Open Original
+              </a>
+            </div>
+          </motion.div>
         </div>
       )}
     </div>
