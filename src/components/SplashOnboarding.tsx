@@ -96,9 +96,14 @@ export const onboardingTranslations = {
     validationEmail: "Please enter a valid Gmail address (@gmail.com).",
     validationPassword: "Password must be at least 5 characters long.",
     validationConfirmPassword: "Passwords do not match.",
-    academicStanding: "Academic Standing",
+    academicStanding: "Academic Standing / Level",
     academicStandingPlaceholder: "Select your standing",
     grade12: "Grade 12 (Preparatory Senior)",
+    year1: "Freshman (1st Year)",
+    year2: "Sophomore (2nd Year)",
+    year3: "Junior (3rd Year)",
+    year4: "Senior (4th/5th Year)",
+    postgrad: "Postgraduate / Masters",
     universityStudent: "University Student",
     chooseAvatar: "Select Custom Portrait Avatar",
     assignModules: "Assign Campus Focus Modules (Select one or more)",
@@ -122,7 +127,24 @@ export const onboardingTranslations = {
     noMsgNotice: "Haven't received the message? Click 'Auto-Fill Code & Verify Now' to proceed immediately without delay.",
     regSuccessTitle: "Account Verified & Activated!",
     regSuccessSub: "Welcome to EthioLearn Pro! Your student profile is confirmed and ready for your academic journey.",
-    enterAppBtn: "Enter EthioLearn Pro Campus"
+    enterAppBtn: "Enter EthioLearn Pro Campus",
+    verificationNoticeBanner: "2-Step Student Security: A 6-digit confirmation code will be dispatched immediately to verify your account.",
+    pendingCodePrompt: "Already registered? Enter your 6-digit code to verify",
+    pendingCodeBtn: "Verify Code",
+    signInTitle: "Student Portal Sign In",
+    signInTagline: "Access your past exams, AI tutor & university study modules",
+    signInBtn: "Sign In to Campus",
+    signInLoading: "Signing in...",
+    signInGoogleBtn: "Sign in with Google",
+    forgotPassword: "Forgot password?",
+    resetWithCodeLink: "Reset via 6-digit code",
+    havePendingCodeSignIn: "Have a pending 6-digit confirmation code?",
+    verifyPendingAccount: "Verify & Activate Account",
+    haveResetCodeSignIn: "Have a recovery code?",
+    enterResetCode: "Enter Code",
+    dontHaveAccount: "Don't have an account?",
+    signUpNow: "Create Free Account",
+    securityGuarantee: "256-bit encrypted authentication • Official Ethiopian academic network standard"
   },
   am: {
     title: "መለያ ፍጠር",
@@ -149,9 +171,14 @@ export const onboardingTranslations = {
     validationEmail: "እባክዎን ትክክለኛ የጂሜይል አድራሻ ያስገቡ (@gmail.com)።",
     validationPassword: "የይለፍ ቃል ቢያንስ 5 ቁምፊዎች መሆን አለበት።",
     validationConfirmPassword: "የይለፍ ቃሎች አይዛመዱም።",
-    academicStanding: "የትምህርት ደረጃ",
+    academicStanding: "የትምህርት ደረጃ / አመት",
     academicStandingPlaceholder: "ደረጃዎን ይምረጡ",
-    grade12: "ክፍል 12 (ዝግጅት ከፍተኛ)",
+    grade12: "ክፍል 12 (የዩኒቨርሲቲ መግቢያ ዝግጅት)",
+    year1: "ፍሬሽማን (1ኛ አመት ተማሪ)",
+    year2: "2ኛ አመት ተማሪ",
+    year3: "3ኛ አመት ተማሪ",
+    year4: "4ኛ/5ኛ አመት (ተመራቂ)",
+    postgrad: "ሁለተኛ ዲግሪ / ማስተርስ",
     universityStudent: "የዩኒቨርሲቲ ተማሪ",
     chooseAvatar: "ብጁ የቁም አምሳያ ይምረጡ",
     assignModules: "የካምፓስ የትኩረት ሞጁሎችን ይመድቡ (አንድ ወይም ከዚያ በላይ ይምረጡ)",
@@ -175,7 +202,24 @@ export const onboardingTranslations = {
     noMsgNotice: "መልዕክቱ አልደረሰዎትም? 'በራስ-ሰር ሙላና አረጋግጥ' የሚለውን በመጫን ያለምንም መዘግየት ወዲያውኑ መግባት ይችላሉ።",
     regSuccessTitle: "ምዝገባዎ በተሳካ ሁኔታ ተረጋግጧል!",
     regSuccessSub: "እንኳን ወደ ኢትዮ ለርን ፕሮ በደህና መጡ! የተማሪ ፕሮፋይልዎ ተረጋግጦ ለአካዳሚክ ጉዞዎ ዝግጁ ነው።",
-    enterAppBtn: "ወደ ኢትዮ ለርን ፕሮ ግባ"
+    enterAppBtn: "ወደ ኢትዮ ለርን ፕሮ ግባ",
+    verificationNoticeBanner: "ባለ 2-ደረጃ የተማሪ ደህንነት ማረጋገጫ፡ ምዝገባዎ እንደተጠናቀቀ አካውንትዎን ለማንቃት ባለ 6-አሃዝ የማረጋገጫ ኮድ ወዲያውኑ ይላክልዎታል።",
+    pendingCodePrompt: "ቀደም ሲል ተመዝግበዋል? ባለ 6-አሃዝ የማረጋገጫ ኮድዎን ያስገቡ",
+    pendingCodeBtn: "ኮድ አረጋግጥ",
+    signInTitle: "የተማሪ ፖርታል መግቢያ",
+    signInTagline: "ያለፉ ፈተናዎችን፣ የAI አስጎብኚዎን እና የትምህርት ሞጁሎችን ያግኙ",
+    signInBtn: "ወደ ካምፓስ ግባ",
+    signInLoading: "በመግባት ላይ...",
+    signInGoogleBtn: "በGoogle መለያ ግባ",
+    forgotPassword: "የይለፍ ቃል ረሱ?",
+    resetWithCodeLink: "በባለ 6-አሃዝ ኮድ ቀይር",
+    havePendingCodeSignIn: "ያልተረጋገጠ የተማሪ ኮድ አለዎት?",
+    verifyPendingAccount: "አካውንትዎን አረጋግጠው ያግብሩ",
+    haveResetCodeSignIn: "የይለፍ ቃል መቀየሪያ ኮድ አለዎት?",
+    enterResetCode: "ኮድ አስገባ",
+    dontHaveAccount: "አዲስ ተማሪ ነዎት? መለያ የለዎትም?",
+    signUpNow: "አዲስ መለያ በነፃ ይፍጠሩ",
+    securityGuarantee: "በ256-ቢት የተጠበቀ የተማሪ ደህንነት • ይፋዊ የኢትዮጵያ ዩኒቨርሲቲዎች የአካዳሚክ ስርዓት"
   }
 };
 
@@ -2960,32 +3004,81 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.4 }}
-            className="w-full max-w-md bg-white dark:bg-[#1e2533] backdrop-blur-md p-6 md:p-8 rounded-2xl border border-slate-200 dark:border-zinc-800 relative z-10 shadow-2xl space-y-6 my-auto transition-colors duration-200"
+            className="w-full max-w-md bg-[#0e1628]/95 backdrop-blur-md p-6 md:p-8 rounded-2xl border border-zinc-800/80 relative z-10 shadow-[0_0_50px_rgba(0,0,0,0.5)] space-y-5 my-auto transition-colors duration-200"
           >
-            <div className="flex items-center justify-center gap-3 border-b border-slate-100 dark:border-zinc-900 pb-4">
-              <EthioLearnLogo size={44} />
-              <div className="text-center">
-                <h3 className="font-serif text-lg font-black text-[#C8962E] tracking-tight">EthioLearn Pro</h3>
-                <p className="text-[10px] text-slate-500 dark:text-zinc-400 tracking-widest uppercase font-mono">Student Portal Sign In</p>
+            {/* Header with EthioLearn Logo & Language Switcher */}
+            <div className="flex flex-col items-center justify-center text-center">
+              <EthioLearnLogo size={48} className="drop-shadow-[0_0_12px_rgba(200,150,46,0.35)]" />
+              <h3 className="font-serif text-xl font-black bg-gradient-to-r from-[#FFECA7] via-[#D4AF37] to-[#F3E5AB] bg-clip-text text-transparent tracking-tight mt-2.5">
+                {onboardingTranslations[preferredLanguage].signInTitle}
+              </h3>
+              <p className="text-[10.5px] text-zinc-400 font-medium tracking-normal mt-1 max-w-xs">
+                {onboardingTranslations[preferredLanguage].signInTagline}
+              </p>
+
+              {/* Language Switcher */}
+              <div className="flex justify-center items-center p-0.5 bg-[#090f1d] border border-zinc-800/60 rounded-xl max-w-[140px] mx-auto mt-3 w-full shadow-inner">
+                <button
+                  type="button"
+                  onClick={() => { playClickChime(); setPreferredLanguage('en'); }}
+                  className={`flex-1 py-1 text-center font-bold text-[10px] rounded-lg transition-all cursor-pointer ${preferredLanguage === 'en' ? 'bg-gradient-to-r from-[#C8962E] to-[#B08123] text-black font-extrabold shadow-sm' : 'text-zinc-400 hover:text-zinc-200'}`}
+                >
+                  English
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { playClickChime(); setPreferredLanguage('am'); }}
+                  className={`flex-1 py-1 text-center font-bold text-[10px] rounded-lg transition-all cursor-pointer ${preferredLanguage === 'am' ? 'bg-gradient-to-r from-[#C8962E] to-[#B08123] text-black font-extrabold shadow-sm' : 'text-zinc-400 hover:text-zinc-200'}`}
+                >
+                  አማርኛ
+                </button>
               </div>
             </div>
 
             {authError && (
-              <div className="p-3 bg-red-950/20 border border-red-500/30 text-red-400 text-xs rounded-lg flex items-start gap-2.5">
-                <ShieldAlert className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+              <div className="p-3 bg-red-950/25 border border-red-500/30 text-red-400 text-xs rounded-xl flex items-start gap-2.5">
+                <ShieldAlert className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
                 <p>{authError}</p>
               </div>
             )}
 
             {infoMessage && (
-              <div className="p-3 bg-amber-950/20 border border-amber-500/30 text-amber-200 text-xs rounded-lg flex items-start gap-2.5">
+              <div className="p-3 bg-amber-950/25 border border-amber-500/30 text-amber-200 text-xs rounded-xl flex items-start gap-2.5">
                 <span className="text-base shrink-0">✉️</span>
                 <p className="font-medium">{infoMessage}</p>
               </div>
             )}
 
+            {/* Pending 6-Digit Registration Confirmation Code Notice */}
+            <div className="bg-gradient-to-r from-[#121d33] to-[#0d1627] border border-[#C8962E]/35 rounded-xl p-3 flex items-center justify-between gap-2.5 shadow-sm">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-lg bg-[#C8962E]/15 border border-[#C8962E]/30 flex items-center justify-center text-[#C8962E] shrink-0">
+                  <Key className="w-3.5 h-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold text-amber-200 truncate">
+                    {onboardingTranslations[preferredLanguage].havePendingCodeSignIn}
+                  </p>
+                  <p className="text-[9px] text-zinc-400 truncate">
+                    {preferredLanguage === 'am' ? "ምዝገባዎን ለማጠናቀቅ ኮዱን ያስገቡ" : "Activate and verify pending scholar account"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  playClickChime();
+                  setMode('verify_registration');
+                }}
+                className="px-2.5 py-1.5 bg-[#C8962E] hover:bg-[#b08123] text-black font-extrabold text-[9.5px] rounded-lg transition-all shadow-xs shrink-0 flex items-center gap-1 cursor-pointer"
+              >
+                <ShieldCheck className="w-3 h-3" />
+                <span>{preferredLanguage === 'am' ? "ኮድ አረጋግጥ" : "Verify Code"}</span>
+              </button>
+            </div>
+
             {isPopupBlocked && (
-              <div className="p-4 bg-amber-950/20 border border-amber-500/30 text-amber-200 text-xs rounded-xl space-y-3">
+              <div className="p-4 bg-amber-950/25 border border-amber-500/30 text-amber-200 text-xs rounded-xl space-y-3">
                 <div className="flex items-start gap-2.5">
                   <span className="text-base">⚠️</span>
                   <div>
@@ -3005,14 +3098,14 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                   <button
                     type="button"
                     onClick={googleSignInRedirect}
-                    className="px-3 py-1.5 bg-[#C8962E] hover:bg-[#b08123] text-black font-extrabold rounded-lg text-[10.5px] transition-all cursor-pointer"
+                    className="px-3.5 py-1.5 bg-[#C8962E] hover:bg-[#b08123] text-black font-extrabold rounded-lg text-[10.5px] transition-all cursor-pointer"
                   >
                     ⚡ Try Redirect Sign-In
                   </button>
                   <button
                     type="button"
                     onClick={() => { playClickChime(); setIsPopupBlocked(false); }}
-                    className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold rounded-lg text-[10.5px] transition-all cursor-pointer"
+                    className="px-3.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold rounded-lg text-[10.5px] transition-all cursor-pointer"
                   >
                     Dismiss
                   </button>
@@ -3022,9 +3115,9 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
 
             {/* Saved Accounts on Device - Quick Sign-In */}
             {registeredAccounts.length > 0 && (
-              <div className="space-y-2.5 bg-slate-50/80 dark:bg-zinc-900/60 p-3.5 rounded-xl border border-slate-200/80 dark:border-zinc-800/80">
+              <div className="space-y-2.5 bg-[#090f1d] p-3.5 rounded-xl border border-zinc-800/80">
                 <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider">
+                  <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
                     {preferredLanguage === 'am' ? 'በዚህ ስልክ የተቀመጡ አካውንቶች' : 'Saved Accounts on Device'}
                   </p>
                   <span className="text-[10px] text-[#C8962E] font-mono font-bold">
@@ -3036,17 +3129,17 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                     <div
                       key={acc.email}
                       onClick={() => handleQuickLogin(acc)}
-                      className="group flex items-center justify-between p-2.5 rounded-lg bg-white dark:bg-zinc-800/90 hover:bg-amber-500/10 dark:hover:bg-amber-500/10 border border-slate-200 dark:border-zinc-700/70 hover:border-amber-500/50 transition-all cursor-pointer shadow-xs"
+                      className="group flex items-center justify-between p-2.5 rounded-lg bg-[#0e1628] hover:bg-amber-500/10 border border-zinc-800 hover:border-[#C8962E]/50 transition-all cursor-pointer shadow-xs"
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
                         <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#C8962E] to-amber-300 flex items-center justify-center text-black font-bold text-xs shrink-0 shadow-inner">
                           {acc.profile?.name?.[0]?.toUpperCase() || 'S'}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-xs font-bold text-slate-800 dark:text-zinc-100 truncate group-hover:text-amber-500 transition-colors">
+                          <p className="text-xs font-bold text-zinc-100 truncate group-hover:text-amber-400 transition-colors">
                             {acc.profile?.name || 'Student'}
                           </p>
-                          <p className="text-[10px] text-slate-500 dark:text-zinc-400 truncate font-mono">
+                          <p className="text-[10px] text-zinc-400 truncate font-mono">
                             {acc.email}
                           </p>
                         </div>
@@ -3065,7 +3158,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                           type="button"
                           onClick={(e) => handleRemoveSavedAccount(acc.email, e)}
                           title="Remove from device"
-                          className="p-1 text-slate-400 hover:text-red-400 transition-colors rounded cursor-pointer"
+                          className="p-1 text-zinc-400 hover:text-red-400 transition-colors rounded cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -3074,11 +3167,11 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                   ))}
                 </div>
                 <div className="relative flex py-1 items-center">
-                  <div className="flex-grow border-t border-slate-200 dark:border-zinc-800"></div>
-                  <span className="flex-shrink mx-3 text-[9.5px] text-slate-400 dark:text-zinc-500 font-bold uppercase tracking-wider">
+                  <div className="flex-grow border-t border-zinc-800"></div>
+                  <span className="flex-shrink mx-3 text-[9.5px] text-zinc-500 font-bold uppercase tracking-wider">
                     {preferredLanguage === 'am' ? 'ወይም በሌላ ኢሜይል ግባ' : 'or enter credentials'}
                   </span>
-                  <div className="flex-grow border-t border-slate-200 dark:border-zinc-800"></div>
+                  <div className="flex-grow border-t border-zinc-800"></div>
                 </div>
               </div>
             )}
@@ -3086,20 +3179,20 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
             {/* Main Sign-In Form */}
             <form onSubmit={handleSignIn} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider block">
-                  Email Address
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  {onboardingTranslations[preferredLanguage].email}
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500" />
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                   <input
                     type="email"
-                    placeholder="e.g. student@gmail.com"
+                    placeholder={onboardingTranslations[preferredLanguage].emailPlaceholder}
                     value={email}
                     onChange={(e) => {
                       setEmail(e.target.value);
                       if (emailError) setEmailError(null);
                     }}
-                    className={`w-full bg-slate-50 dark:bg-zinc-900/90 border ${emailError ? 'border-red-500/80 focus:border-red-500' : 'border-slate-200 dark:border-zinc-700 hover:border-slate-300 dark:hover:border-zinc-600 focus:border-[#C8962E]'} rounded-lg pl-10 pr-4 py-2.5 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20`}
+                    className={`w-full bg-[#0a0f1d] border ${emailError ? 'border-red-500/80 focus:border-red-500' : 'border-zinc-800 focus:border-[#C8962E]'} rounded-lg pl-10 pr-4 py-2.5 text-zinc-100 placeholder-zinc-500 outline-none text-xs transition-all focus:ring-1 focus:ring-[#C8962E]/20`}
                   />
                 </div>
                 {emailError && (
@@ -3108,35 +3201,12 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider block">
-                  Password
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500" />
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value);
-                      if (passwordError) setPasswordError(null);
-                    }}
-                    className={`w-full bg-slate-50 dark:bg-zinc-900/90 border ${passwordError ? 'border-red-500/80 focus:border-red-500' : 'border-slate-200 dark:border-zinc-700 hover:border-slate-300 dark:hover:border-zinc-600 focus:border-[#C8962E]'} rounded-lg pl-10 pr-10 py-2.5 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500 outline-none text-xs transition-all font-mono focus:ring-1 focus:ring-[#C8962E]/20`}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                {passwordError && (
-                  <p className="text-[11px] text-red-500 font-medium pl-1">{passwordError}</p>
-                )}
-                
-                {/* Forgot Password? Link */}
-                <div className="flex justify-end pt-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    {onboardingTranslations[preferredLanguage].password}
+                  </label>
+                  
+                  {/* Forgot Password Link */}
                   <button
                     type="button"
                     onClick={() => {
@@ -3145,65 +3215,108 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                       setAuthError(null);
                       setInfoMessage(null);
                     }}
-                    className="text-[11px] text-[#C8962E] hover:underline transition-all cursor-pointer font-medium"
+                    className="text-[10.5px] text-[#C8962E] hover:underline transition-all cursor-pointer font-medium"
                   >
-                    Forgot password?
+                    {onboardingTranslations[preferredLanguage].forgotPassword}
+                  </button>
+                </div>
+                
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      if (passwordError) setPasswordError(null);
+                    }}
+                    className={`w-full bg-[#0a0f1d] border ${passwordError ? 'border-red-500/80 focus:border-red-500' : 'border-zinc-800 focus:border-[#C8962E]'} rounded-lg pl-10 pr-10 py-2.5 text-zinc-100 placeholder-zinc-500 outline-none text-xs transition-all font-mono focus:ring-1 focus:ring-[#C8962E]/20`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {passwordError && (
+                  <p className="text-[11px] text-red-500 font-medium pl-1">{passwordError}</p>
+                )}
+
+                {/* Direct link if user already has a 6-digit reset code */}
+                <div className="flex justify-end pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playClickChime();
+                      setMode('verify_reset_code');
+                    }}
+                    className="text-[10px] text-zinc-400 hover:text-[#C8962E] transition-all cursor-pointer flex items-center gap-1"
+                  >
+                    <span>{preferredLanguage === 'am' ? 'የይለፍ ቃል መቀየሪያ ኮድ አለዎት? እዚህ ያስገቡ' : 'Have a recovery code? Enter code'}</span>
+                    <ArrowRight className="w-3 h-3" />
                   </button>
                 </div>
               </div>
 
               {/* Remember Me box */}
               <div className="flex items-center justify-between py-1">
-                <label className="flex items-center gap-2 cursor-pointer">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="rounded border-slate-300 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900 text-amber-500 focus:ring-0 cursor-pointer"
+                    className="rounded border-zinc-800 bg-[#0a0f1d] text-[#C8962E] focus:ring-0 cursor-pointer w-3.5 h-3.5"
                   />
-                  <span className="text-[11px] text-slate-500 dark:text-zinc-400">Remember session (One-click Login)</span>
+                  <span className="text-[11px] text-zinc-400">{onboardingTranslations[preferredLanguage].rememberSession}</span>
                 </label>
               </div>
 
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 bg-gradient-to-r from-[#C8962E] to-[#B08123] hover:opacity-95 text-black font-serif font-extrabold text-xs tracking-wider uppercase rounded-lg cursor-pointer flex items-center justify-center gap-2 transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(200,150,46,0.2)]"
+                className="w-full py-3.5 bg-gradient-to-r from-[#C8962E] via-[#D4AF37] to-[#B08123] hover:brightness-105 active:scale-[0.99] text-black font-serif font-extrabold text-xs tracking-wider uppercase rounded-xl cursor-pointer flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(200,150,46,0.25)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <LogIn className="w-4 h-4 text-black" />
                 )}
-                <span>{loading ? "Signing in..." : "Sign in"}</span>
+                <span>{loading ? onboardingTranslations[preferredLanguage].signInLoading : onboardingTranslations[preferredLanguage].signInBtn}</span>
               </button>
 
               <div className="relative flex py-1 items-center">
-                <div className="flex-grow border-t border-slate-100 dark:border-zinc-900"></div>
-                <span className="flex-shrink mx-4 text-[10px] text-slate-400 dark:text-zinc-600 font-bold uppercase tracking-widest font-mono">or</span>
-                <div className="flex-grow border-t border-slate-100 dark:border-zinc-900"></div>
+                <div className="flex-grow border-t border-zinc-900"></div>
+                <span className="flex-shrink mx-4 text-[9px] text-zinc-600 font-bold uppercase tracking-widest font-mono">or</span>
+                <div className="flex-grow border-t border-zinc-900"></div>
               </div>
 
               <button
                 type="button"
                 onClick={handleGoogleAuth}
-                className="w-full py-3 bg-slate-50 hover:bg-slate-100 dark:bg-zinc-900/90 border border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 text-slate-700 dark:text-zinc-200 rounded-lg text-xs font-serif font-bold tracking-wide flex items-center justify-center gap-2 cursor-pointer shadow-sm transition-all"
+                className="w-full py-3 bg-[#0a0f1d] hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-200 rounded-xl text-xs font-serif font-bold tracking-wide flex items-center justify-center gap-2 cursor-pointer shadow-sm transition-all"
               >
                 <span className="text-sm">🌟</span>
-                <span>Sign in with Google</span>
+                <span>{onboardingTranslations[preferredLanguage].signInGoogleBtn}</span>
               </button>
             </form>
 
-            <div className="text-center pt-2 border-t border-slate-100 dark:border-zinc-900/60">
-              <p className="text-xs text-slate-500 dark:text-zinc-500">
-                Don't have an account?{' '}
+            <div className="text-center pt-3 border-t border-zinc-900 space-y-2">
+              <p className="text-xs text-zinc-400">
+                {onboardingTranslations[preferredLanguage].dontHaveAccount}{' '}
                 <button
                   type="button"
                   onClick={() => { playClickChime(); setMode('signup'); }}
-                  className="text-[#C8962E] font-bold hover:underline cursor-pointer"
+                  className="text-[#C8962E] font-bold hover:underline cursor-pointer ml-1"
                 >
-                  Sign up
+                  {onboardingTranslations[preferredLanguage].signUpNow}
                 </button>
+              </p>
+              
+              <p className="text-[9.5px] text-zinc-500 font-mono tracking-tight pt-1">
+                {onboardingTranslations[preferredLanguage].securityGuarantee}
               </p>
             </div>
           </motion.div>
@@ -3811,12 +3924,12 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.4 }}
-            className="w-full max-w-lg bg-[#0e1628]/95 backdrop-blur-md p-6 md:p-8 rounded-2xl border border-zinc-800/80 relative z-10 shadow-[0_0_50px_rgba(0,0,0,0.5)] space-y-6 my-auto transition-all duration-300"
+            className="w-full max-w-lg bg-[#0e1628]/95 backdrop-blur-md p-6 md:p-8 rounded-2xl border border-zinc-800/80 relative z-10 shadow-[0_0_50px_rgba(0,0,0,0.5)] space-y-5 my-auto transition-all duration-300"
           >
             {/* Logo, Tagline & Language Toggle */}
             <div className="flex flex-col items-center justify-center text-center">
-              <EthioLearnLogo size={64} className="animate-pulse drop-shadow-[0_0_12px_rgba(200,150,46,0.35)]" />
-              <h3 className="font-serif text-2xl font-black bg-gradient-to-r from-[#FFECA7] via-[#D4AF37] to-[#F3E5AB] bg-clip-text text-transparent tracking-tight mt-3">
+              <EthioLearnLogo size={56} className="drop-shadow-[0_0_12px_rgba(200,150,46,0.35)]" />
+              <h3 className="font-serif text-2xl font-black bg-gradient-to-r from-[#FFECA7] via-[#D4AF37] to-[#F3E5AB] bg-clip-text text-transparent tracking-tight mt-2.5">
                 EthioLearn Pro
               </h3>
               
@@ -3832,7 +3945,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
               </p>
 
               {/* Smooth Language Toggle Pill */}
-              <div className="flex justify-center items-center p-0.5 bg-[#090f1d] border border-zinc-800/60 rounded-xl max-w-[150px] mx-auto mt-4 w-full shadow-inner">
+              <div className="flex justify-center items-center p-0.5 bg-[#090f1d] border border-zinc-800/60 rounded-xl max-w-[150px] mx-auto mt-3.5 w-full shadow-inner">
                 <button
                   type="button"
                   onClick={() => { playClickChime(); setPreferredLanguage('en'); }}
@@ -3863,6 +3976,42 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                 <p className="font-medium">{infoMessage}</p>
               </div>
             )}
+
+            {/* 2-Step Registration Security Code Banner */}
+            <div className="bg-gradient-to-r from-[#111e38] to-[#0d1627] border border-[#C8962E]/40 rounded-xl p-3.5 space-y-2 shadow-sm">
+              <div className="flex items-start gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-[#C8962E]/20 border border-[#C8962E]/40 flex items-center justify-center text-[#C8962E] shrink-0 mt-0.5">
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-bold text-amber-200">
+                    {preferredLanguage === 'am' ? '🔐 ባለ 2-ደረጃ የተማሪ ደህንነት ማረጋገጫ' : '🔐 2-Step University Security Verification'}
+                  </p>
+                  <p className="text-[10px] text-zinc-300 mt-0.5 leading-relaxed">
+                    {preferredLanguage === 'am' 
+                      ? 'ምዝገባውን እንደጨረሱ ባለ 6-አሃዝ የማረጋገጫ ኮድ ይሰጥዎታል፤ ኮዱን ሳያረጋግጡ መተግበሪያውን መጠቀም አይቻልም።'
+                      : 'Upon registration, a 6-digit confirmation security code is issued. You must verify this code to unlock full portal access.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-1 flex items-center justify-between border-t border-zinc-800/80">
+                <span className="text-[9.5px] text-zinc-400">
+                  {preferredLanguage === 'am' ? 'ቀደም ሲል ተመዝግበዋል?' : 'Already have a pending code?'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playClickChime();
+                    setMode('verify_registration');
+                  }}
+                  className="text-[9.5px] font-bold text-[#C8962E] hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <span>{preferredLanguage === 'am' ? 'ኮዱን አስገባ' : 'Enter 6-Digit Code'}</span>
+                  <ArrowRight className="w-2.5 h-2.5" />
+                </button>
+              </div>
+            </div>
 
             {isPopupBlocked && (
               <div className="p-4 bg-amber-950/25 border border-amber-500/30 text-amber-200 text-xs rounded-xl space-y-3">
@@ -3900,8 +4049,6 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
               </div>
             )}
 
-            {/* DB Connection is established automatically in the background */}
-
             {/* Registration Form */}
             <form onSubmit={handleRegister} className="space-y-4">
               
@@ -3911,7 +4058,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                   {onboardingTranslations[preferredLanguage].fullName}
                 </label>
                 <div className="relative">
-                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500" />
+                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                   <input
                     type="text"
                     placeholder={onboardingTranslations[preferredLanguage].fullNamePlaceholder}
@@ -3934,7 +4081,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                   {onboardingTranslations[preferredLanguage].university}
                 </label>
                 <div className="relative">
-                  <Landmark className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500 pointer-events-none" />
+                  <Landmark className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
                   <input
                     type="text"
                     placeholder={onboardingTranslations[preferredLanguage].universityPlaceholder}
@@ -3956,6 +4103,25 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                     <span className="text-[10px]">▼</span>
                   </button>
                 </div>
+
+                {/* Popular Quick Campus Badges */}
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {['Wolkite University', 'Addis Ababa University', 'ASTU', 'Jimma University'].map((campus) => (
+                    <button
+                      key={campus}
+                      type="button"
+                      onClick={() => {
+                        setUniversity(campus);
+                        setUnivSearch(campus);
+                        if (universityError) setUniversityError(null);
+                      }}
+                      className={`text-[9.5px] px-2 py-0.5 rounded-md border transition-all cursor-pointer ${university === campus ? 'bg-[#C8962E]/20 border-[#C8962E] text-amber-200 font-bold' : 'bg-[#090f1d] border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'}`}
+                    >
+                      {campus === 'Wolkite University' ? '🏛️ WKU' : campus === 'Addis Ababa University' ? 'AAU' : campus}
+                    </button>
+                  ))}
+                </div>
+
                 {universityError && (
                   <p className="text-[11px] text-red-500 font-medium pl-1 mt-0.5 animate-pulse">{universityError}</p>
                 )}
@@ -3989,7 +4155,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                   {onboardingTranslations[preferredLanguage].email}
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500" />
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                   <input
                     type="email"
                     placeholder={onboardingTranslations[preferredLanguage].emailPlaceholder}
@@ -4012,7 +4178,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                   {onboardingTranslations[preferredLanguage].password}
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500" />
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                   <input
                     type={showPassword ? "text" : "password"}
                     placeholder={onboardingTranslations[preferredLanguage].passwordPlaceholder}
@@ -4042,7 +4208,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                   {onboardingTranslations[preferredLanguage].confirmPassword}
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-500" />
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                   <input
                     type={showPassword ? "text" : "password"}
                     placeholder={onboardingTranslations[preferredLanguage].confirmPasswordPlaceholder}
@@ -4105,7 +4271,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
             </form>
 
             {/* Login Link at the Bottom */}
-            <div className="text-center pt-4 border-t border-zinc-900">
+            <div className="text-center pt-3 border-t border-zinc-900 space-y-2">
               <p className="text-xs text-slate-400 font-medium">
                 {onboardingTranslations[preferredLanguage].alreadyHaveAccount}{' '}
                 <button
@@ -4115,6 +4281,10 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                 >
                   {onboardingTranslations[preferredLanguage].loginLink}
                 </button>
+              </p>
+              
+              <p className="text-[9.5px] text-zinc-500 font-mono tracking-tight pt-1">
+                {onboardingTranslations[preferredLanguage].securityGuarantee}
               </p>
             </div>
           </motion.div>
