@@ -18,7 +18,8 @@ import {
   fetchCoupons, createCoupon, deleteCoupon, fetchAnnouncements, createAnnouncement, 
   deleteAnnouncement 
 } from '../utils/supabaseCourses';
-import { testSupabaseConnection, ETHIOLEARN_SUPABASE_SQL_SCRIPT, getSupabase } from '../utils/supabaseClient';
+import { testSupabaseConnection, ETHIOLEARN_SUPABASE_SQL_SCRIPT, getSupabase, getAuthHeaders } from '../utils/supabaseClient';
+import { safeStorage } from '../utils/safeStorage';
 
 interface AdminDashboardViewProps {
   currentProfile: StudentProfile;
@@ -52,15 +53,24 @@ export default function AdminDashboardView({
     recentActivity: []
   });
 
-  // Database Diagnosis Modal state
+  // Database Diagnosis & Configuration state
   const [dbDiag, setDbDiag] = useState<{
     tested: boolean;
     success: boolean;
     message: string;
+    details?: string;
     tablesFound: string[];
     needsSqlSetup: boolean;
+    rlsWriteOk?: boolean;
   } | null>(null);
+  const [dbDiagCounts, setDbDiagCounts] = useState<Record<string, number>>({});
   const [showSqlCopied, setShowSqlCopied] = useState(false);
+  const [dbUrlInput, setDbUrlInput] = useState(() => safeStorage.getItem('ethiolearn_supabase_url') || '');
+  const [dbKeyInput, setDbKeyInput] = useState(() => safeStorage.getItem('ethiolearn_supabase_key') || '');
+  const [dbTesting, setDbTesting] = useState(false);
+  const [dbSaving, setDbSaving] = useState(false);
+  const [dbSyncing, setDbSyncing] = useState(false);
+  const [dbSyncSuccess, setDbSyncSuccess] = useState<string | null>(null);
 
   // --------------------------------------------------------------------------
   // COURSES MANAGEMENT STATE
@@ -546,6 +556,204 @@ export default function AdminDashboardView({
       }
     } finally {
       setStudentActionLoading(prev => ({ ...prev, [studentEmail]: false }));
+    }
+  };
+
+  // --------------------------------------------------------------------------
+  // DATABASE SYSTEM ACTIONS & DIAGNOSTICS
+  // --------------------------------------------------------------------------
+  const handleRunDatabaseDiagnostics = async () => {
+    setDbTesting(true);
+    playClickChime();
+    try {
+      // 1. Try server diagnostic first
+      let serverResult: any = null;
+      try {
+        const sRes = await fetch('/api/db/test-connection', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: dbUrlInput.trim(), key: dbKeyInput.trim() })
+        });
+        if (sRes.ok) {
+          serverResult = await sRes.json();
+        }
+      } catch (err) {}
+
+      // 2. Try client-side diagnostic
+      const clientResult = await testSupabaseConnection(dbUrlInput.trim(), dbKeyInput.trim());
+
+      const tablesFound = Array.from(new Set([
+        ...(clientResult.tablesFound || []),
+        ...(serverResult?.tablesFound || [])
+      ]));
+
+      const isSuccess = (serverResult && serverResult.success) || (clientResult.success && !clientResult.needsSqlSetup);
+      const isRlsBlocked = clientResult.message.includes('Row-Level Security') || serverResult?.message?.includes('Row-Level Security');
+
+      setDbDiag({
+        tested: true,
+        success: isSuccess,
+        message: serverResult?.message || clientResult.message,
+        details: serverResult?.details || clientResult.details,
+        tablesFound,
+        needsSqlSetup: clientResult.needsSqlSetup || isRlsBlocked || tablesFound.length === 0,
+        rlsWriteOk: serverResult?.rlsWriteOk ?? !isRlsBlocked
+      });
+
+      if (serverResult?.counts) {
+        setDbDiagCounts(serverResult.counts);
+      }
+
+      if (isSuccess) {
+        playSuccessChime();
+      } else {
+        playFailureChime();
+      }
+    } finally {
+      setDbTesting(false);
+    }
+  };
+
+  const handleSaveDatabaseCredentials = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanUrl = dbUrlInput.trim();
+    const cleanKey = dbKeyInput.trim();
+
+    if (!cleanUrl || !cleanKey) {
+      alert('Please provide both the Supabase Project URL and Anon/Service Key.');
+      return;
+    }
+
+    if (!cleanUrl.startsWith('https://')) {
+      alert('Supabase Project URL must start with https://');
+      return;
+    }
+
+    setDbSaving(true);
+    playClickChime();
+
+    try {
+      // 1. Save to local storage for browser client
+      safeStorage.setItem('ethiolearn_supabase_url', cleanUrl);
+      safeStorage.setItem('ethiolearn_supabase_key', cleanKey);
+
+      // 2. Notify backend server
+      try {
+        await fetch('/api/db/configure', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ url: cleanUrl, key: cleanKey })
+        });
+      } catch (e) {}
+
+      playSuccessChime();
+      setDbSyncSuccess('Supabase credentials saved successfully! Running diagnostics...');
+      setTimeout(() => setDbSyncSuccess(null), 4000);
+
+      // Automatically run diagnostics with new credentials
+      await handleRunDatabaseDiagnostics();
+      loadAllAdminData(true);
+    } catch (err: any) {
+      alert(`Error saving credentials: ${err.message}`);
+    } finally {
+      setDbSaving(false);
+    }
+  };
+
+  const handleSyncLocalDataToSupabase = async () => {
+    setDbSyncing(true);
+    playClickChime();
+    try {
+      const supa = getSupabase();
+      let syncedProfiles = 0;
+      let syncedCourses = 0;
+      let syncedPayments = 0;
+      let syncedAnnouncements = 0;
+
+      // 1. Sync accounts to student_profiles
+      const rawAccounts = safeStorage.getItem('ethiolearn_accounts');
+      if (rawAccounts) {
+        try {
+          const accs = JSON.parse(rawAccounts);
+          if (Array.isArray(accs)) {
+            for (const acc of accs) {
+              const prof = acc.profile || {};
+              const email = (acc.email || prof.email || '').toLowerCase().trim();
+              if (email) {
+                try {
+                  await fetch('/api/db/student-profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      email,
+                      name: prof.name || email.split('@')[0],
+                      university: prof.university || 'Wolkite University',
+                      year: prof.year || 'Freshman',
+                      subjects: prof.subjects || [],
+                      isPro: Boolean(prof.isPro || isAdministratorEmail(email)),
+                      userRole: isAdministratorEmail(email) ? 'super_admin' : (prof.userRole || 'student'),
+                      profileData: prof,
+                      url: dbUrlInput.trim(),
+                      key: dbKeyInput.trim()
+                    })
+                  });
+                  syncedProfiles++;
+                } catch (e) {}
+              }
+            }
+          }
+        } catch (e) {}
+      }
+
+      // 2. Sync courses if supa available
+      if (supa && courses.length > 0) {
+        for (const c of courses) {
+          try {
+            await supa.from('courses').upsert({
+              id: c.id,
+              title: c.title,
+              description: c.description || '',
+              subject: c.subject,
+              level: c.level || 'University',
+              status: c.status || 'published',
+              lessons_count: c.lessonsCount || 0,
+              goal_days: c.goalDays || 14,
+              instructor_name: c.instructorName || 'EthioLearn Faculty',
+              thumbnail_url: c.thumbnailUrl || '',
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'id' });
+            syncedCourses++;
+          } catch (e) {}
+        }
+      }
+
+      // 3. Sync announcements
+      if (supa && announcements.length > 0) {
+        for (const a of announcements) {
+          try {
+            await supa.from('announcements').upsert({
+              id: a.id,
+              title: a.title,
+              message: a.message,
+              badge_text: a.badgeText || 'Notice',
+              is_important: Boolean(a.isImportant),
+              status: a.status || 'published',
+              date: a.date || new Date().toISOString().split('T')[0]
+            }, { onConflict: 'id' });
+            syncedAnnouncements++;
+          } catch (e) {}
+        }
+      }
+
+      playSuccessChime();
+      setDbSyncSuccess(`Sync completed! Synced ${syncedProfiles} student profiles, ${syncedCourses} courses, and ${syncedAnnouncements} announcements to Supabase.`);
+      setTimeout(() => setDbSyncSuccess(null), 6000);
+      await handleRunDatabaseDiagnostics();
+      loadAllAdminData(true);
+    } catch (e: any) {
+      alert(`Sync encountered error: ${e.message}`);
+    } finally {
+      setDbSyncing(false);
     }
   };
 
@@ -1434,19 +1642,192 @@ export default function AdminDashboardView({
           )}
 
           {/* ================================================================ */}
-          {/* TAB 7: DATABASE SCHEMA & 1-CLICK SQL SCRIPT                      */}
+          {/* TAB 7: DATABASE SYSTEM & SUPABASE CONTROL CENTER                 */}
           {/* ================================================================ */}
           {activeTab === 'database' && (
-            <div className="space-y-4">
-              <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3">
+            <div className="space-y-6">
+              {/* Status & Quick Action Hero */}
+              <div className="p-5 rounded-2xl bg-slate-900/95 border border-slate-800 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2.5 h-2.5 rounded-full ${
+                        dbDiag?.success ? 'bg-emerald-400 animate-pulse' : 
+                        dbDiag?.needsSqlSetup ? 'bg-amber-400 animate-pulse' : 'bg-slate-500'
+                      }`} />
+                      <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                        <Database className="w-4 h-4 text-amber-400" />
+                        <span>Supabase PostgreSQL Database Management</span>
+                      </h4>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Configure your cloud database, run real-time write/read diagnostics, and synchronize student records.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={handleRunDatabaseDiagnostics}
+                      disabled={dbTesting}
+                      className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs cursor-pointer flex items-center gap-1.5 border border-slate-700 transition-all disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${dbTesting ? 'animate-spin' : ''}`} />
+                      <span>{dbTesting ? 'Testing DB...' : 'Test Connection & Schema'}</span>
+                    </button>
+
+                    <button
+                      onClick={handleSyncLocalDataToSupabase}
+                      disabled={dbSyncing}
+                      className="px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold text-xs cursor-pointer flex items-center gap-1.5 border border-emerald-500/30 transition-all disabled:opacity-50"
+                    >
+                      <ArrowUpRight className={`w-3.5 h-3.5 ${dbSyncing ? 'animate-spin' : ''}`} />
+                      <span>{dbSyncing ? 'Syncing...' : 'Sync Local Data to Supabase'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Feedback Alerts */}
+                {dbSyncSuccess && (
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 shrink-0" />
+                    <span>{dbSyncSuccess}</span>
+                  </div>
+                )}
+
+                {/* Live Diagnostic Results Card */}
+                {dbDiag && (
+                  <div className={`p-4 rounded-xl border ${
+                    dbDiag.success 
+                      ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-200' 
+                      : dbDiag.needsSqlSetup 
+                        ? 'bg-amber-950/30 border-amber-500/40 text-amber-200' 
+                        : 'bg-red-950/30 border-red-500/40 text-red-200'
+                  } space-y-3`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2">
+                        {dbDiag.success ? (
+                          <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                        ) : (
+                          <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                        )}
+                        <div>
+                          <p className="text-xs font-bold">{dbDiag.message}</p>
+                          {dbDiag.details && (
+                            <p className="text-[11px] opacity-90 mt-1">{dbDiag.details}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold shrink-0 ${
+                        dbDiag.success 
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
+                          : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                      }`}>
+                        {dbDiag.success ? 'Operational' : 'Action Required'}
+                      </span>
+                    </div>
+
+                    {/* Table Status Badges */}
+                    {dbDiag.tablesFound && dbDiag.tablesFound.length > 0 && (
+                      <div className="pt-2 border-t border-slate-800/80">
+                        <span className="text-[10px] uppercase font-mono tracking-wider text-slate-400 block mb-1.5">
+                          Verified Active Database Tables:
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {dbDiag.tablesFound.map(tbl => (
+                            <span 
+                              key={tbl} 
+                              className="px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-mono text-slate-300 flex items-center gap-1"
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                              <span>{tbl}</span>
+                              {typeof dbDiagCounts[tbl] === 'number' && (
+                                <span className="text-amber-400 text-[10px] font-bold">({dbDiagCounts[tbl]})</span>
+                              )}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Supabase API Credentials Configuration */}
+              <form onSubmit={handleSaveDatabaseCredentials} className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-4">
                 <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                      <Key className="w-3.5 h-3.5" />
+                      <span>Supabase API Configuration</span>
+                    </h4>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Set your Supabase Project URL and Anon Key to enable live persistence across all devices.
+                    </p>
+                  </div>
+                  <a 
+                    href="https://supabase.com/dashboard" 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="text-xs text-amber-400 hover:underline flex items-center gap-1 font-mono"
+                  >
+                    <span>Supabase Dashboard</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-mono block mb-1">
+                      Project URL (e.g. https://your-project.supabase.co)
+                    </label>
+                    <input
+                      type="url"
+                      required
+                      value={dbUrlInput}
+                      onChange={(e) => setDbUrlInput(e.target.value)}
+                      placeholder="https://xyzcompany.supabase.co"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-800 bg-slate-950 text-slate-100 text-xs font-mono outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-slate-400 font-mono block mb-1">
+                      Supabase Anon / Service Key
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      value={dbKeyInput}
+                      onChange={(e) => setDbKeyInput(e.target.value)}
+                      placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      className="w-full px-3 py-2 rounded-xl border border-slate-800 bg-slate-950 text-slate-100 text-xs font-mono outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    type="submit"
+                    disabled={dbSaving || !dbUrlInput.trim() || !dbKeyInput.trim()}
+                    className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>{dbSaving ? 'Saving & Testing...' : 'Save & Verify API Configuration'}</span>
+                  </button>
+                </div>
+              </form>
+
+              {/* 3-Step Setup Guide & Master SQL Script */}
+              <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
                   <div>
                     <h4 className="text-sm font-bold text-white flex items-center gap-2">
                       <Database className="w-4 h-4 text-amber-400" />
-                      <span>PostgreSQL Database Table Schema (Supabase)</span>
+                      <span>PostgreSQL Master Database Schema (Supabase SQL Script)</span>
                     </h4>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      Copy and run this idempotent SQL script in your Supabase SQL Editor to initialize all tables with RLS and triggers.
+                      This script initializes all tables (<span className="font-mono text-amber-400">student_profiles</span>, <span className="font-mono text-amber-400">courses</span>, <span className="font-mono text-amber-400">lessons</span>, <span className="font-mono text-amber-400">payments</span>, <span className="font-mono text-amber-400">coupons</span>, <span className="font-mono text-amber-400">announcements</span>, <span className="font-mono text-amber-400">ethiolearn_sync</span>) and configures full RLS access policies.
                     </p>
                   </div>
 
@@ -1454,16 +1835,43 @@ export default function AdminDashboardView({
                     onClick={() => {
                       navigator.clipboard.writeText(ETHIOLEARN_SUPABASE_SQL_SCRIPT);
                       setShowSqlCopied(true);
-                      setTimeout(() => setShowSqlCopied(false), 2000);
+                      setTimeout(() => setShowSqlCopied(false), 2500);
                     }}
-                    className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs cursor-pointer flex items-center gap-1.5 shadow-sm"
+                    className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs cursor-pointer flex items-center gap-1.5 shadow-sm shrink-0"
                   >
-                    {showSqlCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    {showSqlCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5 text-slate-950" />}
                     <span>{showSqlCopied ? 'Copied to Clipboard!' : 'Copy SQL Script'}</span>
                   </button>
                 </div>
 
-                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 font-mono text-[11px] text-slate-300 max-h-72 overflow-y-auto whitespace-pre">
+                {/* 3 Steps */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="p-3 bg-slate-950 rounded-xl border border-slate-800/80 space-y-1">
+                    <span className="text-[10px] font-mono font-bold text-amber-400">STEP 1</span>
+                    <h5 className="text-xs font-bold text-white">Open SQL Editor</h5>
+                    <p className="text-[11px] text-slate-400">
+                      Go to your Supabase Dashboard project and click the <strong>SQL Editor</strong> tab on the left sidebar.
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-slate-950 rounded-xl border border-slate-800/80 space-y-1">
+                    <span className="text-[10px] font-mono font-bold text-amber-400">STEP 2</span>
+                    <h5 className="text-xs font-bold text-white">Paste SQL Script</h5>
+                    <p className="text-[11px] text-slate-400">
+                      Click <strong>+ New Query</strong>, paste the copied SQL script into the query window.
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-slate-950 rounded-xl border border-slate-800/80 space-y-1">
+                    <span className="text-[10px] font-mono font-bold text-amber-400">STEP 3</span>
+                    <h5 className="text-xs font-bold text-white">Click Run</h5>
+                    <p className="text-[11px] text-slate-400">
+                      Hit the green <strong>Run</strong> button. Tables and open RLS policies will be instantly generated!
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-3.5 bg-slate-950 rounded-xl border border-slate-800 font-mono text-[11px] text-slate-300 max-h-72 overflow-y-auto whitespace-pre selection:bg-amber-500 selection:text-slate-950">
                   {ETHIOLEARN_SUPABASE_SQL_SCRIPT}
                 </div>
               </div>

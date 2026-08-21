@@ -38,11 +38,29 @@ export const PRIMARY_ADMIN_EMAIL = 'ezrat2116@gmail.com';
 
 // Cache for authenticated Supabase client
 let supabaseAdminClient: SupabaseClient | null = null;
+let customSupabaseUrl: string = '';
+let customSupabaseKey: string = '';
+
+export function setSupabaseAdminCredentials(url: string, key: string): boolean {
+  if (!url || !key) return false;
+  try {
+    customSupabaseUrl = url.trim();
+    customSupabaseKey = key.trim();
+    supabaseAdminClient = createClient(customSupabaseUrl, customSupabaseKey, {
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
+    return true;
+  } catch (e) {
+    console.warn('[Security] Error setting custom Supabase credentials:', e);
+    return false;
+  }
+}
 
 export function getSupabaseAdmin(): SupabaseClient | null {
   if (supabaseAdminClient) return supabaseAdminClient;
-  const url = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
+  const url = (customSupabaseUrl || process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
   const serviceKey = (
+    customSupabaseKey ||
     process.env.SUPABASE_SERVICE_ROLE_KEY || 
     process.env.SUPABASE_SECRET_KEY || 
     process.env.SUPABASE_KEY || 

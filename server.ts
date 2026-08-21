@@ -23,6 +23,7 @@ import {
   verifyTelegramInitData, 
   PRIMARY_ADMIN_EMAIL,
   getSupabaseAdmin,
+  setSupabaseAdminCredentials,
   sanitizeInput
 } from './server/security';
 
@@ -697,6 +698,212 @@ app.get(['/api/supabase-config', '/api/supabase-config/'], (req: Request, res: R
       ''
     ).trim();
     return res.json({ url, anonKey });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// Student Profile Registration & Upsert Endpoint (Server-Side Persistence Bridge)
+app.post(['/api/db/student-profile', '/api/db/student-profile/'], async (req: Request, res: Response) => {
+  try {
+    const { email, name, university, year, subjects, isPro, userRole, referralCode, profileData, url, key } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Student email is required.' });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const cleanName = (name || cleanEmail.split('@')[0] || 'Student').trim();
+
+    // If client passes custom Supabase credentials, register them
+    if (url && key) {
+      setSupabaseAdminCredentials(url, key);
+    }
+
+    const supabase = getSupabaseAdmin();
+    if (!supabase) {
+      return res.status(503).json({ 
+        error: 'Supabase is not configured on the server. Please configure your Supabase URL & Key in Admin Console.',
+        storedLocally: true 
+      });
+    }
+
+    const dbRecord: any = {
+      email: cleanEmail,
+      name: cleanName,
+      university: university || 'Wolkite University',
+      year: year || 'Freshman',
+      subjects: Array.isArray(subjects) ? subjects : [],
+      is_pro: Boolean(isPro),
+      user_role: userRole || (cleanEmail === PRIMARY_ADMIN_EMAIL.toLowerCase() ? 'super_admin' : 'student'),
+      updated_at: new Date().toISOString()
+    };
+
+    if (referralCode) dbRecord.referral_code = referralCode;
+    if (profileData) dbRecord.profile_data = profileData;
+
+    const { data, error } = await supabase
+      .from('student_profiles')
+      .upsert(dbRecord, { onConflict: 'email' })
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.warn('[Server DB Student Profile Upsert Error]:', error.message);
+      return res.status(500).json({ 
+        error: error.message, 
+        details: 'Failed to write to student_profiles table. Please check RLS policies.' 
+      });
+    }
+
+    return res.json({ 
+      success: true, 
+      message: 'Student account registered and saved to Supabase successfully!', 
+      student: data || dbRecord 
+    });
+  } catch (e: any) {
+    console.error('[Server DB Student Profile Exception]:', e);
+    return res.status(500).json({ error: e.message || 'Internal error saving student profile' });
+  }
+});
+
+// Supabase Connection Diagnostic & Health Check Endpoint
+app.post(['/api/db/test-connection', '/api/db/test-connection/'], async (req: Request, res: Response) => {
+  try {
+    const { url, key } = req.body;
+    
+    let targetClient: any = null;
+    if (url && key) {
+      try {
+        targetClient = createClient(url.trim(), key.trim(), {
+          auth: { persistSession: false, autoRefreshToken: false }
+        });
+      } catch (clientErr: any) {
+        return res.status(400).json({ 
+          success: false, 
+          message: `Client initialization failed: ${clientErr.message}` 
+        });
+      }
+    } else {
+      targetClient = getSupabaseAdmin();
+    }
+
+    if (!targetClient) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'No Supabase URL and Key provided or configured.' 
+      });
+    }
+
+    const tablesFound: string[] = [];
+    const counts: Record<string, number> = {};
+
+    const tableNames = ['student_profiles', 'courses', 'lessons', 'payments', 'coupons', 'announcements', 'ethiolearn_sync', 'books', 'subscriptions', 'course_progress'];
+
+    for (const t of tableNames) {
+      try {
+        const { count, error } = await targetClient
+          .from(t)
+          .select('*', { count: 'exact', head: true });
+        
+        if (!error) {
+          tablesFound.push(t);
+          counts[t] = count ?? 0;
+        }
+      } catch (e) {}
+    }
+
+    // Verify Write & RLS access on student_profiles
+    let rlsWriteBlocked = false;
+    let rlsErrorMsg = '';
+    const testEmail = `server_diag_${Date.now()}@ethiolearn.test`;
+
+    if (tablesFound.includes('student_profiles')) {
+      try {
+        const { error: insErr } = await targetClient
+          .from('student_profiles')
+          .upsert({
+            email: testEmail,
+            name: 'Server Diag Ping',
+            university: 'Wolkite University',
+            year: 'Freshman',
+            is_pro: false,
+            user_role: 'student',
+            updated_at: new Date().toISOString()
+          });
+
+        if (insErr) {
+          rlsWriteBlocked = true;
+          rlsErrorMsg = insErr.message;
+        } else {
+          // Clean up test row
+          await targetClient.from('student_profiles').delete().eq('email', testEmail);
+        }
+      } catch (e: any) {
+        rlsWriteBlocked = true;
+        rlsErrorMsg = e.message;
+      }
+    }
+
+    if (tablesFound.length === 0) {
+      return res.json({
+        success: false,
+        message: 'Connected to Supabase project REST API, but no database tables were found.',
+        details: 'Please copy and run the 1-click SQL setup script in your Supabase SQL Editor to create the required tables.',
+        tablesFound: [],
+        counts: {},
+        needsSqlSetup: true
+      });
+    }
+
+    if (rlsWriteBlocked) {
+      return res.json({
+        success: false,
+        message: 'Tables found, but Row-Level Security (RLS) is blocking data registration!',
+        details: `Error: ${rlsErrorMsg}. Please run the updated SQL setup script in Supabase SQL Editor to add public and anon access policies.`,
+        tablesFound,
+        counts,
+        needsSqlSetup: true
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: `Supabase database is fully operational! Verified tables: [${tablesFound.join(', ')}].`,
+      tablesFound,
+      counts,
+      rlsWriteOk: true,
+      needsSqlSetup: false
+    });
+  } catch (e: any) {
+    return res.status(500).json({ success: false, message: e.message || 'Server error testing connection' });
+  }
+});
+
+// Configure Supabase Credentials Endpoint
+app.post(['/api/db/configure', '/api/db/configure/'], requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { url, key } = req.body;
+    if (!url || !key) {
+      return res.status(400).json({ error: 'Supabase URL and Key are required.' });
+    }
+
+    const cleanUrl = url.trim();
+    const cleanKey = key.trim();
+
+    if (!cleanUrl.startsWith('https://')) {
+      return res.status(400).json({ error: 'Supabase URL must start with https://' });
+    }
+
+    const ok = setSupabaseAdminCredentials(cleanUrl, cleanKey);
+    if (!ok) {
+      return res.status(400).json({ error: 'Failed to initialize Supabase client with given credentials.' });
+    }
+
+    return res.json({ 
+      success: true, 
+      message: 'Supabase credentials saved and active on server!' 
+    });
   } catch (e: any) {
     return res.status(500).json({ error: e.message });
   }

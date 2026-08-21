@@ -1475,8 +1475,10 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
       }
     }
 
-    // 2. Try Supabase Auth registration
+    // 2. Try Supabase Auth and Student Profile registration
     const supa = getSupabase();
+    let supabasePersisted = false;
+
     if (supa) {
       try {
         const { data, error } = await supa.auth.signUp({
@@ -1496,9 +1498,15 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
           console.warn('[Supabase Auth SignUp Notice]:', error.message);
         }
 
-        await supa
+        const { error: upsertErr } = await supa
           .from('student_profiles')
           .upsert(payloadRecord, { onConflict: 'email' });
+
+        if (!upsertErr) {
+          supabasePersisted = true;
+        } else {
+          console.warn('[Supabase Profile Upsert Notice]:', upsertErr.message);
+        }
 
         if (data?.user && !data.session) {
           setInfoMessage(preferredLanguage === 'am' ? "አካውንትዎ ተፈጥሯል! እባክዎን አስፈላጊ ከሆነ ኢሜይልዎን ያረጋግጡ።" : "Account registered successfully! Please check your email inbox if verification was requested.");
@@ -1506,6 +1514,30 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
       } catch (err: any) {
         console.warn('[Supabase Register Fallback Warning]:', err);
       }
+    }
+
+    // 2.1 Always ensure server database persistence bridge runs
+    try {
+      const customUrl = safeStorage.getItem('ethiolearn_supabase_url') || '';
+      const customKey = safeStorage.getItem('ethiolearn_supabase_key') || '';
+      await fetch('/api/db/student-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: emailTrim,
+          name: nameTrim,
+          university: univTrim,
+          year,
+          subjects: selectedSubjects,
+          isPro: isAdministratorEmail(emailTrim),
+          userRole: isAdministratorEmail(emailTrim) ? 'super_admin' : 'student',
+          profileData: profile,
+          url: customUrl,
+          key: customKey
+        })
+      });
+    } catch (serverErr) {
+      console.warn('[Server DB Student Profile Bridge Warning]:', serverErr);
     }
 
     // 3. Save local account storage
