@@ -31,6 +31,7 @@ import {
 import EthioLearnLogo from './EthioLearnLogo';
 import StudentAvatarSelector from './StudentAvatarSelector';
 import StudentAvatar from './StudentAvatar';
+import LegalPrivacyTermsModal from './LegalPrivacyTermsModal';
 import { safeStorage } from '../utils/safeStorage';
 import { isAdministratorEmail } from '../utils/adminAuth';
 
@@ -144,6 +145,10 @@ export const onboardingTranslations = {
     enterResetCode: "Enter Code",
     dontHaveAccount: "Don't have an account?",
     signUpNow: "Create Free Account",
+    termsLink: "Terms of Service",
+    privacyLink: "Privacy Policy",
+    termsAndPrivacyPrefix: "By accessing EthioLearn Pro, you agree to our",
+    andWord: "and",
     securityGuarantee: "256-bit encrypted authentication • Official Ethiopian academic network standard"
   },
   am: {
@@ -219,6 +224,10 @@ export const onboardingTranslations = {
     enterResetCode: "ኮድ አስገባ",
     dontHaveAccount: "አዲስ ተማሪ ነዎት? መለያ የለዎትም?",
     signUpNow: "አዲስ መለያ በነፃ ይፍጠሩ",
+    termsLink: "የአጠቃቀም ደንቦች",
+    privacyLink: "የግላዊነት ፖሊሲ",
+    termsAndPrivacyPrefix: "በመቀጠልዎ፣ በኢትዮ ለርን ፕሮ",
+    andWord: "እና",
     securityGuarantee: "በ256-ቢት የተጠበቀ የተማሪ ደህንነት • ይፋዊ የኢትዮጵያ ዩኒቨርሲቲዎች የአካዳሚክ ስርዓት"
   }
 };
@@ -578,6 +587,10 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
   const [pendingPasswordString, setPendingPasswordString] = useState('');
   const [codeCopiedToast, setCodeCopiedToast] = useState(false);
   const [codeError, setCodeError] = useState<string | null>(null);
+
+  // Legal Privacy & Terms modal states
+  const [showLegalModal, setShowLegalModal] = useState(false);
+  const [legalModalTab, setLegalModalTab] = useState<'terms' | 'privacy'>('terms');
 
   // Resend code countdown timer
   useEffect(() => {
@@ -1235,7 +1248,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
     if (!emailTrim) {
       setEmailError(preferredLanguage === 'am' ? "ኢሜይል አድራሻ ያስፈልጋል።" : "Email address is required.");
       hasValidationError = true;
-    } else if (!emailTrim.includes('@')) {
+    } else if (!emailTrim.includes('@') || !emailTrim.includes('.')) {
       setEmailError(preferredLanguage === 'am' ? "እባክዎን ትክክለኛ የኢሜይል አድራሻ ያስገቡ።" : "Please enter a valid email address.");
       hasValidationError = true;
     }
@@ -1265,48 +1278,102 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
       }
     } catch (e) {}
 
-    // Check fast local match first (case-insensitive email & password check)
-    const localMatch = currentAccounts.find(
-      acc => acc.email.toLowerCase() === emailTrim && (
-        acc.passwordEncrypted === passwordTrim || 
-        acc.passwordEncrypted === 'google_authenticated' ||
-        !acc.passwordEncrypted
-      )
-    );
+    // Check local accounts for mismatch
+    const localExistingAccount = currentAccounts.find(acc => acc.email.toLowerCase() === emailTrim);
+    if (localExistingAccount && localExistingAccount.passwordEncrypted && localExistingAccount.passwordEncrypted !== 'google_authenticated') {
+      if (localExistingAccount.passwordEncrypted !== passwordTrim) {
+        setPasswordError(preferredLanguage === 'am' ? "የይለፍ ቃል የተሳሳተ ነው። እባክዎ እንደገና ይሞክሩ ወይም 'የይለፍ ቃል ረሱ?' የሚለውን ይጫኑ።" : "Incorrect password. Please verify your credentials or reset your password.");
+        playFailureChime();
+        setLoading(false);
+        return;
+      }
+    }
 
-    if (localMatch) {
-      const profileToUse = { ...localMatch.profile, isRegistered: true };
+    // 2. Call server /api/auth/login endpoint for strict authentication against database
+    try {
+      const loginRes = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailTrim, password: passwordTrim })
+      });
+      const loginData = await loginRes.json();
       
-      const newAccount: AccountInfo = {
+      if (loginRes.ok && loginData.user) {
+        const profileToUse: StudentProfile = {
+          name: loginData.user.name || emailTrim.split('@')[0],
+          email: emailTrim,
+          university: loginData.user.university || "Wolkite University",
+          year: loginData.user.year || "University",
+          subjects: loginData.user.subjects || subjectsList,
+          claudeApiKey: "",
+          dailyGoalHours: 2,
+          theme: 'dark',
+          language: preferredLanguage === 'am' ? 'am' : 'en',
+          avatar: loginData.user.avatar || 'champion',
+          isRegistered: true,
+          isPro: Boolean(loginData.user.is_pro),
+          unregisteredAICredits: 5
+        };
+
+        const newAccount: AccountInfo = {
+          email: emailTrim,
+          passwordEncrypted: passwordTrim,
+          rememberMe: rememberMe,
+          profile: profileToUse
+        };
+        const updatedAccs = [...currentAccounts.filter(acc => acc.email.toLowerCase() !== emailTrim), newAccount];
+        setRegisteredAccounts(updatedAccs);
+        safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updatedAccs));
+        safeStorage.setItem('ethiolearn_active_email', emailTrim);
+        safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(profileToUse));
+        safeStorage.setItem('ethiolearn_has_seen_onboarding', 'true');
+
+        if (rememberMe) {
+          safeStorage.setItem('ethiolearn_remember_login', JSON.stringify({
+            email: emailTrim,
+            password: passwordTrim,
+            rememberMe: true
+          }));
+        } else {
+          safeStorage.removeItem('ethiolearn_remember_login');
+        }
+
+        try {
+          await syncAuthSessionWithServer({
+            email: emailTrim,
+            role: isAdministratorEmail(emailTrim) ? 'admin' : 'student',
+            displayName: profileToUse.name
+          });
+        } catch (tokErr) {}
+
+        playSuccessChime();
+        setLoading(false);
+        onComplete(profileToUse);
+        return;
+      } else if (loginRes.status === 401) {
+        setPasswordError(preferredLanguage === 'am' ? "የይለፍ ቃል የተሳሳተ ነው። እባክዎ እንደገና ይሞክሩ ወይም 'የይለፍ ቃል ረሱ?' የሚለውን ይጫኑ።" : "Incorrect password. Please verify your credentials or reset your password.");
+        playFailureChime();
+        setLoading(false);
+        return;
+      }
+    } catch (serverErr) {
+      console.warn('[Server Login API Check]:', serverErr);
+    }
+
+    // 3. Check exact local match if offline or server fallback
+    if (localExistingAccount && localExistingAccount.passwordEncrypted === passwordTrim) {
+      const profileToUse = { ...localExistingAccount.profile, isRegistered: true };
+      const updatedAccs = [...currentAccounts.filter(acc => acc.email.toLowerCase() !== emailTrim), {
         email: emailTrim,
         passwordEncrypted: passwordTrim,
         rememberMe: rememberMe,
         profile: profileToUse
-      };
-      const updatedAccs = [...currentAccounts.filter(acc => acc.email.toLowerCase() !== emailTrim), newAccount];
+      }];
       setRegisteredAccounts(updatedAccs);
       safeStorage.setItem('ethiolearn_accounts', JSON.stringify(updatedAccs));
       safeStorage.setItem('ethiolearn_active_email', emailTrim);
       safeStorage.setItem('ethiolearn_current_profile', JSON.stringify(profileToUse));
       safeStorage.setItem('ethiolearn_has_seen_onboarding', 'true');
-
-      if (rememberMe) {
-        safeStorage.setItem('ethiolearn_remember_login', JSON.stringify({
-          email: emailTrim,
-          password: passwordTrim,
-          rememberMe: true
-        }));
-      } else {
-        safeStorage.removeItem('ethiolearn_remember_login');
-      }
-
-      try {
-        await syncAuthSessionWithServer({
-          email: emailTrim,
-          role: isAdministratorEmail(emailTrim) ? 'admin' : 'student',
-          displayName: profileToUse.name
-        });
-      } catch (tokErr) {}
 
       playSuccessChime();
       setLoading(false);
@@ -1314,7 +1381,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
       return;
     }
 
-    // 2. Try Firebase Auth
+    // 4. Try Firebase Auth with strict credentials
     if (auth) {
       try {
         const userCredential = await signInWithEmailAndPassword(auth, emailTrim, passwordTrim);
@@ -1378,10 +1445,16 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
         }
       } catch (fbErr: any) {
         console.warn('[Firebase Auth Login attempt]:', fbErr?.message || fbErr);
+        if (fbErr?.code === 'auth/wrong-password' || fbErr?.code === 'auth/invalid-credential') {
+          setPasswordError(preferredLanguage === 'am' ? "የይለፍ ቃል የተሳሳተ ነው። እባክዎ እንደገና ይሞክሩ ወይም 'የይለፍ ቃል ረሱ?' የሚለውን ይጫኑ።" : "Incorrect password. Please verify your credentials or reset your password.");
+          playFailureChime();
+          setLoading(false);
+          return;
+        }
       }
     }
 
-    // 3. Try Supabase Auth and database lookup
+    // 5. Try Supabase Auth and database lookup
     const supa = getSupabase();
     if (supa) {
       try {
@@ -1407,7 +1480,14 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
 
         const tablePasswordMatch = supaRecord?.profile_data?.password === passwordTrim;
 
-        if (authSuccess || tablePasswordMatch || (supaRecord && !supaRecord.profile_data?.password)) {
+        if (supaRecord && supaRecord.profile_data?.password && supaRecord.profile_data.password !== passwordTrim && !authSuccess) {
+          setPasswordError(preferredLanguage === 'am' ? "የይለፍ ቃል የተሳሳተ ነው። እባክዎ እንደገና ይሞክሩ ወይም 'የይለፍ ቃል ረሱ?' የሚለውን ይጫኑ።" : "Incorrect password. Please verify your credentials or reset your password.");
+          playFailureChime();
+          setLoading(false);
+          return;
+        }
+
+        if (authSuccess || tablePasswordMatch) {
           let profile: StudentProfile;
 
           if (supaRecord && supaRecord.profile_data) {
@@ -1423,32 +1503,6 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
               isRegistered: true,
               isPro: Boolean(supaRecord.is_pro || supaRecord.profile_data.isPro)
             };
-
-            if (supaRecord.study_sessions && Array.isArray(supaRecord.study_sessions)) {
-              safeStorage.setItem('ethiolearn_study_sessions', JSON.stringify(supaRecord.study_sessions));
-            }
-            if (supaRecord.notes_data && Array.isArray(supaRecord.notes_data)) {
-              safeStorage.setItem('ethiolearn_custom_notes', JSON.stringify(supaRecord.notes_data));
-            }
-            if (supaRecord.performance_data && typeof supaRecord.performance_data === 'object') {
-              safeStorage.setItem('ethiolearn_quiz_perf', JSON.stringify(supaRecord.performance_data));
-            }
-          } else if (supaRecord) {
-            profile = {
-              name: supaRecord.name || emailTrim.split('@')[0],
-              email: emailTrim,
-              university: supaRecord.university || "Wolkite University",
-              year: supaRecord.year || "Freshman",
-              subjects: Array.isArray(supaRecord.subjects) && supaRecord.subjects.length > 0 ? supaRecord.subjects : subjectsList,
-              claudeApiKey: "",
-              dailyGoalHours: 2,
-              theme: 'dark',
-              language: preferredLanguage === 'am' ? 'am' : 'en',
-              avatar: 'champion',
-              isRegistered: true,
-              isPro: Boolean(supaRecord.is_pro),
-              unregisteredAICredits: 5
-            };
           } else {
             profile = {
               name: supaUserObj?.user_metadata?.display_name || emailTrim.split('@')[0],
@@ -1460,31 +1514,11 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
               dailyGoalHours: 2,
               theme: 'dark',
               language: preferredLanguage === 'am' ? 'am' : 'en',
-              avatar: supaUserObj?.user_metadata?.avatar || 'champion',
+              avatar: 'champion',
               isRegistered: true,
+              isPro: false,
               unregisteredAICredits: 5
             };
-
-            try {
-              await supa.from('student_profiles').upsert({
-                email: emailTrim,
-                name: profile.name,
-                university: profile.university,
-                year: profile.year,
-                subjects: profile.subjects,
-                is_pro: false,
-                user_role: isAdministratorEmail(emailTrim) ? 'admin' : 'student',
-                profile_data: {
-                  ...profile,
-                  password: passwordTrim
-                },
-                study_sessions: [],
-                notes_data: [],
-                performance_data: {},
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              }, { onConflict: 'email' });
-            } catch (uErr) {}
           }
 
           const newAccount: AccountInfo = {
@@ -1529,10 +1563,9 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
       }
     }
 
-    // 4. Check if account exists with different password
-    const existingUser = currentAccounts.find(acc => acc.email.toLowerCase() === emailTrim);
-    if (existingUser) {
-      setAuthError(preferredLanguage === 'am' ? "የይለፍ ቃል የተሳሳተ ነው። እባክዎ እንደገና ይሞክሩ ወይም 'የይለፍ ቃል ረሱ?' የሚለውን ይጫኑ።" : "Incorrect password. Please try again or click 'Forgot password?' to reset.");
+    // 6. Account exists with different password or not found
+    if (localExistingAccount) {
+      setPasswordError(preferredLanguage === 'am' ? "የይለፍ ቃል የተሳሳተ ነው። እባክዎ እንደገና ይሞክሩ ወይም 'የይለፍ ቃል ረሱ?' የሚለውን ይጫኑ።" : "Incorrect password. Please verify your credentials or reset your password.");
     } else {
       setAuthError(preferredLanguage === 'am' ? "በዚህ ኢሜይል የተመዘገበ አካውንት አልተገኘም። እባክዎ አዲስ አካውንት ለመፍጠር 'ይመዝገቡ' የሚለውን ይጫኑ።" : "No student account found with this email. Click 'Sign up' to create one.");
     }
@@ -3303,7 +3336,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
               </button>
             </form>
 
-            <div className="text-center pt-3 border-t border-zinc-900 space-y-2">
+            <div className="text-center pt-3 border-t border-zinc-900 space-y-2.5">
               <p className="text-xs text-zinc-400">
                 {onboardingTranslations[preferredLanguage].dontHaveAccount}{' '}
                 <button
@@ -3315,7 +3348,25 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                 </button>
               </p>
               
-              <p className="text-[9.5px] text-zinc-500 font-mono tracking-tight pt-1">
+              <div className="flex items-center justify-center gap-2 text-[10px] text-zinc-500">
+                <button
+                  type="button"
+                  onClick={() => { playClickChime(); setLegalModalTab('terms'); setShowLegalModal(true); }}
+                  className="hover:text-amber-400 transition-colors underline cursor-pointer"
+                >
+                  {onboardingTranslations[preferredLanguage].termsLink}
+                </button>
+                <span>•</span>
+                <button
+                  type="button"
+                  onClick={() => { playClickChime(); setLegalModalTab('privacy'); setShowLegalModal(true); }}
+                  className="hover:text-amber-400 transition-colors underline cursor-pointer"
+                >
+                  {onboardingTranslations[preferredLanguage].privacyLink}
+                </button>
+              </div>
+
+              <p className="text-[9.5px] text-zinc-500 font-mono tracking-tight pt-0.5">
                 {onboardingTranslations[preferredLanguage].securityGuarantee}
               </p>
             </div>
@@ -4271,7 +4322,7 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
             </form>
 
             {/* Login Link at the Bottom */}
-            <div className="text-center pt-3 border-t border-zinc-900 space-y-2">
+            <div className="text-center pt-3 border-t border-zinc-900 space-y-2.5">
               <p className="text-xs text-slate-400 font-medium">
                 {onboardingTranslations[preferredLanguage].alreadyHaveAccount}{' '}
                 <button
@@ -4282,8 +4333,26 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
                   {onboardingTranslations[preferredLanguage].loginLink}
                 </button>
               </p>
+
+              <div className="flex items-center justify-center gap-2 text-[10px] text-zinc-500">
+                <button
+                  type="button"
+                  onClick={() => { playClickChime(); setLegalModalTab('terms'); setShowLegalModal(true); }}
+                  className="hover:text-amber-400 transition-colors underline cursor-pointer"
+                >
+                  {onboardingTranslations[preferredLanguage].termsLink}
+                </button>
+                <span>•</span>
+                <button
+                  type="button"
+                  onClick={() => { playClickChime(); setLegalModalTab('privacy'); setShowLegalModal(true); }}
+                  className="hover:text-amber-400 transition-colors underline cursor-pointer"
+                >
+                  {onboardingTranslations[preferredLanguage].privacyLink}
+                </button>
+              </div>
               
-              <p className="text-[9.5px] text-zinc-500 font-mono tracking-tight pt-1">
+              <p className="text-[9.5px] text-zinc-500 font-mono tracking-tight pt-0.5">
                 {onboardingTranslations[preferredLanguage].securityGuarantee}
               </p>
             </div>
@@ -4291,6 +4360,14 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
         )}
 
       </AnimatePresence>
+
+      {/* Privacy Policy & Terms of Service Full Modal */}
+      <LegalPrivacyTermsModal
+        isOpen={showLegalModal}
+        onClose={() => setShowLegalModal(false)}
+        language={preferredLanguage === 'am' ? 'am' : 'en'}
+        initialTab={legalModalTab}
+      />
     </div>
   );
 }

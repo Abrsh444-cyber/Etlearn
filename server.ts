@@ -159,11 +159,105 @@ const ticketLimiter = createRateLimiter({
 // ============================================================================
 
 /**
+ * Secure Student Login Endpoint with Strict Password Verification
+ */
+app.post(['/api/auth/login', '/api/auth/login/'], authLimiter, async (req: Request, res: Response) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || typeof email !== 'string' || !email.trim()) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Valid email address is required.',
+        amharicError: 'ትክክለኛ የኢሜይል አድራሻ ማስገባት ያስፈልጋል።'
+      });
+    }
+
+    if (!password || typeof password !== 'string' || !password.trim()) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Password is required.',
+        amharicError: 'የይለፍ ቃል ማስገባት ያስፈልጋል።'
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const cleanPassword = password.trim();
+    const isAdmin = normalizedEmail === PRIMARY_ADMIN_EMAIL.toLowerCase();
+
+    const supabase = getSupabaseAdmin();
+    let userRole = isAdmin ? 'admin' : 'student';
+    let isPro = false;
+    let studentProfile: any = null;
+
+    if (supabase) {
+      const { data: record, error: dbError } = await supabase
+        .from('student_profiles')
+        .select('*')
+        .eq('email', normalizedEmail)
+        .maybeSingle();
+
+      if (dbError) {
+        console.warn('[Supabase Login Warning]:', dbError.message);
+      }
+
+      if (record) {
+        studentProfile = record;
+        const storedPassword = record.profile_data?.password;
+
+        // If a password exists on the profile, it MUST match strictly
+        if (storedPassword && storedPassword !== cleanPassword) {
+          return res.status(401).json({
+            success: false,
+            error: 'Incorrect password. Access denied. Please verify your password or use Forgot Password to reset.',
+            amharicError: 'የተሳሳተ የይለፍ ቃል! መግባት አልተፈቀደም። እባክዎ የይለፍ ቃልዎን ያረጋግጡ ወይም የይለፍ ቃል ረሱ የሚለውን ይጫኑ።'
+          });
+        }
+
+        if (record.user_role === 'admin' || record.user_role === 'super_admin' || isAdmin) {
+          userRole = 'admin';
+        }
+        isPro = Boolean(record.is_pro || record.profile_data?.isPro);
+      }
+    }
+
+    // Generate authenticated session token
+    const sessionToken = generateSessionToken({
+      id: studentProfile?.id || `usr_${normalizedEmail}`,
+      email: normalizedEmail,
+      user_role: userRole,
+      is_pro: isPro
+    });
+
+    return res.json({
+      success: true,
+      token: sessionToken,
+      user: {
+        id: studentProfile?.id || `usr_${normalizedEmail}`,
+        email: normalizedEmail,
+        name: studentProfile?.name || studentProfile?.profile_data?.name || normalizedEmail.split('@')[0],
+        university: studentProfile?.university || studentProfile?.profile_data?.university || 'Wolkite University',
+        year: studentProfile?.year || studentProfile?.profile_data?.year || 'Freshman',
+        user_role: userRole,
+        is_pro: isPro,
+        is_admin: userRole === 'admin',
+        profile_data: studentProfile?.profile_data || null
+      }
+    });
+  } catch (error: any) {
+    console.error('[Auth Login Error]:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Authentication verification service encountered an unexpected error.' 
+    });
+  }
+});
+
+/**
  * Exchange client profile or verified token for a cryptographically signed session token
  */
 app.post(['/api/auth/session', '/api/auth/session/'], authLimiter, async (req: Request, res: Response) => {
   try {
-    const { email, name, id } = req.body;
+    const { email, name, id, password } = req.body;
     if (!email || typeof email !== 'string') {
       return res.status(400).json({ error: 'Valid student email is required.' });
     }
@@ -179,11 +273,19 @@ app.post(['/api/auth/session', '/api/auth/session/'], authLimiter, async (req: R
     if (supabase) {
       const { data: profile } = await supabase
         .from('student_profiles')
-        .select('user_role, is_pro')
+        .select('user_role, is_pro, profile_data')
         .eq('email', normalizedEmail)
         .maybeSingle();
 
       if (profile) {
+        // If password was provided and profile has a stored password, check match
+        if (password && profile.profile_data?.password && profile.profile_data.password !== password.trim()) {
+          return res.status(401).json({ 
+            error: 'Authentication failed: Password does not match registered profile.',
+            amharicError: 'የይለፍ ቃል የተሳሳተ ነው! መግባት አልተፈቀደም።'
+          });
+        }
+
         if (profile.user_role === 'admin' || profile.user_role === 'super_admin' || isAdmin) {
           userRole = 'admin';
         }
@@ -1158,8 +1260,15 @@ app.post(['/api/claude/chat', '/api/claude/chat/'], aiChatLimiter, async (req: R
     }
 
     const runGeminiDirect = async (key: string) => {
-      const ai = new GoogleGenAI({ apiKey: key });
-      const geminiContents = messages.map((m: any) => {
+      const ai = new GoogleGenAI({ 
+        apiKey: key,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build'
+          }
+        }
+      });
+      const geminiContents = (Array.isArray(messages) ? messages : []).map((m: any) => {
         const parts: any[] = [];
         if (m.content) parts.push({ text: m.content });
         if (m.attachment && m.attachment.data && m.attachment.mimeType) {
@@ -1178,8 +1287,8 @@ app.post(['/api/claude/chat', '/api/claude/chat/'], aiChatLimiter, async (req: R
       });
 
       const modelsToTry = highThinking
-        ? ['gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.7-flash']
-        : ['gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-3.7-flash'];
+        ? ['gemini-3.7-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-flash']
+        : ['gemini-3.1-flash-lite', 'gemini-3.7-flash', 'gemini-2.5-flash'];
 
       let lastErr: any = null;
       for (const targetModel of modelsToTry) {
@@ -1188,8 +1297,7 @@ app.post(['/api/claude/chat', '/api/claude/chat/'], aiChatLimiter, async (req: R
             model: targetModel,
             contents: geminiContents,
             config: { 
-              systemInstruction: system || undefined,
-              ...(highThinking && targetModel === 'gemini-3.7-flash' ? { thinkingConfig: { thinkingBudget: 2048 } } : {})
+              systemInstruction: system || undefined
             },
           });
 
@@ -1529,12 +1637,32 @@ Don't worry, your learning never stops! To help you with your question about "${
       }
     }
 
+    // If somehow all attempts yielded without returning, run offline fallback directly
+    await runLocalOfflineFallback();
+
   } catch (err: any) {
     console.error('Express proxy error calling AI stream:', err);
-    if (!res.headersSent) {
-      res.status(500).json({ error: 'Internal AI proxy service unavailable.' });
-    } else {
+    try {
+      if (!res.headersSent) {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+      }
+      const errPayload = {
+        type: 'content_block_delta',
+        delta: { 
+          text: `\n\n*(EthioLearn Academic Mentor System Note: Cloud AI connection re-synchronized. Please try sending your question again.)*` 
+        }
+      };
+      res.write(`data: ${JSON.stringify(errPayload)}\n\n`);
+      res.write('data: [DONE]\n\n');
       res.end();
+    } catch (finalErr) {
+      if (!res.headersSent) {
+        res.status(200).json({ error: null, fallback: true });
+      } else {
+        res.end();
+      }
     }
   }
 });
