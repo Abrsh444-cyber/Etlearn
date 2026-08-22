@@ -288,15 +288,14 @@ export default function App() {
 
       const payloadRecord = {
         email,
-        name: activeProfile.name || email.split('@')[0],
-        university: activeProfile.university || 'Wolkite University',
-        year: activeProfile.year || 'Freshman',
-        subjects: Array.isArray(activeProfile.subjects) ? activeProfile.subjects : [],
-        is_pro: Boolean(activeProfile.isPro || activeProfile.tier?.includes('pro')),
-        user_role: isAdministratorEmail(email) ? 'admin' : 'student',
-        referral_code: activeProfile.referralCode || null,
         profile_data: {
           ...activeProfile,
+          name: activeProfile.name || email.split('@')[0],
+          university: activeProfile.university || 'Wolkite University',
+          year: activeProfile.year || 'Freshman',
+          subjects: Array.isArray(activeProfile.subjects) ? activeProfile.subjects : [],
+          isPro: Boolean(activeProfile.isPro || activeProfile.tier?.includes('pro')),
+          userRole: isAdministratorEmail(email) ? 'admin' : 'student',
           password
         },
         study_sessions: studySessions,
@@ -585,18 +584,18 @@ export default function App() {
 
             const payloadRecord = {
               email: email,
-              name: profile.name || email.split('@')[0],
-              university: profile.university || 'Wolkite University',
-              year: profile.year || 'Freshman',
-              subjects: Array.isArray(profile.subjects) ? profile.subjects : [],
-              is_pro: Boolean(profile.isPro),
-              user_role: isAdministratorEmail(email) ? 'admin' : 'student',
-              referral_code: profile.referralCode || null,
-              profile_data: profile,
+              profile_data: {
+                ...profile,
+                name: profile.name || email.split('@')[0],
+                university: profile.university || 'Wolkite University',
+                year: profile.year || 'Freshman',
+                subjects: Array.isArray(profile.subjects) ? profile.subjects : [],
+                isPro: Boolean(profile.isPro),
+                userRole: isAdministratorEmail(email) ? 'admin' : 'student'
+              },
               study_sessions: studySessions,
               notes_data: notesData,
               performance_data: performanceData,
-              created_at: new Date().toISOString(),
               updated_at: new Date().toISOString()
             };
 

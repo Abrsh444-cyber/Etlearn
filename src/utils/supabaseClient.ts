@@ -448,11 +448,10 @@ export async function testSupabaseConnection(overrideUrl?: string, overrideKey?:
       const testEmail = `diagnostic_ping_${Date.now()}@ethiolearn.internal`;
       const { error: insertErr } = await client.from('student_profiles').upsert({
         email: testEmail,
-        name: 'Diagnostic Health Ping',
-        university: 'Wolkite University',
-        year: 'Freshman',
-        is_pro: false,
-        user_role: 'student',
+        profile_data: { name: 'Diagnostic Health Ping', isPro: false, userRole: 'student' },
+        study_sessions: [],
+        notes_data: [],
+        performance_data: {},
         updated_at: new Date().toISOString()
       });
       if (insertErr) {

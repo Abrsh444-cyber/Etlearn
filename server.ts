@@ -213,10 +213,12 @@ app.post(['/api/auth/login', '/api/auth/login/'], authLimiter, async (req: Reque
           });
         }
 
-        if (record.user_role === 'admin' || record.user_role === 'super_admin' || isAdmin) {
+        const pd = record.profile_data || {};
+        const role = pd.userRole || pd.user_role || record.user_role;
+        if (role === 'admin' || role === 'super_admin' || isAdmin) {
           userRole = 'admin';
         }
-        isPro = Boolean(record.is_pro || record.profile_data?.isPro);
+        isPro = Boolean(pd.isPro || pd.is_pro || record.is_pro);
       }
     }
 
@@ -273,7 +275,7 @@ app.post(['/api/auth/session', '/api/auth/session/'], authLimiter, async (req: R
     if (supabase) {
       const { data: profile } = await supabase
         .from('student_profiles')
-        .select('user_role, is_pro, profile_data')
+        .select('email, profile_data, updated_at')
         .eq('email', normalizedEmail)
         .maybeSingle();
 
@@ -286,10 +288,12 @@ app.post(['/api/auth/session', '/api/auth/session/'], authLimiter, async (req: R
           });
         }
 
-        if (profile.user_role === 'admin' || profile.user_role === 'super_admin' || isAdmin) {
+        const pd = profile.profile_data || {};
+        const role = pd.userRole || pd.user_role;
+        if (role === 'admin' || role === 'super_admin' || isAdmin) {
           userRole = 'admin';
         }
-        isPro = Boolean(profile.is_pro);
+        isPro = Boolean(pd.isPro || pd.is_pro);
       }
     }
 
@@ -345,18 +349,25 @@ app.post(['/api/telegram/auth', '/api/telegram/auth/'], authLimiter, async (req:
         .maybeSingle();
 
       if (existing) {
-        userRole = existing.user_role || 'student';
-        isPro = Boolean(existing.is_pro);
+        const pd = existing.profile_data || {};
+        userRole = pd.userRole || pd.user_role || 'student';
+        isPro = Boolean(pd.isPro || pd.is_pro);
       } else {
         await supabase
           .from('student_profiles')
           .insert({
             email: syntheticEmail,
-            name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username || 'Student',
-            university: 'Wolkite University',
-            year: 'Freshman',
-            is_pro: false,
-            user_role: 'student'
+            profile_data: {
+              name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username || 'Student',
+              university: 'Wolkite University',
+              year: 'Freshman',
+              isPro: false,
+              userRole: 'student'
+            },
+            study_sessions: [],
+            notes_data: [],
+            performance_data: {},
+            updated_at: new Date().toISOString()
           });
       }
     }
@@ -830,19 +841,33 @@ app.post(['/api/db/student-profile', '/api/db/student-profile/'], async (req: Re
       });
     }
 
-    const dbRecord: any = {
-      email: cleanEmail,
+    const existingDataRes = await supabase
+      .from('student_profiles')
+      .select('profile_data, study_sessions, notes_data, performance_data')
+      .eq('email', cleanEmail)
+      .maybeSingle();
+
+    const existingProfileData = existingDataRes?.data?.profile_data || {};
+    const mergedProfileData = {
+      ...existingProfileData,
+      ...(profileData || {}),
       name: cleanName,
-      university: university || 'Wolkite University',
-      year: year || 'Freshman',
-      subjects: Array.isArray(subjects) ? subjects : [],
-      is_pro: Boolean(isPro),
-      user_role: userRole || (cleanEmail === PRIMARY_ADMIN_EMAIL.toLowerCase() ? 'super_admin' : 'student'),
-      updated_at: new Date().toISOString()
+      university: university || existingProfileData.university || 'Wolkite University',
+      year: year || existingProfileData.year || 'Freshman',
+      subjects: Array.isArray(subjects) ? subjects : (existingProfileData.subjects || []),
+      isPro: typeof isPro === 'boolean' ? isPro : (existingProfileData.isPro || false),
+      userRole: userRole || existingProfileData.userRole || (cleanEmail === PRIMARY_ADMIN_EMAIL.toLowerCase() ? 'super_admin' : 'student'),
+      referralCode: referralCode || existingProfileData.referralCode || null
     };
 
-    if (referralCode) dbRecord.referral_code = referralCode;
-    if (profileData) dbRecord.profile_data = profileData;
+    const dbRecord: any = {
+      email: cleanEmail,
+      profile_data: mergedProfileData,
+      study_sessions: (profileData && profileData.studySessions) || existingDataRes?.data?.study_sessions || [],
+      notes_data: (profileData && profileData.notesData) || existingDataRes?.data?.notes_data || [],
+      performance_data: (profileData && profileData.performanceData) || existingDataRes?.data?.performance_data || {},
+      updated_at: new Date().toISOString()
+    };
 
     const { data, error } = await supabase
       .from('student_profiles')
@@ -861,7 +886,16 @@ app.post(['/api/db/student-profile', '/api/db/student-profile/'], async (req: Re
     return res.json({ 
       success: true, 
       message: 'Student account registered and saved to Supabase successfully!', 
-      student: data || dbRecord 
+      student: {
+        email: cleanEmail,
+        name: cleanName,
+        university: mergedProfileData.university,
+        year: mergedProfileData.year,
+        is_pro: mergedProfileData.isPro,
+        user_role: mergedProfileData.userRole,
+        profile_data: mergedProfileData,
+        updated_at: dbRecord.updated_at
+      }
     });
   } catch (e: any) {
     console.error('[Server DB Student Profile Exception]:', e);
@@ -1070,7 +1104,6 @@ app.post(['/api/auth/reset-password', '/api/auth/reset-password/'], async (req: 
           .from('student_profiles')
           .upsert({
             email: cleanEmail,
-            name: existing?.name || cleanEmail.split('@')[0],
             profile_data: updatedProfileData,
             updated_at: new Date().toISOString()
           }, { onConflict: 'email' });
@@ -1147,11 +1180,10 @@ app.post(['/api/db/test-connection', '/api/db/test-connection/'], async (req: Re
           .from('student_profiles')
           .upsert({
             email: testEmail,
-            name: 'Server Diag Ping',
-            university: 'Wolkite University',
-            year: 'Freshman',
-            is_pro: false,
-            user_role: 'student',
+            profile_data: { name: 'Server Diag Ping', isPro: false, userRole: 'student' },
+            study_sessions: [],
+            notes_data: [],
+            performance_data: {},
             updated_at: new Date().toISOString()
           });
 

@@ -1797,21 +1797,19 @@ export default function SplashOnboarding({ onComplete, initialProfile }: SplashO
 
     const payloadRecord = {
       email: emailTrim,
-      name: nameTrim,
-      university: univTrim,
-      year: profile.year,
-      subjects: profile.subjects,
-      is_pro: isAdministratorEmail(emailTrim),
-      user_role: isAdministratorEmail(emailTrim) ? 'super_admin' : 'student',
-      referral_code: null,
       profile_data: {
         ...profile,
+        name: nameTrim,
+        university: univTrim,
+        year: profile.year,
+        subjects: profile.subjects,
+        isPro: isAdministratorEmail(emailTrim),
+        userRole: isAdministratorEmail(emailTrim) ? 'super_admin' : 'student',
         password: passwordTrim
       },
       study_sessions: [],
       notes_data: [],
       performance_data: {},
-      created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
 

@@ -1196,11 +1196,22 @@ export async function updatePaymentStatus(paymentId: string, status: 'completed'
     // Also update Supabase student profile if available
     if (supabase && targetEmail) {
       try {
-        supabase
+        const { data: existingProf } = await supabase
           .from('student_profiles')
-          .update({ is_pro: true, pro_status: 'active' })
+          .select('profile_data')
           .eq('email', targetEmail)
-          .then(() => {});
+          .maybeSingle();
+
+        const updatedProfileData = {
+          ...(existingProf?.profile_data || {}),
+          isPro: true,
+          proStatus: 'active'
+        };
+
+        await supabase
+          .from('student_profiles')
+          .update({ profile_data: updatedProfileData, updated_at: new Date().toISOString() })
+          .eq('email', targetEmail);
       } catch {}
     }
   }
@@ -1357,17 +1368,25 @@ export async function adminUpdateStudentProfile(
   const supabase = getSupabase();
   if (supabase) {
     try {
-      const dbUpdates: any = { updated_at: new Date().toISOString() };
-      if (typeof updates.isPro === 'boolean') {
-        dbUpdates.is_pro = updates.isPro;
-        dbUpdates.pro_status = updates.isPro ? 'active' : 'inactive';
-      }
-      if (updates.userRole) {
-        dbUpdates.user_role = updates.userRole;
-      }
+      const { data: existingProf } = await supabase
+        .from('student_profiles')
+        .select('profile_data')
+        .eq('email', cleanEmail)
+        .maybeSingle();
+
+      const existingPd = existingProf?.profile_data || {};
+      const updatedPd = {
+        ...existingPd,
+        ...(typeof updates.isPro === 'boolean' ? { isPro: updates.isPro, proStatus: updates.isPro ? 'active' : 'inactive' } : {}),
+        ...(updates.userRole ? { userRole: updates.userRole } : {})
+      };
+
       await supabase
         .from('student_profiles')
-        .update(dbUpdates)
+        .update({
+          profile_data: updatedPd,
+          updated_at: new Date().toISOString()
+        })
         .eq('email', cleanEmail);
     } catch (e: any) {
       console.warn('Supabase student update error:', e.message);

@@ -182,17 +182,18 @@ async function fetchUserRoleAndStatus(emailOrId: string): Promise<{ user_role: '
     try {
       const { data, error } = await supabase
         .from('student_profiles')
-        .select('email, user_role, is_pro, name')
-        .or(`email.eq.${normalized},id.eq.${normalized}`)
+        .select('email, profile_data')
+        .eq('email', normalized)
         .maybeSingle();
 
       if (!error && data) {
-        const role = data.user_role as any;
+        const pd = data.profile_data || {};
+        const role = pd.userRole || pd.user_role;
         const validRole = ['student', 'instructor', 'admin', 'super_admin'].includes(role) ? role : 'student';
         return {
           user_role: isAdminByEmail ? 'admin' : validRole,
-          is_pro: Boolean(data.is_pro),
-          name: data.name
+          is_pro: Boolean(pd.isPro || pd.is_pro),
+          name: pd.name || normalized.split('@')[0]
         };
       }
     } catch (e) {

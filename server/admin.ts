@@ -179,10 +179,22 @@ export async function handleAdminPaymentAction(req: Request, res: Response) {
     if (action === 'approve') {
       const studentEmail = (payment.user_id || '').toLowerCase().trim();
       if (studentEmail) {
-        // Upgrade student profile to Pro
+        // Fetch existing profile to update profile_data.isPro safely
+        const { data: existingProf } = await supabase
+          .from('student_profiles')
+          .select('profile_data')
+          .eq('email', studentEmail)
+          .maybeSingle();
+
+        const updatedProfileData = {
+          ...(existingProf?.profile_data || {}),
+          isPro: true,
+          proStatus: 'active'
+        };
+
         await supabase
           .from('student_profiles')
-          .update({ is_pro: true, updated_at: new Date().toISOString() })
+          .update({ profile_data: updatedProfileData, updated_at: new Date().toISOString() })
           .eq('email', studentEmail);
 
         // Calculate subscription end date (30 days standard, 21 days for exam pass)
@@ -231,21 +243,34 @@ export async function getAdminStudents(req: Request, res: Response) {
     }
 
     const { q, role } = req.query;
-    let query = supabase
+    const { data, error } = await supabase
       .from('student_profiles')
-      .select('email, name, university, year, is_pro, user_role, created_at, updated_at')
-      .order('created_at', { ascending: false });
+      .select('email, profile_data, updated_at')
+      .order('updated_at', { ascending: false });
 
-    if (role && typeof role === 'string' && role !== 'all') {
-      query = query.eq('user_role', role);
-    }
-
-    const { data, error } = await query;
     if (error) {
+      console.warn('[Admin API] Failed to fetch student profiles:', error.message);
       return res.status(500).json({ error: error.message });
     }
 
-    let results = data || [];
+    let results = (data || []).map(row => {
+      const pd = row.profile_data || {};
+      return {
+        email: row.email,
+        name: pd.name || row.email.split('@')[0],
+        university: pd.university || 'Wolkite University',
+        year: pd.year || 'Freshman',
+        is_pro: Boolean(pd.isPro || pd.is_pro),
+        user_role: pd.userRole || pd.user_role || (row.email === 'ezrat2116@gmail.com' ? 'super_admin' : 'student'),
+        created_at: pd.createdAt || row.updated_at,
+        updated_at: row.updated_at
+      };
+    });
+
+    if (role && typeof role === 'string' && role !== 'all') {
+      results = results.filter(s => s.user_role === role);
+    }
+
     if (q && typeof q === 'string' && q.trim()) {
       const search = q.toLowerCase().trim();
       results = results.filter(s => 
@@ -487,22 +512,26 @@ export async function handleAdminUpdateStudent(req: Request, res: Response) {
       return res.status(500).json({ error: 'Database service unavailable' });
     }
 
-    const updates: any = {
-      updated_at: new Date().toISOString()
+    // Fetch existing profile to update profile_data
+    const { data: existingProf } = await supabase
+      .from('student_profiles')
+      .select('profile_data')
+      .eq('email', cleanEmail)
+      .maybeSingle();
+
+    const existingPd = existingProf?.profile_data || {};
+    const updatedPd = {
+      ...existingPd,
+      ...(typeof isPro === 'boolean' ? { isPro, proStatus: isPro ? 'active' : 'inactive' } : {}),
+      ...(userRole && ['student', 'admin', 'faculty', 'super_admin'].includes(userRole) ? { userRole } : {})
     };
-
-    if (typeof isPro === 'boolean') {
-      updates.is_pro = isPro;
-      updates.pro_status = isPro ? 'active' : 'inactive';
-    }
-
-    if (userRole && ['student', 'admin', 'faculty', 'super_admin'].includes(userRole)) {
-      updates.user_role = userRole;
-    }
 
     const { data: updatedProfile, error: profErr } = await supabase
       .from('student_profiles')
-      .update(updates)
+      .update({
+        profile_data: updatedPd,
+        updated_at: new Date().toISOString()
+      })
       .eq('email', cleanEmail)
       .select()
       .maybeSingle();
@@ -532,7 +561,7 @@ export async function handleAdminUpdateStudent(req: Request, res: Response) {
     return res.json({
       success: true,
       message: `Student ${cleanEmail} updated successfully.`,
-      student: updatedProfile || { email: cleanEmail, ...updates }
+      student: updatedProfile || { email: cleanEmail, profile_data: updatedPd }
     });
   } catch (error: any) {
     console.error('[Admin API] Update student error:', error);
