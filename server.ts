@@ -903,6 +903,55 @@ app.post(['/api/db/student-profile', '/api/db/student-profile/'], async (req: Re
   }
 });
 
+// GET Student Profile Endpoint
+app.get(['/api/db/student-profile', '/api/db/student-profile/'], async (req: Request, res: Response) => {
+  try {
+    const email = (req.query.email as string || '').toLowerCase().trim();
+    if (!email) {
+      return res.status(400).json({ error: 'Email parameter is required.' });
+    }
+
+    const supabase = getSupabaseAdmin();
+    if (!supabase) {
+      return res.json({ success: false, message: 'Database client not initialized' });
+    }
+
+    const { data, error } = await supabase
+      .from('student_profiles')
+      .select('email, profile_data, study_sessions, notes_data, performance_data, updated_at')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    if (!data) {
+      return res.status(404).json({ error: 'Student profile not found.' });
+    }
+
+    const pd = data.profile_data || {};
+    return res.json({
+      success: true,
+      student: {
+        email: data.email,
+        name: pd.name || data.email.split('@')[0],
+        university: pd.university || 'Wolkite University',
+        year: pd.year || 'Freshman',
+        is_pro: Boolean(pd.isPro || pd.is_pro),
+        user_role: pd.userRole || pd.user_role || (data.email.toLowerCase() === PRIMARY_ADMIN_EMAIL.toLowerCase() ? 'super_admin' : 'student'),
+        profile_data: pd,
+        study_sessions: data.study_sessions || [],
+        notes_data: data.notes_data || [],
+        performance_data: data.performance_data || {},
+        updated_at: data.updated_at
+      }
+    });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
 // Verification Code & Student Notification Store (In-Memory with Time-To-Live)
 interface VerificationStoreItem {
   code: string;
