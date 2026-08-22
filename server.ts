@@ -1259,18 +1259,31 @@ app.post(['/api/claude/chat', '/api/claude/chat/'], aiChatLimiter, async (req: R
       }
     }
 
-    const runGeminiDirect = async (key: string) => {
-      const ai = new GoogleGenAI({ 
+    const runGeminiDirect = async (key?: string) => {
+      const ai = key ? new GoogleGenAI({ 
         apiKey: key,
         httpOptions: {
           headers: {
             'User-Agent': 'aistudio-build'
           }
         }
+      }) : new GoogleGenAI({
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build'
+          }
+        }
       });
-      const geminiContents = (Array.isArray(messages) ? messages : []).map((m: any) => {
+
+      const normalizedContents: { role: 'user' | 'model'; parts: any[] }[] = [];
+      const rawList = Array.isArray(messages) ? messages : [];
+
+      for (const m of rawList) {
+        const role: 'user' | 'model' = (m.role === 'assistant' || m.role === 'model') ? 'model' : 'user';
         const parts: any[] = [];
-        if (m.content) parts.push({ text: m.content });
+        if (m.content && typeof m.content === 'string' && m.content.trim()) {
+          parts.push({ text: m.content.trim() });
+        }
         if (m.attachment && m.attachment.data && m.attachment.mimeType) {
           parts.push({
             inlineData: {
@@ -1279,23 +1292,37 @@ app.post(['/api/claude/chat', '/api/claude/chat/'], aiChatLimiter, async (req: R
             }
           });
         }
-        if (parts.length === 0) parts.push({ text: '' });
-        return {
-          role: m.role === 'assistant' ? 'model' : 'user',
-          parts
-        };
-      });
+        if (parts.length === 0) {
+          if (m.content === '') continue;
+          parts.push({ text: '' });
+        }
+
+        if (normalizedContents.length > 0 && normalizedContents[normalizedContents.length - 1].role === role) {
+          normalizedContents[normalizedContents.length - 1].parts.push(...parts);
+        } else {
+          normalizedContents.push({ role, parts });
+        }
+      }
+
+      // Gemini requires starting with a 'user' turn
+      while (normalizedContents.length > 0 && normalizedContents[0].role === 'model') {
+        normalizedContents.shift();
+      }
+
+      if (normalizedContents.length === 0) {
+        normalizedContents.push({ role: 'user', parts: [{ text: 'Hello' }] });
+      }
 
       const modelsToTry = highThinking
-        ? ['gemini-3.7-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-flash']
-        : ['gemini-3.1-flash-lite', 'gemini-3.7-flash', 'gemini-2.5-flash'];
+        ? ['gemini-2.5-flash', 'gemini-3.7-flash', 'gemini-2.5-pro']
+        : ['gemini-2.5-flash', 'gemini-3.7-flash', 'gemini-2.5-pro'];
 
       let lastErr: any = null;
       for (const targetModel of modelsToTry) {
         try {
           const stream = await ai.models.generateContentStream({
             model: targetModel,
-            contents: geminiContents,
+            contents: normalizedContents,
             config: { 
               systemInstruction: system || undefined
             },
@@ -1608,7 +1635,11 @@ Don't worry, your learning never stops! To help you with your question about "${
 
     const geminiKey = process.env.GEMINI_API_KEY || (cachedMasterApiKey && (cachedMasterApiKey.startsWith('AIza') || (!cachedMasterApiKey.startsWith('gsk_') && !cachedMasterApiKey.startsWith('sk-'))) ? cachedMasterApiKey : undefined);
     if (geminiKey && isValidServiceKey(geminiKey)) {
-      attempts.push({ name: 'Server Gemini Direct', run: () => runGeminiDirect(geminiKey) });
+      attempts.push({ name: 'Server Gemini Direct (Keyed)', run: () => runGeminiDirect(geminiKey) });
+    } else if (process.env.GEMINI_API_KEY) {
+      attempts.push({ name: 'Server Gemini Direct (Env)', run: () => runGeminiDirect(process.env.GEMINI_API_KEY) });
+    } else {
+      attempts.push({ name: 'Server Gemini Direct (Ambient)', run: () => runGeminiDirect() });
     }
 
     const groqKey = process.env.GROQ_API_KEY || (cachedMasterApiKey && cachedMasterApiKey.startsWith('gsk_') ? cachedMasterApiKey : undefined);

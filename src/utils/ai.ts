@@ -70,11 +70,13 @@ export async function submitClaudeChat(
 
       const ai = new GoogleGenAI({ apiKey: apiKey });
 
-      // Convert messages format to Gemini contents schema
-      const geminiContents = messages.map((m: any) => {
+      // Convert messages format to Gemini contents schema with proper turn normalization
+      const geminiContents: { role: 'user' | 'model'; parts: any[] }[] = [];
+      for (const m of messages) {
+        const role: 'user' | 'model' = (m.role === 'assistant') ? 'model' : 'user';
         const parts: any[] = [];
-        if (m.content) {
-          parts.push({ text: m.content });
+        if (m.content && typeof m.content === 'string' && m.content.trim()) {
+          parts.push({ text: m.content.trim() });
         }
         if (m.attachment && m.attachment.data && m.attachment.mimeType) {
           parts.push({
@@ -85,17 +87,29 @@ export async function submitClaudeChat(
           });
         }
         if (parts.length === 0) {
+          if (m.content === '') continue;
           parts.push({ text: '' });
         }
-        return {
-          role: m.role === 'assistant' ? 'model' : 'user',
-          parts
-        };
-      });
+
+        if (geminiContents.length > 0 && geminiContents[geminiContents.length - 1].role === role) {
+          geminiContents[geminiContents.length - 1].parts.push(...parts);
+        } else {
+          geminiContents.push({ role, parts });
+        }
+      }
+
+      // Gemini requires first turn to be 'user'
+      while (geminiContents.length > 0 && geminiContents[0].role === 'model') {
+        geminiContents.shift();
+      }
+
+      if (geminiContents.length === 0) {
+        geminiContents.push({ role: 'user', parts: [{ text: 'Hello' }] });
+      }
 
       const candidateModels = highThinking
-        ? ['gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.7-flash']
-        : ['gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-3.7-flash'];
+        ? ['gemini-2.5-flash', 'gemini-3.7-flash', 'gemini-2.5-pro']
+        : ['gemini-2.5-flash', 'gemini-3.7-flash', 'gemini-2.5-pro'];
 
       let lastErr: any = null;
       for (const targetModel of candidateModels) {
