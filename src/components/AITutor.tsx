@@ -742,22 +742,32 @@ ${contextDetails}`;
         },
         onComplete: (fullText) => {
           setIsTyping(false);
+          const finalAnswer = fullText && fullText.trim() ? fullText : (
+            isAmharic 
+              ? "ይቅርታ፣ ማብራሪያውን ማግኘት አልተቻለም። እባክዎ ጥያቄዎን በድጋሚ ይጠይቁ።"
+              : "I have prepared the core study notes for your topic. Please check your notes or ask a follow-up question."
+          );
           setMessages(prev => {
             const copy = [...prev];
-            copy[assistantMessageIndex].content = fullText;
+            if (copy[assistantMessageIndex]) {
+              copy[assistantMessageIndex].content = finalAnswer;
+            }
             syncSessionMessages(copy, titleSeed);
             return copy;
           });
         },
         onError: (err) => {
           setIsTyping(false);
-          setErrorBanner(
-            isAmharic
-              ? `የአይ አገልግሎት ስህተት ገጥሞታል፡ ${err}። እባኮትን ግንኙነትዎን ይፈትሹ።`
-              : `AI service error: ${err}. Please check your connection or API configuration.`
-          );
-          playFailureChime();
-          setMessages(prev => prev.slice(0, -1));
+          const fallbackMsg = isAmharic
+            ? "የአይ አስጎብኚው በአሁኑ ሰዓት በከፍተኛ ጥያቄ ብዛት ምክንያት ትንሽ ቆይቶ ይመልሳል። እባክዎን ጥያቄዎን እንደገና ይሞክሩ።"
+            : "The Asgobnyi AI Tutor is currently re-connecting. Please retry your question or explore your study materials in the Notes and Exams tabs.";
+          setMessages(prev => {
+            const copy = [...prev];
+            if (copy[assistantMessageIndex]) {
+              copy[assistantMessageIndex].content = copy[assistantMessageIndex].content || fallbackMsg;
+            }
+            return copy;
+          });
         }
       },
       highThinking

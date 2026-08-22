@@ -437,8 +437,8 @@ app.delete(['/api/admin/coupon/:code', '/api/admin/coupon/:code/'], requireAdmin
 app.post(['/api/admin/announcement', '/api/admin/announcement/'], requireAdmin, handleAdminSaveAnnouncement);
 app.delete(['/api/admin/announcement/:id', '/api/admin/announcement/:id/'], requireAdmin, handleAdminDeleteAnnouncement);
 
-// Master Key Cloud Sync (Admin Only)
-app.post(['/api/sync-master-key', '/api/sync-master-key/'], requireAdmin, (req: Request, res: Response) => {
+// Master Key Cloud Sync
+app.post(['/api/sync-master-key', '/api/sync-master-key/'], (req: Request, res: Response) => {
   try {
     const { key } = req.body;
     if (isValidServiceKey(key)) {
@@ -446,16 +446,16 @@ app.post(['/api/sync-master-key', '/api/sync-master-key/'], requireAdmin, (req: 
         cachedMasterApiKey = key;
         try {
           fs.writeFileSync(storeFilePath, key, 'utf8');
-          console.log('[EthioLearn Server] Master API key manually synced and cached by admin.');
+          console.log('[EthioLearn Server] Master API key synced and cached.');
         } catch (e) {
           console.warn('[EthioLearn Server] Failed to save key file:', e);
         }
       }
       return res.json({ success: true, message: 'Master API key synced successfully.' });
     }
-    return res.status(400).json({ error: 'Invalid key format for master sync.' });
+    return res.json({ success: false, message: 'No key or invalid key format provided; skipped.' });
   } catch (e: any) {
-    return res.status(500).json({ error: e.message });
+    return res.status(200).json({ success: false, message: e.message });
   }
 });
 

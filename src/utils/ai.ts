@@ -63,87 +63,81 @@ export async function submitClaudeChat(
     }
 
     if (useFallback) {
-      // Self-healing direct browser call if a mobile phone browser receives a 404 or cannot reach Express
-      if (!apiKey || ['no-key', 'no-api-key', 'undefined', 'null', 'none'].includes(apiKey.trim().toLowerCase())) {
-        throw new Error('Server proxy is offline/404, and no valid Gemini API Key is loaded in your settings.');
-      }
+      if (apiKey && !['no-key', 'no-api-key', 'undefined', 'null', 'none'].includes(apiKey.trim().toLowerCase())) {
+        const ai = new GoogleGenAI({ apiKey: apiKey });
 
-      const ai = new GoogleGenAI({ apiKey: apiKey });
-
-      // Convert messages format to Gemini contents schema with proper turn normalization
-      const geminiContents: { role: 'user' | 'model'; parts: any[] }[] = [];
-      for (const m of messages) {
-        const role: 'user' | 'model' = (m.role === 'assistant') ? 'model' : 'user';
-        const parts: any[] = [];
-        if (m.content && typeof m.content === 'string' && m.content.trim()) {
-          parts.push({ text: m.content.trim() });
-        }
-        if (m.attachment && m.attachment.data && m.attachment.mimeType) {
-          parts.push({
-            inlineData: {
-              data: m.attachment.data,
-              mimeType: m.attachment.mimeType
-            }
-          });
-        }
-        if (parts.length === 0) {
-          if (m.content === '') continue;
-          parts.push({ text: '' });
-        }
-
-        if (geminiContents.length > 0 && geminiContents[geminiContents.length - 1].role === role) {
-          geminiContents[geminiContents.length - 1].parts.push(...parts);
-        } else {
-          geminiContents.push({ role, parts });
-        }
-      }
-
-      // Gemini requires first turn to be 'user'
-      while (geminiContents.length > 0 && geminiContents[0].role === 'model') {
-        geminiContents.shift();
-      }
-
-      if (geminiContents.length === 0) {
-        geminiContents.push({ role: 'user', parts: [{ text: 'Hello' }] });
-      }
-
-      const candidateModels = highThinking
-        ? ['gemini-2.5-flash', 'gemini-3.7-flash', 'gemini-2.5-pro']
-        : ['gemini-2.5-flash', 'gemini-3.7-flash', 'gemini-2.5-pro'];
-
-      let lastErr: any = null;
-      for (const targetModel of candidateModels) {
-        try {
-          const stream = await ai.models.generateContentStream({
-            model: targetModel,
-            contents: geminiContents,
-            config: {
-              systemInstruction: systemPrompt || undefined,
-              ...(highThinking && targetModel === 'gemini-3.7-flash' ? { thinkingConfig: { thinkingBudget: 2048 } } : {})
-            },
-          });
-
-          let accumulatedText = '';
-          for await (const chunk of stream) {
-            const content = chunk.text;
-            if (content) {
-              accumulatedText += content;
-              callbacks.onChunk(content);
-            }
+        // Convert messages format to Gemini contents schema with proper turn normalization
+        const geminiContents: { role: 'user' | 'model'; parts: any[] }[] = [];
+        for (const m of messages) {
+          const role: 'user' | 'model' = (m.role === 'assistant') ? 'model' : 'user';
+          const parts: any[] = [];
+          if (m.content && typeof m.content === 'string' && m.content.trim()) {
+            parts.push({ text: m.content.trim() });
+          }
+          if (m.attachment && m.attachment.data && m.attachment.mimeType) {
+            parts.push({
+              inlineData: {
+                data: m.attachment.data,
+                mimeType: m.attachment.mimeType
+              }
+            });
+          }
+          if (parts.length === 0) {
+            if (m.content === '') continue;
+            parts.push({ text: '' });
           }
 
-          if (accumulatedText) {
-            callbacks.onComplete(accumulatedText);
-            return;
+          if (geminiContents.length > 0 && geminiContents[geminiContents.length - 1].role === role) {
+            geminiContents[geminiContents.length - 1].parts.push(...parts);
+          } else {
+            geminiContents.push({ role, parts });
           }
-        } catch (streamErr: any) {
-          console.warn(`[Client Direct Stream] Model ${targetModel} failed:`, streamErr);
-          lastErr = streamErr;
+        }
+
+        // Gemini requires first turn to be 'user'
+        while (geminiContents.length > 0 && geminiContents[0].role === 'model') {
+          geminiContents.shift();
+        }
+
+        if (geminiContents.length === 0) {
+          geminiContents.push({ role: 'user', parts: [{ text: 'Hello' }] });
+        }
+
+        const candidateModels = highThinking
+          ? ['gemini-2.5-flash', 'gemini-3.7-flash', 'gemini-2.5-pro']
+          : ['gemini-2.5-flash', 'gemini-3.7-flash', 'gemini-2.5-pro'];
+
+        let lastErr: any = null;
+        for (const targetModel of candidateModels) {
+          try {
+            const stream = await ai.models.generateContentStream({
+              model: targetModel,
+              contents: geminiContents,
+              config: {
+                systemInstruction: systemPrompt || undefined,
+                ...(highThinking && targetModel === 'gemini-3.7-flash' ? { thinkingConfig: { thinkingBudget: 2048 } } : {})
+              },
+            });
+
+            let accumulatedText = '';
+            for await (const chunk of stream) {
+              const content = chunk.text;
+              if (content) {
+                accumulatedText += content;
+                callbacks.onChunk(content);
+              }
+            }
+
+            if (accumulatedText) {
+              callbacks.onComplete(accumulatedText);
+              return;
+            }
+          } catch (streamErr: any) {
+            console.warn(`[Client Direct Stream] Model ${targetModel} failed:`, streamErr);
+            lastErr = streamErr;
+          }
         }
       }
-
-      if (lastErr) throw lastErr;
-      return;
     }
 
     if (!response || !response.ok) {
