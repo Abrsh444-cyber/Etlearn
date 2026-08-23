@@ -786,7 +786,7 @@ Format nicely so it is very clean, accessible, and matches an EdTech application
         },
         onError: (err) => {
           setAiLoading(false);
-          setAiResponse(`Failed to call AI model helper: ${err.message || err}`);
+          setAiResponse(`Failed to call AI model helper: ${err}`);
           playFailureChime();
         }
       });
@@ -853,7 +853,7 @@ No other text. No conversational prefix. No markdown \`\`\`json wrappers.`;
         },
         onError: (err) => {
           setAiLoading(false);
-          setAiResponse(`Failed to compile exam: ${err.message || err}`);
+          setAiResponse(`Failed to compile exam: ${err}`);
           playFailureChime();
         }
       });

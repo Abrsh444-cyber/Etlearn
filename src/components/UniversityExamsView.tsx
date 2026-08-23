@@ -962,7 +962,7 @@ Provide a variety of questions within the scope of this curriculum. If the subje
         },
         onError: (err) => {
           setHintLoadingMap(prev => ({ ...prev, [qIdx]: false }));
-          setHintTextMap(prev => ({ ...prev, [qIdx]: `Could not get hint: ${err.message || err}` }));
+          setHintTextMap(prev => ({ ...prev, [qIdx]: `Could not get hint: ${err}` }));
           playFailureChime();
         }
       });
@@ -1256,7 +1256,7 @@ Guide me on how to approach this. Give me the primary formula but let me do the 
         },
         onError: (err) => {
           setAiLoading(false);
-          setAiResult(`Failed to communicate with AI solver: ${err.message || err}`);
+          setAiResult(`Failed to communicate with AI solver: ${err}`);
           playFailureChime();
         }
       });

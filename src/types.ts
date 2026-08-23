@@ -276,12 +276,12 @@ export interface SavedChatSession {
     role: 'user' | 'assistant';
     content: string;
     attachment?: {
-      name: string;
+      name?: string;
       mimeType: string;
       data: string;
     };
     fileData?: {
-      name: string;
+      name?: string;
       mimeType: string;
       data: string;
     };
